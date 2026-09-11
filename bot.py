@@ -247,9 +247,10 @@ async def api_get(path: str, params=None):
 def get_match_sport(match):
     sport = (match or {}).get("sport")
     if isinstance(sport, str):
-        return sport
+        return sport.lower()
     if isinstance(sport, dict):
-        return sport.get("name") or sport.get("slug")
+        value = sport.get("name") or sport.get("slug")
+        return value.lower() if isinstance(value, str) else value
     return None
 
 
@@ -473,7 +474,8 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                     sport,
                 )
                 all_matches = await api_get("/v2/livescores")
-                matches = [m for m in all_matches if get_match_sport(m) == sport]
+                sport_lower = sport.lower() if isinstance(sport, str) else sport
+                matches = [m for m in all_matches if get_match_sport(m) == sport_lower]
             return format_live(matches, f"{icon} <b>{sport.title()} Live</b>")
         await safe_api_message(query, load_sport(), back_keyboard([
             [InlineKeyboardButton("🔄 Refresh", callback_data=action)],

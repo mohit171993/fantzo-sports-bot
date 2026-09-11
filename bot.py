@@ -1,3 +1,4 @@
+import asyncio
 import os
 import sqlite3
 import logging
@@ -210,15 +211,46 @@ def subscription_keyboard(current: bool) -> InlineKeyboardMarkup:
     ])
 
 
-async def api_get(path: str, params=None):
-    if not SPORTS_API_KEY:
-        raise RuntimeError("SPORTS_API_KEY is not configured")
+TRANSIENT_STATUS_CODES = (502, 503, 504)
+
+
+async def _api_get_once(path: str, params=None):
     headers = {"Authorization": f"Bearer {SPORTS_API_KEY}"}
     async with httpx.AsyncClient(timeout=12.0) as client:
         response = await client.get(f"{SPORTS_API_BASE}{path}", headers=headers, params=params)
         response.raise_for_status()
         payload = response.json()
         return payload.get("data", payload)
+
+
+async def api_get(path: str, params=None):
+    if not SPORTS_API_KEY:
+        raise RuntimeError("SPORTS_API_KEY is not configured")
+    try:
+        return await _api_get_once(path, params)
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code in TRANSIENT_STATUS_CODES:
+            logger.info(
+                "Transient HTTP %s from %s, retrying once after backoff",
+                exc.response.status_code,
+                path,
+            )
+            await asyncio.sleep(1)
+            return await _api_get_once(path, params)
+        raise
+    except httpx.ReadTimeout:
+        logger.info("Read timeout from %s, retrying once after backoff", path)
+        await asyncio.sleep(1)
+        return await _api_get_once(path, params)
+
+
+def get_match_sport(match):
+    sport = (match or {}).get("sport")
+    if isinstance(sport, str):
+        return sport
+    if isinstance(sport, dict):
+        return sport.get("name") or sport.get("slug")
+    return None
 
 
 def score_value(score):
@@ -426,7 +458,22 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         sport = action
         icon = "🏏" if sport == "cricket" else "⚽"
         async def load_sport():
-            matches = await api_get("/v2/livescores", {"sport": sport})
+            try:
+                matches = await api_get("/v2/livescores", {"sport": sport})
+            except (httpx.HTTPStatusError, httpx.ReadTimeout) as exc:
+                is_transient_status = (
+                    isinstance(exc, httpx.HTTPStatusError)
+                    and exc.response.status_code in TRANSIENT_STATUS_CODES
+                )
+                is_timeout = isinstance(exc, httpx.ReadTimeout)
+                if not (is_transient_status or is_timeout):
+                    raise
+                logger.info(
+                    "Filtered livescores call failed for sport=%s, falling back to unfiltered livescores",
+                    sport,
+                )
+                all_matches = await api_get("/v2/livescores")
+                matches = [m for m in all_matches if get_match_sport(m) == sport]
             return format_live(matches, f"{icon} <b>{sport.title()} Live</b>")
         await safe_api_message(query, load_sport(), back_keyboard([
             [InlineKeyboardButton("🔄 Refresh", callback_data=action)],

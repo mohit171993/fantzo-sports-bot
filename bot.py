@@ -2,7 +2,9 @@ import os
 import sqlite3
 import logging
 from datetime import datetime, timezone
+from html import escape
 
+import httpx
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
     Application,
@@ -18,7 +20,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+SPORTS_API_KEY = os.getenv("SPORTS_API_KEY")
 ADMIN_USER_ID = int(os.getenv("ADMIN_USER_ID", "8992664481"))
+SPORTS_API_BASE = "https://api.sportsapi.app"
 
 FANTZO_HOME = "https://fantzo.com"
 FANTZO_LIVE = "https://fantzo.com/en/live"
@@ -35,17 +39,11 @@ TEXT = {
             "Fast updates for cricket, football and more.\n\n"
             "Choose what you want below 👇"
         ),
-        "live": "🔴 <b>Live Now</b>\n\nLive score integration is being connected. Use the Fantzo Live button meanwhile.",
-        "cricket": "🏏 <b>Cricket</b>\n\nLive scores, fixtures, results and match alerts will appear here.",
-        "football": "⚽ <b>Football</b>\n\nLive scores, fixtures, results and match alerts will appear here.",
-        "upcoming": "🗓 <b>Upcoming Matches</b>\n\nUpcoming fixtures will appear here.",
-        "results": "✅ <b>Latest Results</b>\n\nCompleted match results will appear here.",
-        "news": "📰 <b>Sports News</b>\n\nBreaking sports headlines and quick summaries will appear here.",
-        "sub_on": "🔔 <b>Updates ON</b>\n\nYou are subscribed to Fantzo sports alerts.",
-        "sub_off": "🔕 <b>Updates OFF</b>\n\nYou will no longer receive Fantzo sports alerts.",
         "settings": "⚙️ <b>Settings</b>\n\nChoose your language and notification preferences.",
         "explore": "🌐 <b>Explore Fantzo</b>\n\nOpen any Fantzo destination below.",
         "lang_saved": "✅ Language changed to English.",
+        "sub_on": "🔔 <b>Updates ON</b>\n\nYou are subscribed to Fantzo sports alerts.",
+        "sub_off": "🔕 <b>Updates OFF</b>\n\nYou will no longer receive Fantzo sports alerts.",
     },
     "hi": {
         "welcome": (
@@ -54,17 +52,11 @@ TEXT = {
             "क्रिकेट, फुटबॉल और अन्य खेलों के तेज़ अपडेट।\n\n"
             "नीचे अपना विकल्प चुनें 👇"
         ),
-        "live": "🔴 <b>Live Now</b>\n\nलाइव स्कोर इंटीग्रेशन जोड़ा जा रहा है। अभी Fantzo Live बटन इस्तेमाल करें।",
-        "cricket": "🏏 <b>Cricket</b>\n\nलाइव स्कोर, फिक्स्चर, रिज़ल्ट और मैच अलर्ट यहाँ दिखेंगे।",
-        "football": "⚽ <b>Football</b>\n\nलाइव स्कोर, फिक्स्चर, रिज़ल्ट और मैच अलर्ट यहाँ दिखेंगे।",
-        "upcoming": "🗓 <b>Upcoming Matches</b>\n\nआने वाले मैच यहाँ दिखेंगे।",
-        "results": "✅ <b>Latest Results</b>\n\nपूरे हुए मैचों के नतीजे यहाँ दिखेंगे।",
-        "news": "📰 <b>Sports News</b>\n\nब्रेकिंग स्पोर्ट्स न्यूज़ और छोटे अपडेट यहाँ दिखेंगे।",
-        "sub_on": "🔔 <b>Updates ON</b>\n\nआप Fantzo sports alerts के लिए subscribe हैं।",
-        "sub_off": "🔕 <b>Updates OFF</b>\n\nआपको Fantzo sports alerts नहीं मिलेंगे।",
         "settings": "⚙️ <b>Settings</b>\n\nभाषा और notification preferences चुनें।",
         "explore": "🌐 <b>Explore Fantzo</b>\n\nनीचे से Fantzo destination खोलें।",
         "lang_saved": "✅ भाषा हिंदी कर दी गई है।",
+        "sub_on": "🔔 <b>Updates ON</b>\n\nआप Fantzo sports alerts के लिए subscribe हैं।",
+        "sub_off": "🔕 <b>Updates OFF</b>\n\nआपको Fantzo sports alerts नहीं मिलेंगे।",
     },
 }
 
@@ -161,65 +153,144 @@ def set_language(user_id: int, lang: str):
 
 
 def main_keyboard() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
+    return InlineKeyboardMarkup([
         [
-            [
-                InlineKeyboardButton("🔴 Live Now", callback_data="live_now"),
-                InlineKeyboardButton("🏏 Cricket", callback_data="cricket"),
-            ],
-            [
-                InlineKeyboardButton("⚽ Football", callback_data="football"),
-                InlineKeyboardButton("📰 Sports News", callback_data="news"),
-            ],
-            [
-                InlineKeyboardButton("🗓 Upcoming", callback_data="upcoming"),
-                InlineKeyboardButton("✅ Results", callback_data="results"),
-            ],
-            [
-                InlineKeyboardButton("🔔 Subscribe", callback_data="subscribe"),
-                InlineKeyboardButton("⚙️ Settings", callback_data="settings"),
-            ],
-            [
-                InlineKeyboardButton("🌐 Explore Fantzo", callback_data="explore"),
-            ],
-        ]
-    )
+            InlineKeyboardButton("🔴 Live Now", callback_data="live_now"),
+            InlineKeyboardButton("🏏 Cricket", callback_data="cricket"),
+        ],
+        [
+            InlineKeyboardButton("⚽ Football", callback_data="football"),
+            InlineKeyboardButton("🔎 Find Team", callback_data="find_team"),
+        ],
+        [
+            InlineKeyboardButton("🗓 Upcoming", callback_data="upcoming"),
+            InlineKeyboardButton("✅ Results", callback_data="results"),
+        ],
+        [
+            InlineKeyboardButton("🔔 Subscribe", callback_data="subscribe"),
+            InlineKeyboardButton("⚙️ Settings", callback_data="settings"),
+        ],
+        [InlineKeyboardButton("🌐 Explore Fantzo", callback_data="explore")],
+    ])
+
+
+def back_keyboard(extra=None) -> InlineKeyboardMarkup:
+    rows = extra or []
+    rows.append([InlineKeyboardButton("⬅️ Back", callback_data="back")])
+    return InlineKeyboardMarkup(rows)
 
 
 def explore_keyboard() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🌐 Fantzo Home", url=FANTZO_HOME)],
         [
-            [InlineKeyboardButton("🌐 Fantzo Home", url=FANTZO_HOME)],
-            [
-                InlineKeyboardButton("🔴 Live", url=FANTZO_LIVE),
-                InlineKeyboardButton("📝 Register", url=FANTZO_REGISTER),
-            ],
-            [InlineKeyboardButton("🎰 Slots", url=FANTZO_SLOTS)],
-            [InlineKeyboardButton("⬅️ Back", callback_data="back")],
-        ]
-    )
+            InlineKeyboardButton("🔴 Live", url=FANTZO_LIVE),
+            InlineKeyboardButton("📝 Register", url=FANTZO_REGISTER),
+        ],
+        [InlineKeyboardButton("🎰 Slots", url=FANTZO_SLOTS)],
+        [InlineKeyboardButton("⬅️ Back", callback_data="back")],
+    ])
 
 
 def settings_keyboard() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
+    return InlineKeyboardMarkup([
         [
-            [
-                InlineKeyboardButton("🇬🇧 English", callback_data="lang_en"),
-                InlineKeyboardButton("🇮🇳 हिंदी", callback_data="lang_hi"),
-            ],
-            [InlineKeyboardButton("⬅️ Back", callback_data="back")],
-        ]
-    )
+            InlineKeyboardButton("🇬🇧 English", callback_data="lang_en"),
+            InlineKeyboardButton("🇮🇳 हिंदी", callback_data="lang_hi"),
+        ],
+        [InlineKeyboardButton("⬅️ Back", callback_data="back")],
+    ])
 
 
 def subscription_keyboard(current: bool) -> InlineKeyboardMarkup:
     label = "🔕 Turn OFF" if current else "🔔 Turn ON"
-    return InlineKeyboardMarkup(
-        [
-            [InlineKeyboardButton(label, callback_data="toggle_sub")],
-            [InlineKeyboardButton("⬅️ Back", callback_data="back")],
-        ]
-    )
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(label, callback_data="toggle_sub")],
+        [InlineKeyboardButton("⬅️ Back", callback_data="back")],
+    ])
+
+
+async def api_get(path: str, params=None):
+    if not SPORTS_API_KEY:
+        raise RuntimeError("SPORTS_API_KEY is not configured")
+    headers = {"Authorization": f"Bearer {SPORTS_API_KEY}"}
+    async with httpx.AsyncClient(timeout=12.0) as client:
+        response = await client.get(f"{SPORTS_API_BASE}{path}", headers=headers, params=params)
+        response.raise_for_status()
+        payload = response.json()
+        return payload.get("data", payload)
+
+
+def score_value(score):
+    if isinstance(score, dict):
+        value = score.get("current")
+        return "-" if value is None else str(value)
+    return "-" if score is None else str(score)
+
+
+def fixture_line(match):
+    home = escape(str((match.get("home") or {}).get("name") or "Home"))
+    away = escape(str((match.get("away") or {}).get("name") or "Away"))
+    hs = score_value(match.get("homeScore"))
+    aws = score_value(match.get("awayScore"))
+    league = (match.get("league") or {}).get("name")
+    status = match.get("status") or {}
+    status_text = status.get("description") or status.get("type") or "live"
+    extra = f"\n<small>{escape(str(league))}</small>" if league else ""
+    return f"<b>{home} {hs} – {aws} {away}</b>\n{escape(str(status_text))}{extra}"
+
+
+def format_live(matches, title):
+    if not matches:
+        return f"{title}\n\nNo live matches right now."
+    lines = [title, ""]
+    for match in matches[:12]:
+        lines.append(fixture_line(match))
+        lines.append("")
+    if len(matches) > 12:
+        lines.append(f"+ {len(matches) - 12} more live matches")
+    return "\n".join(lines).strip()
+
+
+def format_fixture_list(fixtures, title):
+    if not fixtures:
+        return f"{title}\n\nNo matches found."
+    lines = [title, ""]
+    for match in fixtures[:10]:
+        home = escape(str((match.get("home") or {}).get("name") or "Home"))
+        away = escape(str((match.get("away") or {}).get("name") or "Away"))
+        start = match.get("startTime") or ""
+        try:
+            dt = datetime.fromisoformat(start.replace("Z", "+00:00"))
+            start = dt.strftime("%d %b %Y, %H:%M UTC")
+        except Exception:
+            pass
+        hs = score_value(match.get("homeScore"))
+        aws = score_value(match.get("awayScore"))
+        lines.append(f"<b>{home} {hs} – {aws} {away}</b>")
+        if start:
+            lines.append(escape(str(start)))
+        lines.append("")
+    return "\n".join(lines).strip()
+
+
+async def safe_api_message(query, coro, keyboard=None):
+    try:
+        text = await coro
+    except RuntimeError:
+        text = "⚠️ Sports API key is not configured yet."
+    except httpx.HTTPStatusError as exc:
+        code = exc.response.status_code
+        if code == 401:
+            text = "⚠️ Sports API authentication failed. Please check the API key."
+        elif code == 429:
+            text = "⏳ Sports API request limit reached. Please try again later."
+        else:
+            text = f"⚠️ Sports data provider returned HTTP {code}."
+    except Exception as exc:
+        logger.exception("Sports API error: %s", exc)
+        text = "⚠️ Sports data is temporarily unavailable. Please try again shortly."
+    await query.edit_message_text(text, parse_mode="HTML", reply_markup=keyboard or back_keyboard())
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -236,10 +307,53 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     touch_user(update)
     await update.effective_message.reply_text(
-        "Use /start to open Fantzo Sports Updates.\n"
-        "Use /admin for the admin dashboard if you are the owner.",
+        "Use /start for the main menu.\n"
+        "Use /team TEAMNAME to find a team and view upcoming/recent matches.\n"
+        "Use /sports to check the data provider's supported sports.",
         reply_markup=main_keyboard(),
     )
+
+
+async def sports_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    touch_user(update)
+    try:
+        sports = await api_get("/v2/sports")
+        rows = []
+        for sport in sports[:20]:
+            name = sport.get("name") or sport.get("slug") or "sport"
+            live = sport.get("live", 0)
+            rows.append(f"• {escape(str(name)).title()}: {live} live")
+        text = "🏟 <b>Sports coverage</b>\n\n" + "\n".join(rows)
+    except Exception:
+        text = "⚠️ Could not load sports coverage right now."
+    await update.effective_message.reply_text(text, parse_mode="HTML", reply_markup=main_keyboard())
+
+
+async def team_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    touch_user(update)
+    q = " ".join(context.args).strip()
+    if not q:
+        await update.effective_message.reply_text("Usage: /team India\nExample: /team Arsenal")
+        return
+    try:
+        results = await api_get("/v2/search", {"q": q})
+        teams = [r for r in results if r.get("type") == "team"][:5]
+        if not teams:
+            await update.effective_message.reply_text("No team found. Try another spelling.")
+            return
+        rows = []
+        for team in teams:
+            tid = team.get("id")
+            name = str(team.get("name") or "Team")[:40]
+            rows.append([InlineKeyboardButton(f"🏟 {name}", callback_data=f"team:{tid}")])
+        await update.effective_message.reply_text(
+            f"🔎 <b>Team search:</b> {escape(q)}",
+            parse_mode="HTML",
+            reply_markup=back_keyboard(rows),
+        )
+    except Exception as exc:
+        logger.exception("Team search failed: %s", exc)
+        await update.effective_message.reply_text("⚠️ Team search is temporarily unavailable.")
 
 
 async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -247,29 +361,21 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_user.id != ADMIN_USER_ID:
         await update.effective_message.reply_text("This command is restricted.")
         return
-
     with db() as conn:
         total = conn.execute("SELECT COUNT(*) c FROM users").fetchone()["c"]
-        subs = conn.execute(
-            "SELECT COUNT(*) c FROM users WHERE subscribed = 1"
-        ).fetchone()["c"]
+        subs = conn.execute("SELECT COUNT(*) c FROM users WHERE subscribed = 1").fetchone()["c"]
         clicks = conn.execute("SELECT COUNT(*) c FROM clicks").fetchone()["c"]
         top = conn.execute(
-            """
-            SELECT action, COUNT(*) c
-            FROM clicks
-            GROUP BY action
-            ORDER BY c DESC
-            LIMIT 5
-            """
+            "SELECT action, COUNT(*) c FROM clicks GROUP BY action ORDER BY c DESC LIMIT 5"
         ).fetchall()
-
-    top_text = "\n".join(f"• {r['action']}: {r['c']}" for r in top) or "No activity yet."
+    top_text = "\n".join(f"• {escape(r['action'])}: {r['c']}" for r in top) or "No activity yet."
+    api_state = "✅ configured" if SPORTS_API_KEY else "❌ missing"
     await update.effective_message.reply_text(
         "🛠 <b>Fantzo Admin</b>\n\n"
         f"👥 Users: <b>{total}</b>\n"
         f"🔔 Subscribers: <b>{subs}</b>\n"
-        f"📊 Button actions: <b>{clicks}</b>\n\n"
+        f"📊 Button actions: <b>{clicks}</b>\n"
+        f"🏟 Sports API: <b>{api_state}</b>\n\n"
         f"<b>Top actions</b>\n{top_text}\n\n"
         "Broadcast: <code>/broadcast your message</code>",
         parse_mode="HTML",
@@ -280,77 +386,117 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_user.id != ADMIN_USER_ID:
         await update.effective_message.reply_text("This command is restricted.")
         return
-
     message = " ".join(context.args).strip()
     if not message:
         await update.effective_message.reply_text("Usage: /broadcast your message")
         return
-
     with db() as conn:
-        users = conn.execute(
-            "SELECT user_id FROM users WHERE subscribed = 1"
-        ).fetchall()
-
-    sent = 0
-    failed = 0
+        users = conn.execute("SELECT user_id FROM users WHERE subscribed = 1").fetchall()
+    sent = failed = 0
     for row in users:
         try:
             await context.bot.send_message(chat_id=row["user_id"], text=message)
             sent += 1
         except Exception:
             failed += 1
-
-    await update.effective_message.reply_text(
-        f"Broadcast complete.\nSent: {sent}\nFailed: {failed}"
-    )
+    await update.effective_message.reply_text(f"Broadcast complete.\nSent: {sent}\nFailed: {failed}")
 
 
 async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
     touch_user(update)
-
     user_id = update.effective_user.id
     action = query.data
     track(user_id, action)
     lang = get_user_lang(user_id)
 
     if action == "back":
+        await query.edit_message_text(TEXT[lang]["welcome"], parse_mode="HTML", reply_markup=main_keyboard())
+        return
+
+    if action == "live_now":
+        async def load_all():
+            matches = await api_get("/v2/livescores")
+            return format_live(matches, "🔴 <b>Live Now</b>")
+        await safe_api_message(query, load_all())
+        return
+
+    if action in ("cricket", "football"):
+        sport = action
+        icon = "🏏" if sport == "cricket" else "⚽"
+        async def load_sport():
+            matches = await api_get("/v2/livescores", {"sport": sport})
+            return format_live(matches, f"{icon} <b>{sport.title()} Live</b>")
+        await safe_api_message(query, load_sport(), back_keyboard([
+            [InlineKeyboardButton("🔄 Refresh", callback_data=action)],
+            [InlineKeyboardButton("🔎 Find Team", callback_data="find_team")],
+        ]))
+        return
+
+    if action == "find_team":
         await query.edit_message_text(
-            TEXT[lang]["welcome"],
+            "🔎 <b>Find a team</b>\n\nSend a command like:\n<code>/team India</code>\n<code>/team Arsenal</code>\n\nThen choose the team to see upcoming or recent matches.",
             parse_mode="HTML",
-            reply_markup=main_keyboard(),
-            disable_web_page_preview=True,
+            reply_markup=back_keyboard(),
         )
+        return
+
+    if action in ("upcoming", "results"):
+        word = "upcoming" if action == "upcoming" else "recent"
+        await query.edit_message_text(
+            f"🗓 <b>{'Upcoming Matches' if action == 'upcoming' else 'Latest Results'}</b>\n\n"
+            f"Use <code>/team TEAMNAME</code>, choose a team, then tap <b>{word.title()}</b>.\n\n"
+            "Example: <code>/team India</code>",
+            parse_mode="HTML",
+            reply_markup=back_keyboard(),
+        )
+        return
+
+    if action.startswith("team:"):
+        team_id = action.split(":", 1)[1]
+        try:
+            team = await api_get(f"/v2/teams/{team_id}")
+            name = escape(str(team.get("name") or "Team"))
+        except Exception:
+            name = "Team"
+        await query.edit_message_text(
+            f"🏟 <b>{name}</b>\n\nChoose match history:",
+            parse_mode="HTML",
+            reply_markup=back_keyboard([
+                [
+                    InlineKeyboardButton("🗓 Upcoming", callback_data=f"team_up:{team_id}"),
+                    InlineKeyboardButton("✅ Recent", callback_data=f"team_recent:{team_id}"),
+                ]
+            ]),
+        )
+        return
+
+    if action.startswith("team_up:") or action.startswith("team_recent:"):
+        recent = action.startswith("team_recent:")
+        team_id = action.split(":", 1)[1]
+        kind = "recent" if recent else "upcoming"
+        async def load_team_fixtures():
+            fixtures = await api_get(f"/v2/teams/{team_id}/fixtures", {"type": kind, "page": 0})
+            title = "✅ <b>Recent Matches</b>" if recent else "🗓 <b>Upcoming Matches</b>"
+            return format_fixture_list(fixtures, title)
+        await safe_api_message(query, load_team_fixtures(), back_keyboard([
+            [InlineKeyboardButton("🔄 Refresh", callback_data=action)]
+        ]))
         return
 
     if action == "explore":
-        await query.edit_message_text(
-            TEXT[lang]["explore"],
-            parse_mode="HTML",
-            reply_markup=explore_keyboard(),
-            disable_web_page_preview=True,
-        )
+        await query.edit_message_text(TEXT[lang]["explore"], parse_mode="HTML", reply_markup=explore_keyboard(), disable_web_page_preview=True)
         return
 
     if action == "settings":
-        await query.edit_message_text(
-            TEXT[lang]["settings"],
-            parse_mode="HTML",
-            reply_markup=settings_keyboard(),
-        )
+        await query.edit_message_text(TEXT[lang]["settings"], parse_mode="HTML", reply_markup=settings_keyboard())
         return
 
     if action in ("lang_en", "lang_hi"):
         new_lang = "en" if action == "lang_en" else "hi"
         set_language(user_id, new_lang)
-        await query.edit_message_text(
-            TEXT[new_lang]["lang_saved"],
-            parse_mode="HTML",
-            reply_markup=InlineKeyboardMarkup(
-                [[InlineKeyboardButton("⬅️ Back", callback_data="back")]]
-            ),
-        )
+        await query.edit_message_text(TEXT[new_lang]["lang_saved"], parse_mode="HTML", reply_markup=back_keyboard())
         return
 
     if action == "subscribe":
@@ -372,50 +518,21 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         )
         return
 
-    key_map = {
-        "live_now": "live",
-        "cricket": "cricket",
-        "football": "football",
-        "upcoming": "upcoming",
-        "results": "results",
-        "news": "news",
-    }
-    text_key = key_map.get(action)
-    if text_key:
-        extra_buttons = [[InlineKeyboardButton("⬅️ Back", callback_data="back")]]
-        if action == "live_now":
-            extra_buttons.insert(
-                0,
-                [InlineKeyboardButton("🔴 Open Fantzo Live", url=FANTZO_LIVE)],
-            )
-        await query.edit_message_text(
-            TEXT[lang][text_key],
-            parse_mode="HTML",
-            reply_markup=InlineKeyboardMarkup(extra_buttons),
-            disable_web_page_preview=True,
-        )
-        return
-
-    await query.edit_message_text(
-        TEXT[lang]["welcome"],
-        parse_mode="HTML",
-        reply_markup=main_keyboard(),
-    )
+    await query.edit_message_text("Fantzo Sports Updates", reply_markup=back_keyboard())
 
 
 def run() -> None:
     if not BOT_TOKEN:
         raise RuntimeError("BOT_TOKEN environment variable is required")
-
     init_db()
-
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("sports", sports_command))
+    app.add_handler(CommandHandler("team", team_command))
     app.add_handler(CommandHandler("admin", admin))
     app.add_handler(CommandHandler("broadcast", broadcast))
     app.add_handler(CallbackQueryHandler(callback_router))
-
     logger.info("Starting Fantzo Sports Updates bot")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 

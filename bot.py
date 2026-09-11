@@ -474,6 +474,18 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                     sport,
                 )
                 all_matches = await api_get("/v2/livescores")
+                logger.info("Unfiltered livescores returned %d items", len(all_matches))
+                for item in all_matches[:5]:
+                    if isinstance(item, dict):
+                        keys = sorted(item.keys())
+                    else:
+                        keys = None
+                    raw_sport = item.get("sport") if isinstance(item, dict) else None
+                    sport_repr = repr(raw_sport)[:200]
+                    logger.info("Match item keys=%s sport_field=%s", keys, sport_repr)
+                normalized_sports = [get_match_sport(m) for m in all_matches[:20]]
+                unique_normalized = {repr(v) for v in normalized_sports}
+                logger.info("Normalized sport values (first 20 items): %s", unique_normalized)
                 sport_lower = sport.lower() if isinstance(sport, str) else sport
                 matches = [m for m in all_matches if get_match_sport(m) == sport_lower]
             return format_live(matches, f"{icon} <b>{sport.title()} Live</b>")

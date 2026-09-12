@@ -21,9 +21,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-SPORTS_API_KEY = os.getenv("SPORTS_API_KEY")
+HIGHLIGHTLY_API_KEY = os.getenv("HIGHLIGHTLY_API_KEY")
 ADMIN_USER_ID = int(os.getenv("ADMIN_USER_ID", "8992664481"))
-SPORTS_API_BASE = "https://api.sportsapi.app"
+HIGHLIGHTLY_BASE = "https://sports.highlightly.net"
 
 FANTZO_HOME = "https://fantzo.com"
 FANTZO_LIVE = "https://fantzo.com/en/live"

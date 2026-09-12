@@ -1,6 +1,5 @@
 import logging
 import os
-from urllib.parse import urlencode
 
 from telegram import (
     BotCommand,
@@ -21,6 +20,7 @@ from telegram.ext import (
 )
 
 import bot as core
+import fantzo_analytics as analytics
 
 logger = logging.getLogger(__name__)
 
@@ -37,16 +37,7 @@ MINI_APP_URL = os.getenv("FANTZO_MINI_APP_URL", "https://www.fantzo.com").strip(
 
 
 def tracked_url(content: str) -> str:
-    separator = "&" if "?" in MINI_APP_URL else "?"
-    query = urlencode(
-        {
-            "utm_source": "telegram",
-            "utm_medium": "bot",
-            "utm_campaign": "fantzo_sports_hub",
-            "utm_content": content,
-        }
-    )
-    return f"{MINI_APP_URL}{separator}{query}"
+    return analytics.tracking_url(content)
 
 
 def mini_app_button(label: str, content: str) -> InlineKeyboardButton:
@@ -244,6 +235,7 @@ def run() -> None:
 
     core.init_db()
     ensure_settings_table()
+    analytics.ensure_tables()
     app = (
         Application.builder()
         .token(core.BOT_TOKEN)
@@ -256,6 +248,7 @@ def run() -> None:
     app.add_handler(CommandHandler("sports", core.sports_command))
     app.add_handler(CommandHandler("team", core.team_command))
     app.add_handler(CommandHandler("admin", core.admin))
+    app.add_handler(CommandHandler("stats", analytics.stats_command))
     app.add_handler(CommandHandler("broadcast", core.broadcast))
     app.add_handler(CommandHandler("setbanner", setbanner_command))
     app.add_handler(

@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 RESPONSIBLE_NOTE = "<i>🔞 18+ • Play responsibly • T&Cs apply</i>"
 SPORTS_BOT_URL = "https://t.me/fantzoofficialbot?start=dm"
+FANTZO_CHANNEL_URL = "https://t.me/fantzoupdates"
 # Business-account messages cannot contain web_app buttons. Use Telegram's
 # Main Mini App deep link instead; when a Main Mini App is configured in
 # BotFather this opens it directly inside Telegram.
@@ -90,6 +91,7 @@ def _welcome_buttons() -> InlineKeyboardMarkup:
         [
             [_fantzo_url_button("🔥 EXPLORE FANTZO")],
             [InlineKeyboardButton("🏏 LIVE SCORES & FIXTURES", url=SPORTS_BOT_URL)],
+            [InlineKeyboardButton("📢 SUBSCRIBE CHANNEL", url=FANTZO_CHANNEL_URL)],
         ]
     )
 
@@ -103,7 +105,8 @@ def classify_business_dm(text: str):
             "greeting",
             "👋 <b>Welcome to Fantzo</b>\n\n"
             "Follow the action, explore Fantzo, or simply message me what you need — I’ll point you in the right direction.\n\n"
-            "🏏 Live scores & fixtures are available through our sports bot.\n\n"
+            "🏏 Live scores & fixtures are available through our sports bot.\n"
+            "📢 Subscribe to Fantzo Updates for the latest posts and announcements.\n\n"
             f"{RESPONSIBLE_NOTE}",
             _welcome_buttons(),
         )
@@ -132,6 +135,7 @@ def classify_business_dm(text: str):
                 [
                     [_fantzo_url_button("🔥 EXPLORE FANTZO")],
                     [InlineKeyboardButton("🏏 LIVE SCORES & FIXTURES", url=SPORTS_BOT_URL)],
+                    [InlineKeyboardButton("📢 SUBSCRIBE CHANNEL", url=FANTZO_CHANNEL_URL)],
                 ]
             ),
         )

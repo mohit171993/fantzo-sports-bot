@@ -21,9 +21,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-SPORTS_API_KEY = os.getenv("SPORTS_API_KEY")
+SPORTS_API_KEY = os.getenv("HIGHLIGHTLY_API_KEY")
 ADMIN_USER_ID = int(os.getenv("ADMIN_USER_ID", "8992664481"))
-SPORTS_API_BASE = "https://api.sportsapi.app"
+SPORTS_API_BASE = "https://sports.highlightly.net"
 
 FANTZO_HOME = "https://fantzo.com"
 FANTZO_LIVE = "https://fantzo.com/en/live"
@@ -214,13 +214,17 @@ def subscription_keyboard(current: bool) -> InlineKeyboardMarkup:
 TRANSIENT_STATUS_CODES = (502, 503, 504)
 
 
+def today_str() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+
 async def _api_get_once(path: str, params=None):
-    headers = {"Authorization": f"Bearer {SPORTS_API_KEY}"}
+    headers = {"x-rapidapi-key": SPORTS_API_KEY}
     async with httpx.AsyncClient(timeout=12.0) as client:
         response = await client.get(f"{SPORTS_API_BASE}{path}", headers=headers, params=params)
         response.raise_for_status()
         payload = response.json()
-        return payload.get("data", payload)
+        return extract_match_array(payload) if isinstance(payload, (list, dict)) else payload
 
 
 async def api_get(path: str, params=None):
@@ -244,14 +248,39 @@ async def api_get(path: str, params=None):
         return await _api_get_once(path, params)
 
 
-def get_match_sport(match):
-    sport = (match or {}).get("sport")
-    if isinstance(sport, str):
-        return sport.lower()
-    if isinstance(sport, dict):
-        value = sport.get("name") or sport.get("slug")
-        return value.lower() if isinstance(value, str) else value
-    return None
+def extract_match_array(response):
+    """Robustly extract match/team array from Highlightly response envelopes."""
+    if isinstance(response, list):
+        return response
+    if isinstance(response, dict):
+        for key in ("data", "matches", "fixtures", "results", "teams"):
+            if isinstance(response.get(key), list):
+                return response[key]
+    return []
+
+
+def match_is_live(match):
+    """Check if a match is currently live based on Highlightly response state."""
+    if not isinstance(match, dict):
+        return False
+    state = str(match.get("state") or "").lower()
+    return state in ("live", "in_progress", "ongoing")
+
+
+def match_is_upcoming(match):
+    """Check if a match is scheduled but not started."""
+    if not isinstance(match, dict):
+        return False
+    state = str(match.get("state") or "").lower()
+    return state in ("scheduled", "not_started", "pending")
+
+
+def match_is_finished(match):
+    """Check if a match has concluded."""
+    if not isinstance(match, dict):
+        return False
+    state = str(match.get("state") or "").lower()
+    return state in ("completed", "finished", "result", "abandoned")
 
 
 def score_value(score):
@@ -261,16 +290,30 @@ def score_value(score):
     return "-" if score is None else str(score)
 
 
+STATE_TEXT = {
+    "live": "🔴 Live",
+    "in_progress": "🔴 Live",
+    "ongoing": "🔴 Live",
+    "scheduled": "🗓 Upcoming",
+    "not_started": "🗓 Upcoming",
+    "pending": "🗓 Upcoming",
+    "completed": "✅ Finished",
+    "finished": "✅ Finished",
+    "result": "✅ Result",
+    "abandoned": "⚠️ Abandoned",
+}
+
+
 def fixture_line(match):
-    home = escape(str((match.get("home") or {}).get("name") or "Home"))
-    away = escape(str((match.get("away") or {}).get("name") or "Away"))
+    home = escape(str((match.get("homeTeam") or {}).get("name") or "Home"))
+    away = escape(str((match.get("awayTeam") or {}).get("name") or "Away"))
     hs = score_value(match.get("homeScore"))
     aws = score_value(match.get("awayScore"))
     league = (match.get("league") or {}).get("name")
-    status = match.get("status") or {}
-    status_text = status.get("description") or status.get("type") or "live"
+    state = str(match.get("state") or "live").lower()
+    state_text = STATE_TEXT.get(state, state.title())
     extra = f"\n<small>{escape(str(league))}</small>" if league else ""
-    return f"<b>{home} {hs} – {aws} {away}</b>\n{escape(str(status_text))}{extra}"
+    return f"<b>{home} {hs} – {aws} {away}</b>\n{escape(state_text)}{extra}"
 
 
 def format_live(matches, title):
@@ -290,11 +333,11 @@ def format_fixture_list(fixtures, title):
         return f"{title}\n\nNo matches found."
     lines = [title, ""]
     for match in fixtures[:10]:
-        home = escape(str((match.get("home") or {}).get("name") or "Home"))
-        away = escape(str((match.get("away") or {}).get("name") or "Away"))
-        start = match.get("startTime") or ""
+        home = escape(str((match.get("homeTeam") or {}).get("name") or "Home"))
+        away = escape(str((match.get("awayTeam") or {}).get("name") or "Away"))
+        start = match.get("date") or match.get("startTime") or ""
         try:
-            dt = datetime.fromisoformat(start.replace("Z", "+00:00"))
+            dt = datetime.fromisoformat(str(start).replace("Z", "+00:00"))
             start = dt.strftime("%d %b %Y, %H:%M UTC")
         except Exception:
             pass
@@ -311,17 +354,17 @@ async def safe_api_message(query, coro, keyboard=None):
     try:
         text = await coro
     except RuntimeError:
-        text = "⚠️ Sports API key is not configured yet."
+        text = "⚠️ Sports data provider key is not configured yet."
     except httpx.HTTPStatusError as exc:
         code = exc.response.status_code
         if code == 401:
-            text = "⚠️ Sports API authentication failed. Please check the API key."
+            text = "⚠️ Sports data provider authentication failed. Please check the API key."
         elif code == 429:
-            text = "⏳ Sports API request limit reached. Please try again later."
+            text = "⏳ Sports data provider request limit reached. Please try again later."
         else:
             text = f"⚠️ Sports data provider returned HTTP {code}."
     except Exception as exc:
-        logger.exception("Sports API error: %s", exc)
+        logger.exception("Sports data provider error: %s", exc)
         text = "⚠️ Sports data is temporarily unavailable. Please try again shortly."
     await query.edit_message_text(text, parse_mode="HTML", reply_markup=keyboard or back_keyboard())
 
@@ -349,16 +392,12 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 async def sports_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     touch_user(update)
-    try:
-        sports = await api_get("/v2/sports")
-        rows = []
-        for sport in sports[:20]:
-            name = sport.get("name") or sport.get("slug") or "sport"
-            live = sport.get("live", 0)
-            rows.append(f"• {escape(str(name)).title()}: {live} live")
-        text = "🏟 <b>Sports coverage</b>\n\n" + "\n".join(rows)
-    except Exception:
-        text = "⚠️ Could not load sports coverage right now."
+    text = (
+        "🏟 <b>Sports coverage</b>\n\n"
+        "• Cricket\n"
+        "• Football\n\n"
+        "Use the 🏏 Cricket or ⚽ Football buttons for live matches."
+    )
     await update.effective_message.reply_text(text, parse_mode="HTML", reply_markup=main_keyboard())
 
 
@@ -369,8 +408,8 @@ async def team_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await update.effective_message.reply_text("Usage: /team India\nExample: /team Arsenal")
         return
     try:
-        results = await api_get("/v2/search", {"q": q})
-        teams = [r for r in results if r.get("type") == "team"][:5]
+        results = await api_get("/search/teams", {"q": q})
+        teams = results[:5]
         if not teams:
             await update.effective_message.reply_text("No team found. Try another spelling.")
             return
@@ -450,7 +489,11 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     if action == "live_now":
         async def load_all():
-            matches = await api_get("/v2/livescores")
+            date = today_str()
+            params = {"date": date, "timezone": "Etc/UTC", "limit": 100}
+            cricket = await api_get("/cricket/matches", params)
+            football = await api_get("/football/matches", params)
+            matches = [m for m in (cricket + football) if match_is_live(m)]
             return format_live(matches, "🔴 <b>Live Now</b>")
         await safe_api_message(query, load_all())
         return
@@ -459,36 +502,11 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         sport = action
         icon = "🏏" if sport == "cricket" else "⚽"
         async def load_sport():
-            try:
-                matches = await api_get("/v2/livescores", {"sport": sport})
-            except (httpx.HTTPStatusError, httpx.ReadTimeout) as exc:
-                is_transient_status = (
-                    isinstance(exc, httpx.HTTPStatusError)
-                    and exc.response.status_code in TRANSIENT_STATUS_CODES
-                )
-                is_timeout = isinstance(exc, httpx.ReadTimeout)
-                if not (is_transient_status or is_timeout):
-                    raise
-                logger.info(
-                    "Filtered livescores call failed for sport=%s, falling back to unfiltered livescores",
-                    sport,
-                )
-                all_matches = await api_get("/v2/livescores")
-                logger.info("Unfiltered livescores returned %d items", len(all_matches))
-                for item in all_matches[:5]:
-                    if isinstance(item, dict):
-                        keys = sorted(item.keys())
-                    else:
-                        keys = None
-                    raw_sport = item.get("sport") if isinstance(item, dict) else None
-                    sport_repr = repr(raw_sport)[:200]
-                    logger.info("Match item keys=%s sport_field=%s", keys, sport_repr)
-                normalized_sports = [get_match_sport(m) for m in all_matches[:20]]
-                unique_normalized = {repr(v) for v in normalized_sports}
-                logger.info("Normalized sport values (first 20 items): %s", unique_normalized)
-                sport_lower = sport.lower() if isinstance(sport, str) else sport
-                matches = [m for m in all_matches if get_match_sport(m) == sport_lower]
-            return format_live(matches, f"{icon} <b>{sport.title()} Live</b>")
+            date = today_str()
+            params = {"date": date, "timezone": "Etc/UTC", "limit": 100}
+            matches = await api_get(f"/{sport}/matches", params)
+            live = [m for m in matches if match_is_live(m)]
+            return format_live(live, f"{icon} <b>{sport.title()} Live</b>")
         await safe_api_message(query, load_sport(), back_keyboard([
             [InlineKeyboardButton("🔄 Refresh", callback_data=action)],
             [InlineKeyboardButton("🔎 Find Team", callback_data="find_team")],
@@ -516,11 +534,9 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     if action.startswith("team:"):
         team_id = action.split(":", 1)[1]
-        try:
-            team = await api_get(f"/v2/teams/{team_id}")
-            name = escape(str(team.get("name") or "Team"))
-        except Exception:
-            name = "Team"
+        # Highlightly does not expose a direct team-detail endpoint reachable here;
+        # the name was already shown in the search results list.
+        name = "Team"
         await query.edit_message_text(
             f"🏟 <b>{name}</b>\n\nChoose match history:",
             parse_mode="HTML",
@@ -536,11 +552,14 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     if action.startswith("team_up:") or action.startswith("team_recent:"):
         recent = action.startswith("team_recent:")
         team_id = action.split(":", 1)[1]
-        kind = "recent" if recent else "upcoming"
         async def load_team_fixtures():
-            fixtures = await api_get(f"/v2/teams/{team_id}/fixtures", {"type": kind, "page": 0})
             title = "✅ <b>Recent Matches</b>" if recent else "🗓 <b>Upcoming Matches</b>"
-            return format_fixture_list(fixtures, title)
+            text = (
+                f"{title}\n\n"
+                "Team fixture filtering is not yet supported by the sports data provider.\n\n"
+                f"Use <code>/team {team_id}</code> to search again or visit fantzo.com for details."
+            )
+            return text
         await safe_api_message(query, load_team_fixtures(), back_keyboard([
             [InlineKeyboardButton("🔄 Refresh", callback_data=action)]
         ]))

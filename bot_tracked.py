@@ -102,7 +102,7 @@ app.configure_telegram_ui = configure_telegram_ui
 
 
 if __name__ == "__main__":
+    private_apk_upload.install_on_tracking_handler(analytics)
     analytics.start_tracking_server()
-    private_apk_upload.start_upload_server()
     logger.info("Starting Fantzo with tracked Mini App conversion links, admin analytics, and private APK upload")
     app.run()

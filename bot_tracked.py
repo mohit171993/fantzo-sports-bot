@@ -11,6 +11,7 @@ from telegram import (
 import bot_persistent as app
 import fantzo_analytics as analytics
 import private_apk_upload
+import trial_live_tv
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +104,7 @@ app.configure_telegram_ui = configure_telegram_ui
 
 if __name__ == "__main__":
     private_apk_upload.install_on_tracking_handler(analytics)
+    trial_live_tv.install_on_tracking_handler(analytics)
     analytics.start_tracking_server()
-    logger.info("Starting Fantzo with tracked Mini App conversion links, admin analytics, and private APK upload")
+    logger.info("Starting Fantzo with tracked Mini App conversion links, admin analytics, private APK upload, and Live TV trial")
     app.run()

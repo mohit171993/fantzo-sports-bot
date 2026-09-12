@@ -1,7 +1,7 @@
 import logging
 import re
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, WebAppInfo
 from telegram.ext import ContextTypes
 
 import bot as core
@@ -70,16 +70,21 @@ def _contains(text: str, words) -> bool:
     return any(re.search(rf"\b{re.escape(word)}\b", text) for word in words)
 
 
-def _fantzo_button(source: str, label: str = "🔥 EXPLORE FANTZO") -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        [[InlineKeyboardButton(label, url=analytics.tracking_url(source))]]
+def _fantzo_webapp_button(source: str, label: str = "🔥 EXPLORE FANTZO") -> InlineKeyboardButton:
+    return InlineKeyboardButton(
+        label,
+        web_app=WebAppInfo(url=analytics.tracking_url(source)),
     )
+
+
+def _fantzo_button(source: str, label: str = "🔥 EXPLORE FANTZO") -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([[_fantzo_webapp_button(source, label)]])
 
 
 def _welcome_buttons() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
-            [InlineKeyboardButton("🔥 EXPLORE FANTZO", url=analytics.tracking_url("business_dm_greeting"))],
+            [_fantzo_webapp_button("business_dm_greeting", "🔥 EXPLORE FANTZO")],
             [InlineKeyboardButton("🏏 LIVE SCORES & FIXTURES", url=SPORTS_BOT_URL)],
         ]
     )
@@ -121,7 +126,7 @@ def classify_business_dm(text: str):
             f"{RESPONSIBLE_NOTE}",
             InlineKeyboardMarkup(
                 [
-                    [InlineKeyboardButton("🔥 EXPLORE FANTZO", url=analytics.tracking_url("business_dm_sports"))],
+                    [_fantzo_webapp_button("business_dm_sports", "🔥 EXPLORE FANTZO")],
                     [InlineKeyboardButton("🏏 LIVE SCORES & FIXTURES", url=SPORTS_BOT_URL)],
                 ]
             ),

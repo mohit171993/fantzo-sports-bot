@@ -2,6 +2,8 @@ import logging
 
 from telegram import (
     BotCommand,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
     MenuButtonCommands,
     ReplyKeyboardMarkup,
     Update,
@@ -26,6 +28,39 @@ QUICK_MENU = ReplyKeyboardMarkup(
     is_persistent=True,
     input_field_placeholder="Tap Fantzo Menu anytime",
 )
+
+
+def premium_main_keyboard() -> InlineKeyboardMarkup:
+    """Fantzo home menu with Join Fantzo as the dominant conversion CTA."""
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("🚀 JOIN FANTZO — START NOW", callback_data="join_fantzo")],
+            [
+                InlineKeyboardButton("🔴 Live Now", callback_data="live_now"),
+                InlineKeyboardButton("🔥 Featured", callback_data="trending"),
+            ],
+            [
+                InlineKeyboardButton("🏏 Cricket", callback_data="cricket"),
+                InlineKeyboardButton("⚽ Football", callback_data="football"),
+            ],
+            [
+                InlineKeyboardButton("🗓 Upcoming", callback_data="upcoming"),
+                InlineKeyboardButton("✅ Results", callback_data="results"),
+            ],
+            [
+                InlineKeyboardButton("🔎 Find Team", callback_data="find_team"),
+                InlineKeyboardButton("🔔 Match Alerts", callback_data="subscribe"),
+            ],
+            [
+                InlineKeyboardButton("✨ Explore Fantzo", callback_data="explore"),
+                InlineKeyboardButton("⚙️ Settings", callback_data="settings"),
+            ],
+        ]
+    )
+
+
+# Override the core menu everywhere, including Back to Home actions.
+core.main_keyboard = premium_main_keyboard
 
 
 async def configure_telegram_ui(application: Application) -> None:

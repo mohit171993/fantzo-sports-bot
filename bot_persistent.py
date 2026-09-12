@@ -21,6 +21,7 @@ from telegram.ext import (
 
 import bot as core
 import fantzo_analytics as analytics
+import fantzo_autoreply
 import trial_live_tv
 
 logger = logging.getLogger(__name__)
@@ -237,6 +238,7 @@ def run() -> None:
     core.init_db()
     ensure_settings_table()
     analytics.ensure_tables()
+    fantzo_autoreply.ensure_setting()
     app = (
         Application.builder()
         .token(core.BOT_TOKEN)
@@ -251,15 +253,17 @@ def run() -> None:
     app.add_handler(CommandHandler("admin", core.admin))
     app.add_handler(CommandHandler("stats", analytics.stats_command))
     app.add_handler(CommandHandler("trialtv", trial_live_tv.trial_tv_command))
+    app.add_handler(CommandHandler("autoreply", fantzo_autoreply.autoreply_command))
     app.add_handler(CommandHandler("broadcast", core.broadcast))
     app.add_handler(CommandHandler("setbanner", setbanner_command))
     app.add_handler(
         MessageHandler(filters.TEXT & filters.Regex(r"^⚡ Fantzo Menu$"), quick_menu)
     )
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, fantzo_autoreply.auto_reply))
     app.add_handler(MessageHandler(filters.PHOTO, banner_upload))
     app.add_handler(CallbackQueryHandler(core.callback_router))
 
-    logger.info("Starting Fantzo Premium Sports Hub with Join Fantzo Mini App CTA")
+    logger.info("Starting Fantzo Premium Sports Hub with Join Fantzo Mini App CTA and chat auto reply")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 

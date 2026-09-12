@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Fantzo TV Trial</string>
+    <string name="accessibility_desc">Fantzo TV Trial fills the configured Diamond Live login only inside the Diamond Live app.</string>
+</resources>

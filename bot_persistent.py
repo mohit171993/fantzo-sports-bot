@@ -5,9 +5,10 @@ from telegram import (
     BotCommand,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
-    MenuButtonCommands,
+    MenuButtonWebApp,
     ReplyKeyboardMarkup,
     Update,
+    WebAppInfo,
 )
 from telegram.ext import (
     Application,
@@ -31,13 +32,18 @@ QUICK_MENU = ReplyKeyboardMarkup(
 )
 
 BANNER_ENV = "FANTZO_BANNER_FILE_ID"
+MINI_APP_URL = os.getenv("FANTZO_MINI_APP_URL", "https://www.fantzo.com").strip()
+
+
+def mini_app_button(label: str) -> InlineKeyboardButton:
+    return InlineKeyboardButton(label, web_app=WebAppInfo(url=MINI_APP_URL))
 
 
 def premium_main_keyboard() -> InlineKeyboardMarkup:
-    """Fantzo home menu with Join Fantzo as the dominant conversion CTA."""
+    """Fantzo home menu with the Mini App as the dominant conversion CTA."""
     return InlineKeyboardMarkup(
         [
-            [InlineKeyboardButton("🔥 JOIN FANTZO NOW 🔥", callback_data="join_fantzo")],
+            [mini_app_button("🔥 OPEN FANTZO MINI APP 🔥")],
             [
                 InlineKeyboardButton("🔴 Live Now", callback_data="live_now"),
                 InlineKeyboardButton("🔥 Featured", callback_data="trending"),
@@ -63,11 +69,10 @@ def premium_main_keyboard() -> InlineKeyboardMarkup:
 
 
 def premium_join_keyboard() -> InlineKeyboardMarkup:
-    """Keep the conversion action visually consistent on the join screen."""
+    """Open Fantzo inside Telegram instead of sending users to an external browser."""
     return InlineKeyboardMarkup(
         [
-            [InlineKeyboardButton("🔥 JOIN FANTZO NOW 🔥", url=core.FANTZO_REGISTER)],
-            [InlineKeyboardButton("✨ Visit Fantzo", url=core.FANTZO_HOME)],
+            [mini_app_button("🔥 OPEN FANTZO MINI APP 🔥")],
             [InlineKeyboardButton("⬅️ Back to Home", callback_data="back")],
         ]
     )
@@ -113,7 +118,7 @@ def save_banner_file_id(file_id: str) -> None:
 
 
 async def configure_telegram_ui(application: Application) -> None:
-    """Configure Telegram's native menu so /start never needs manual typing."""
+    """Configure Telegram native UI with a direct Fantzo Mini App launcher."""
     await application.bot.set_my_commands(
         [
             BotCommand("start", "Open Fantzo Sports Hub"),
@@ -122,8 +127,13 @@ async def configure_telegram_ui(application: Application) -> None:
             BotCommand("help", "Fantzo quick guide"),
         ]
     )
-    await application.bot.set_chat_menu_button(menu_button=MenuButtonCommands())
-    logger.info("Fantzo Telegram menu button and commands configured")
+    await application.bot.set_chat_menu_button(
+        menu_button=MenuButtonWebApp(
+            text="Open Fantzo",
+            web_app=WebAppInfo(url=MINI_APP_URL),
+        )
+    )
+    logger.info("Fantzo Telegram Mini App menu configured for %s", MINI_APP_URL)
 
 
 async def show_home(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -155,8 +165,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await show_home(update, context)
     await update.effective_message.reply_text(
         "⚡ <b>Quick access enabled</b>\n\n"
-        "From now on, tap <b>⚡ Fantzo Menu</b> below anytime — no need to type /start again.\n"
-        "You can also use Telegram's <b>Menu</b> button.",
+        "Tap <b>⚡ Fantzo Menu</b> below anytime for sports.\n"
+        "Telegram's <b>Open Fantzo</b> Menu button now launches the Fantzo Mini App inside Telegram.",
         parse_mode="HTML",
         reply_markup=QUICK_MENU,
     )
@@ -241,7 +251,7 @@ def run() -> None:
     app.add_handler(MessageHandler(filters.PHOTO, banner_upload))
     app.add_handler(CallbackQueryHandler(core.callback_router))
 
-    logger.info("Starting Fantzo Premium Sports Hub with persistent menu")
+    logger.info("Starting Fantzo Premium Sports Hub with Mini App launcher")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 

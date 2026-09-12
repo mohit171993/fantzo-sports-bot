@@ -1,3 +1,4 @@
 requests>=2.32,<3
 Appium-Python-Client>=5,<6
 Pillow>=11,<12
+gmsaas>=1.16.0

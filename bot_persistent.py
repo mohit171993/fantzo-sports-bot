@@ -1,5 +1,6 @@
 import logging
 import os
+from urllib.parse import urlencode
 
 from telegram import (
     BotCommand,
@@ -35,15 +36,28 @@ BANNER_ENV = "FANTZO_BANNER_FILE_ID"
 MINI_APP_URL = os.getenv("FANTZO_MINI_APP_URL", "https://www.fantzo.com").strip()
 
 
-def mini_app_button(label: str) -> InlineKeyboardButton:
-    return InlineKeyboardButton(label, web_app=WebAppInfo(url=MINI_APP_URL))
+def tracked_url(content: str) -> str:
+    separator = "&" if "?" in MINI_APP_URL else "?"
+    query = urlencode(
+        {
+            "utm_source": "telegram",
+            "utm_medium": "bot",
+            "utm_campaign": "fantzo_sports_hub",
+            "utm_content": content,
+        }
+    )
+    return f"{MINI_APP_URL}{separator}{query}"
+
+
+def mini_app_button(label: str, content: str) -> InlineKeyboardButton:
+    return InlineKeyboardButton(label, web_app=WebAppInfo(url=tracked_url(content)))
 
 
 def premium_main_keyboard() -> InlineKeyboardMarkup:
-    """Fantzo home menu with the Mini App as the dominant conversion CTA."""
+    """Fantzo home menu with Join Fantzo as the dominant Mini App CTA."""
     return InlineKeyboardMarkup(
         [
-            [mini_app_button("🔥 OPEN FANTZO MINI APP 🔥")],
+            [mini_app_button("🔥 JOIN FANTZO NOW 🔥", "home_join_cta")],
             [
                 InlineKeyboardButton("🔴 Live Now", callback_data="live_now"),
                 InlineKeyboardButton("🔥 Featured", callback_data="trending"),
@@ -69,10 +83,10 @@ def premium_main_keyboard() -> InlineKeyboardMarkup:
 
 
 def premium_join_keyboard() -> InlineKeyboardMarkup:
-    """Open Fantzo inside Telegram instead of sending users to an external browser."""
     return InlineKeyboardMarkup(
         [
-            [mini_app_button("🔥 OPEN FANTZO MINI APP 🔥")],
+            [mini_app_button("🔥 JOIN FANTZO NOW 🔥", "join_screen_cta")],
+            [mini_app_button("✨ OPEN FANTZO", "join_screen_explore")],
             [InlineKeyboardButton("⬅️ Back to Home", callback_data="back")],
         ]
     )
@@ -118,22 +132,23 @@ def save_banner_file_id(file_id: str) -> None:
 
 
 async def configure_telegram_ui(application: Application) -> None:
-    """Configure Telegram native UI with a direct Fantzo Mini App launcher."""
+    """Configure Telegram native UI with a direct tracked Fantzo Mini App launcher."""
     await application.bot.set_my_commands(
         [
             BotCommand("start", "Open Fantzo Sports Hub"),
             BotCommand("team", "Find a cricket or football team"),
             BotCommand("sports", "View Fantzo sports coverage"),
             BotCommand("help", "Fantzo quick guide"),
+            BotCommand("setbanner", "Change the Fantzo home banner"),
         ]
     )
     await application.bot.set_chat_menu_button(
         menu_button=MenuButtonWebApp(
-            text="Open Fantzo",
-            web_app=WebAppInfo(url=MINI_APP_URL),
+            text="Join Fantzo",
+            web_app=WebAppInfo(url=tracked_url("telegram_native_menu")),
         )
     )
-    logger.info("Fantzo Telegram Mini App menu configured for %s", MINI_APP_URL)
+    logger.info("Fantzo Telegram Mini App menu configured")
 
 
 async def show_home(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -166,7 +181,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.effective_message.reply_text(
         "⚡ <b>Quick access enabled</b>\n\n"
         "Tap <b>⚡ Fantzo Menu</b> below anytime for sports.\n"
-        "Telegram's <b>Open Fantzo</b> Menu button now launches the Fantzo Mini App inside Telegram.",
+        "Telegram's <b>Join Fantzo</b> Menu button opens Fantzo inside Telegram.",
         parse_mode="HTML",
         reply_markup=QUICK_MENU,
     )
@@ -178,7 +193,6 @@ async def quick_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 
 
 async def setbanner_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Put the admin into one-shot banner upload mode."""
     user = update.effective_user
     message = update.effective_message
     if not user or not message:
@@ -198,7 +212,6 @@ async def setbanner_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 
 async def banner_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Allow only the Fantzo admin to upload a Telegram-hosted home banner."""
     user = update.effective_user
     message = update.effective_message
     if not user or user.id != core.ADMIN_USER_ID or not message or not message.photo:
@@ -251,7 +264,7 @@ def run() -> None:
     app.add_handler(MessageHandler(filters.PHOTO, banner_upload))
     app.add_handler(CallbackQueryHandler(core.callback_router))
 
-    logger.info("Starting Fantzo Premium Sports Hub with Mini App launcher")
+    logger.info("Starting Fantzo Premium Sports Hub with Join Fantzo Mini App CTA")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 

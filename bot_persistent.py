@@ -12,6 +12,7 @@ from telegram import (
 )
 from telegram.ext import (
     Application,
+    BusinessConnectionHandler,
     CallbackQueryHandler,
     CommandHandler,
     ContextTypes,
@@ -22,6 +23,7 @@ from telegram.ext import (
 import bot as core
 import fantzo_analytics as analytics
 import fantzo_autoreply
+import fantzo_business
 import trial_live_tv
 
 logger = logging.getLogger(__name__)
@@ -239,11 +241,22 @@ def run() -> None:
     ensure_settings_table()
     analytics.ensure_tables()
     fantzo_autoreply.ensure_setting()
+    fantzo_business.ensure_tables()
+
     app = (
         Application.builder()
         .token(core.BOT_TOKEN)
         .post_init(configure_telegram_ui)
         .build()
+    )
+
+    # Telegram Business integration: connection updates + incoming customer DMs.
+    app.add_handler(BusinessConnectionHandler(fantzo_business.business_connection_update))
+    app.add_handler(
+        MessageHandler(
+            filters.UpdateType.BUSINESS_MESSAGE & filters.TEXT,
+            fantzo_business.business_auto_reply,
+        )
     )
 
     app.add_handler(CommandHandler("start", start))
@@ -257,13 +270,26 @@ def run() -> None:
     app.add_handler(CommandHandler("broadcast", core.broadcast))
     app.add_handler(CommandHandler("setbanner", setbanner_command))
     app.add_handler(
-        MessageHandler(filters.TEXT & filters.Regex(r"^⚡ Fantzo Menu$"), quick_menu)
+        MessageHandler(
+            filters.UpdateType.MESSAGE
+            & filters.TEXT
+            & filters.Regex(r"^⚡ Fantzo Menu$"),
+            quick_menu,
+        )
     )
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, fantzo_autoreply.auto_reply))
-    app.add_handler(MessageHandler(filters.PHOTO, banner_upload))
+    # Normal direct messages to @fantzoofficialbot remain supported separately.
+    app.add_handler(
+        MessageHandler(
+            filters.UpdateType.MESSAGE & filters.TEXT & ~filters.COMMAND,
+            fantzo_autoreply.auto_reply,
+        )
+    )
+    app.add_handler(MessageHandler(filters.UpdateType.MESSAGE & filters.PHOTO, banner_upload))
     app.add_handler(CallbackQueryHandler(core.callback_router))
 
-    logger.info("Starting Fantzo Premium Sports Hub with Join Fantzo Mini App CTA and chat auto reply")
+    logger.info(
+        "Starting Fantzo Premium Sports Hub with direct-chat and Telegram Business DM auto reply"
+    )
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 

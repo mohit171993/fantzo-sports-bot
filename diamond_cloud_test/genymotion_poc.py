@@ -87,7 +87,6 @@ def ensure_adb():
         with zipfile.ZipFile(zip_path) as zf:
             zf.extractall("/tmp")
         os.chmod(ADB, 0o755)
-    # gmsaas needs the Android SDK root, which contains platform-tools/adb.
     run(["gmsaas", "config", "set", "android-sdk-path", "/tmp"], timeout=60)
 
 
@@ -114,10 +113,33 @@ def list_instances():
     return data.get("instances", []) if isinstance(data, dict) else []
 
 
+def instance_brief(inst):
+    recipe = inst.get("recipe") or {}
+    return {
+        "uuid": inst.get("uuid"),
+        "name": inst.get("name"),
+        "state": inst.get("state"),
+        "recipe_uuid": recipe.get("uuid"),
+        "recipe_name": recipe.get("name"),
+        "android_version": recipe.get("android_version"),
+    }
+
+
 def get_or_start_instance():
-    for inst in list_instances():
-        if inst.get("name") == INSTANCE_NAME and str(inst.get("state", "")).upper() in {"ONLINE", "BOOTING", "CREATING"}:
+    instances = list_instances()
+    update(existing_instances=[instance_brief(i) for i in instances])
+    active_states = {"ONLINE", "BOOTING", "CREATING", "STARTING"}
+    active = [i for i in instances if str(i.get("state", "")).upper() in active_states]
+
+    # Reuse only the instance created for this PoC. Do not take over unrelated devices.
+    for inst in active:
+        if inst.get("name") == INSTANCE_NAME:
             return inst.get("uuid"), "reused"
+
+    if active:
+        names = ", ".join(f"{i.get('name')} ({i.get('state')})" for i in active)
+        raise RuntimeError(f"another Genymotion instance is already running: {names}")
+
     data = gmsaas(["instances", "start", RECIPE_UUID, INSTANCE_NAME, "--max-run-duration", "60"], timeout=900, json_output=True)
     inst = data.get("instance", {}) if isinstance(data, dict) else {}
     uuid = inst.get("uuid")

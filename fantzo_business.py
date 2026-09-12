@@ -69,9 +69,20 @@ def _contains(text: str, words) -> bool:
     return any(re.search(rf"\b{re.escape(word)}\b", text) for word in words)
 
 
-def _fantzo_button(source: str) -> InlineKeyboardMarkup:
+def _fantzo_button(source: str, label: str = "🔥 OPEN FANTZO") -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
-        [[InlineKeyboardButton("🔥 OPEN FANTZO", url=analytics.tracking_url(source))]]
+        [[InlineKeyboardButton(label, url=analytics.tracking_url(source))]]
+    )
+
+
+def _guided_prompt() -> str:
+    return (
+        "What are you looking for?\n\n"
+        "1️⃣ <b>Live sports</b>\n"
+        "2️⃣ <b>Join / get started</b>\n"
+        "3️⃣ <b>Account help</b>\n"
+        "4️⃣ <b>Support</b>\n\n"
+        "Reply with <b>1, 2, 3 or 4</b> — or simply type your question."
     )
 
 
@@ -79,12 +90,21 @@ def classify_business_dm(text: str):
     """Business-DM conversion flow, intentionally separate from the sports bot menu."""
     t = " ".join((text or "").lower().strip().split())
 
+    if t in {"1", "1️⃣"}:
+        t = "live sports"
+    elif t in {"2", "2️⃣"}:
+        t = "join"
+    elif t in {"3", "3️⃣"}:
+        t = "account help"
+    elif t in {"4", "4️⃣"}:
+        t = "support"
+
     if _contains(t, ["hi", "hello", "hey", "hii", "hola", "namaste"]):
         return (
             "greeting",
             "👋 <b>Hi! Welcome to Fantzo.</b>\n\n"
-            "I can point you in the right direction for sports, getting started, account access or support.\n\n"
-            "You can explore Fantzo anytime below.\n\n"
+            "I’ll help you get to the right place quickly.\n\n"
+            f"{_guided_prompt()}\n\n"
             f"{RESPONSIBLE_NOTE}",
             _fantzo_button("business_dm_greeting"),
         )
@@ -106,31 +126,38 @@ def classify_business_dm(text: str):
     ):
         return (
             "sports",
-            "🏟 <b>Looking for sports?</b>\n\n"
-            "You can explore the current Fantzo experience from the link below. "
-            "For score updates, our Telegram sports bot also provides cricket and football match information.\n\n"
+            "🏟 <b>Live sports</b>\n\n"
+            "Fantzo is where you can continue from here. This Telegram assistant can guide you, "
+            "but it does not control Fantzo.com or its internal pages.\n\n"
+            "Tap below to open Fantzo.\n\n"
             f"{RESPONSIBLE_NOTE}",
-            _fantzo_button("business_dm_sports"),
+            _fantzo_button("business_dm_sports", "🔥 EXPLORE FANTZO"),
+        )
+
+    if _contains(t, ["join", "start", "get started", "new user", "create account", "signup", "sign up", "register", "registration"]):
+        return (
+            "join",
+            "🚀 <b>Ready to get started?</b>\n\n"
+            "Open Fantzo below and continue from the options available on the site. "
+            "This Telegram chat cannot see or confirm what happens after you open Fantzo.\n\n"
+            f"{RESPONSIBLE_NOTE}",
+            _fantzo_button("business_dm_join", "🔥 JOIN FANTZO"),
         )
 
     if _contains(
         t,
         [
-            "register",
-            "registration",
-            "signup",
-            "sign up",
-            "join",
             "login",
             "log in",
             "account",
             "password",
             "otp",
+            "account help",
         ],
     ):
         return (
             "account",
-            "👤 <b>Account access</b>\n\n"
+            "👤 <b>Account help</b>\n\n"
             "Please open Fantzo and use the account options available there. "
             "This Telegram chat is not connected to Fantzo's internal account system, so I can't see registrations, passwords, OTPs or account status.\n\n"
             "🔐 Never share your password or OTP in Telegram.\n\n"
@@ -185,9 +212,9 @@ def classify_business_dm(text: str):
     ):
         return (
             "support",
-            "🛟 <b>I can help point you in the right direction.</b>\n\n"
-            "If this is about your Fantzo account or a transaction, I can't see the private account data from Telegram. "
-            "Please use the official support/help option available inside Fantzo for account-specific resolution.\n\n"
+            "🛟 <b>Support</b>\n\n"
+            "Tell me briefly what went wrong and I’ll guide you as far as I can from Telegram. "
+            "For anything that needs private account data or transaction verification, you’ll need to continue through Fantzo's own support options.\n\n"
             "You can open Fantzo below.\n\n"
             f"{RESPONSIBLE_NOTE}",
             _fantzo_button("business_dm_support"),
@@ -196,7 +223,8 @@ def classify_business_dm(text: str):
     if _contains(t, ["thanks", "thank", "thx", "ok", "okay"]):
         return (
             "thanks",
-            "🙏 You're welcome. If you'd like to continue, Fantzo is one tap away.\n\n"
+            "🙏 You're welcome.\n\n"
+            "If you want to continue, Fantzo is one tap away.\n\n"
             f"{RESPONSIBLE_NOTE}",
             _fantzo_button("business_dm_thanks"),
         )
@@ -204,8 +232,8 @@ def classify_business_dm(text: str):
     return (
         "general",
         "👋 <b>Thanks for messaging Fantzo.</b>\n\n"
-        "Tell me what you're looking for — sports, getting started, account access, payments or support — and I'll point you in the right direction.\n\n"
-        "You can also explore Fantzo directly below.\n\n"
+        "I didn't fully understand that yet.\n\n"
+        f"{_guided_prompt()}\n\n"
         f"{RESPONSIBLE_NOTE}",
         _fantzo_button("business_dm_general"),
     )

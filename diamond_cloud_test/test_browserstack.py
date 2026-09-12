@@ -22,10 +22,15 @@ TRIAL_TV_TOKEN = os.getenv("TRIAL_TV_TOKEN", "").strip()
 DIAMOND_USERNAME = os.getenv("DIAMOND_USERNAME", "")
 DIAMOND_PASSWORD = os.getenv("DIAMOND_PASSWORD", "")
 
+PACKAGE_NAME = "com.diamond.diamondlive"
+MAIN_ACTIVITY = "com.sherdle.universal.MainActivity"
+MEETING_ACTIVITY = "com.sherdle.universal.custom.CustomMeetingActivity"
+
 RESULT = {
     "status": "starting",
     "provider": "BrowserStack App Automate",
-    "purpose": "private Diamond Live capture feasibility test",
+    "purpose": "private Diamond Live Join Meeting capture feasibility test",
+    "target_activity": MEETING_ACTIVITY,
     "steps": [],
 }
 RESULT_LOCK = threading.Lock()
@@ -115,11 +120,22 @@ def pick_device():
     return modern[0]
 
 
+def current_activity(driver):
+    try:
+        return driver.current_activity or "unknown"
+    except Exception:
+        return "unknown"
+
+
 def fill_login(driver):
     if not DIAMOND_USERNAME or not DIAMOND_PASSWORD:
         return False, "Diamond credentials are not configured"
 
-    # Native Android fields first.
+    try:
+        driver.switch_to.context("NATIVE_APP")
+    except Exception:
+        pass
+
     try:
         edits = driver.find_elements(By.CLASS_NAME, "android.widget.EditText")
         if len(edits) >= 2:
@@ -143,7 +159,6 @@ def fill_login(driver):
     except Exception:
         pass
 
-    # Hybrid/WebView fallback.
     try:
         contexts = driver.contexts
         for ctx in contexts:
@@ -187,8 +202,7 @@ def fill_login(driver):
     return False, "login fields/button were not detected"
 
 
-def open_live_area(driver):
-    terms = ["LIVE TV", "LIVE", "SPORTS", "CHANNEL", "CRICKET"]
+def click_text(driver, terms):
     try:
         driver.switch_to.context("NATIVE_APP")
     except Exception:
@@ -201,8 +215,7 @@ def open_live_area(driver):
             "or contains(translate(@content-desc,'abcdefghijklmnopqrstuvwxyz','ABCDEFGHIJKLMNOPQRSTUVWXYZ')," + json.dumps(upper) + ")]"
         )
         try:
-            elements = driver.find_elements(By.XPATH, xpath)
-            for el in elements:
+            for el in driver.find_elements(By.XPATH, xpath):
                 try:
                     el.click()
                     return True, f"native:{term}"
@@ -226,6 +239,7 @@ def open_live_area(driver):
                 for node in nodes[:10]:
                     try:
                         node.click()
+                        driver.switch_to.context("NATIVE_APP")
                         return True, f"webview:{term}"
                     except Exception:
                         pass
@@ -234,7 +248,36 @@ def open_live_area(driver):
             driver.switch_to.context("NATIVE_APP")
         except Exception:
             pass
-    return False, "no live/sports navigation element detected"
+    return False, "no matching UI element detected"
+
+
+def open_meeting_activity(driver):
+    before = current_activity(driver)
+    try:
+        driver.start_activity(PACKAGE_NAME, MEETING_ACTIVITY)
+        time.sleep(6)
+        after = current_activity(driver)
+        if "CustomMeetingActivity" in after:
+            return True, f"direct activity launch: {after}"
+        return False, f"direct start returned activity {after}; previous {before}"
+    except Exception as exc:
+        direct_error = safe_error(exc)
+
+    clicked, detail = click_text(driver, ["JOIN MEETING", "MEETING", "JOIN"])
+    if clicked:
+        time.sleep(6)
+        after = current_activity(driver)
+        return True, f"UI navigation {detail}; activity={after}"
+
+    return False, f"direct activity failed: {direct_error}; UI fallback: {detail}"
+
+
+def attempt_join(driver):
+    clicked, detail = click_text(driver, ["JOIN MEETING", "JOIN NOW", "JOIN", "START MEETING", "ENTER MEETING"])
+    if clicked:
+        time.sleep(10)
+        return True, f"{detail}; activity={current_activity(driver)}"
+    return False, detail
 
 
 def crop_center(image):
@@ -307,6 +350,8 @@ def run_test():
         options.set_capability("appium:platformVersion", os_version)
         options.set_capability("appium:automationName", "UiAutomator2")
         options.set_capability("appium:app", app_url)
+        options.set_capability("appium:appPackage", PACKAGE_NAME)
+        options.set_capability("appium:appActivity", MAIN_ACTIVITY)
         options.set_capability("appium:autoGrantPermissions", True)
         options.set_capability("appium:newCommandTimeout", 180)
         options.set_capability(
@@ -315,8 +360,8 @@ def run_test():
                 "userName": BS_USER,
                 "accessKey": BS_KEY,
                 "projectName": "Fantzo Diamond Cloud PoC",
-                "buildName": f"diamond-capture-{int(time.time())}",
-                "sessionName": "Diamond capture feasibility",
+                "buildName": f"diamond-join-meeting-{int(time.time())}",
+                "sessionName": "Diamond CustomMeetingActivity capture test",
                 "debug": True,
                 "video": True,
                 "networkLogs": False,
@@ -326,36 +371,48 @@ def run_test():
         driver = webdriver.Remote("https://hub-cloud.browserstack.com/wd/hub", options=options)
         session_id = driver.session_id
         update(session_id=session_id, device=device_name, android_version=os_version)
-        step("launch_diamond_live", True)
-        time.sleep(15)
+        step("launch_diamond_live", True, f"activity={current_activity(driver)}")
+        time.sleep(12)
 
         logged_in, login_detail = fill_login(driver)
         if DIAMOND_USERNAME and DIAMOND_PASSWORD:
             step("automatic_login_attempt", logged_in, login_detail)
-            time.sleep(15)
+            time.sleep(12)
         else:
-            step("automatic_login_attempt", False, "credentials not configured; launch-only test")
+            step("automatic_login_attempt", False, "credentials not configured; continuing with activity-only test")
 
-        navigated, nav_detail = open_live_area(driver)
-        step("live_area_navigation_attempt", navigated, nav_detail)
-        if navigated:
+        meeting_opened, meeting_detail = open_meeting_activity(driver)
+        step("open_custom_meeting_activity", meeting_opened, meeting_detail)
+        if meeting_opened:
+            time.sleep(8)
+
+        joined, join_detail = attempt_join(driver)
+        step("join_meeting_button_attempt", joined, join_detail)
+        if joined:
             time.sleep(15)
 
         first = driver.get_screenshot_as_png()
-        time.sleep(6)
+        time.sleep(7)
         second = driver.get_screenshot_as_png()
         metrics = capture_metrics(first, second)
-        update(capture_metrics=metrics)
-        step("screen_capture_comparison", True, metrics["verdict"])
+        update(
+            capture_metrics=metrics,
+            final_activity=current_activity(driver),
+            meeting_activity_opened=meeting_opened,
+            join_button_clicked=joined,
+        )
+        step("meeting_screen_capture_comparison", True, metrics["verdict"])
 
-        if not DIAMOND_USERNAME or not DIAMOND_PASSWORD:
-            update(status="launch_test_complete_login_needed")
-        elif not logged_in:
-            update(status="login_detection_failed")
-        elif not navigated:
-            update(status="logged_in_live_navigation_inconclusive")
+        if not meeting_opened:
+            update(status="meeting_activity_not_reached")
+        elif metrics["verdict"] == "likely_black_or_secure_surface":
+            update(status="meeting_reached_capture_blocked_or_black")
+        elif metrics["verdict"] == "changing_pixels_capture_likely_works":
+            update(status="meeting_reached_capture_works")
+        elif not DIAMOND_USERNAME or not DIAMOND_PASSWORD:
+            update(status="meeting_test_inconclusive_login_may_be_needed")
         else:
-            update(status="complete")
+            update(status="meeting_reached_capture_inconclusive")
     except Exception as exc:
         update(status="failed", error=safe_error(exc))
         step("test_failure", False, safe_error(exc))

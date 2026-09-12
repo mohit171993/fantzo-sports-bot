@@ -21,6 +21,7 @@ from telegram.ext import (
 
 import bot as core
 import fantzo_analytics as analytics
+import trial_live_tv
 
 logger = logging.getLogger(__name__)
 
@@ -249,6 +250,7 @@ def run() -> None:
     app.add_handler(CommandHandler("team", core.team_command))
     app.add_handler(CommandHandler("admin", core.admin))
     app.add_handler(CommandHandler("stats", analytics.stats_command))
+    app.add_handler(CommandHandler("trialtv", trial_live_tv.trial_tv_command))
     app.add_handler(CommandHandler("broadcast", core.broadcast))
     app.add_handler(CommandHandler("setbanner", setbanner_command))
     app.add_handler(

@@ -2,6 +2,7 @@ import hmac
 import logging
 import os
 from html import escape
+from pathlib import Path
 from urllib.parse import quote, urlencode, urlparse, parse_qs
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -15,6 +16,8 @@ TRIAL_TV_TOKEN = os.getenv("TRIAL_TV_TOKEN", "").strip()
 PACKAGE_NAME = "com.diamond.diamondlive"
 MAIN_ACTIVITY = "com.sherdle.universal.MainActivity"
 PLAY_URL = f"https://play.google.com/store/apps/details?id={PACKAGE_NAME}"
+UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "/data/uploads"))
+DIAMOND_APK_NAME = os.path.basename(os.getenv("DIAMOND_APK_NAME", "diamond.apk"))
 
 
 def trial_page_url() -> str:
@@ -69,12 +72,34 @@ def _send_html(handler, status: int, html: str) -> None:
     handler.wfile.write(data)
 
 
+def _stream_diamond_apk(handler) -> None:
+    apk = UPLOAD_DIR / DIAMOND_APK_NAME
+    if not apk.is_file():
+        _send_html(handler, 404, "<h3>Diamond APK is not available.</h3>")
+        return
+
+    size = apk.stat().st_size
+    handler.send_response(200)
+    handler.send_header("Content-Type", "application/vnd.android.package-archive")
+    handler.send_header("Content-Disposition", 'attachment; filename="diamond.apk"')
+    handler.send_header("Content-Length", str(size))
+    handler.send_header("Cache-Control", "no-store")
+    handler.end_headers()
+    with apk.open("rb") as src:
+        while True:
+            chunk = src.read(1024 * 1024)
+            if not chunk:
+                break
+            handler.wfile.write(chunk)
+
+
 def install_on_tracking_handler(analytics_module) -> None:
     handler_cls = analytics_module.TrackingHandler
     previous_get = handler_cls.do_GET
 
     def patched_get(self):
-        if urlparse(self.path).path == "/trial-live-tv":
+        path = urlparse(self.path).path
+        if path == "/trial-live-tv":
             if not _authorized(self.path):
                 _send_html(self, 403, "<h3>Trial link expired or invalid.</h3>")
                 return
@@ -83,6 +108,12 @@ def install_on_tracking_handler(analytics_module) -> None:
             except Exception as exc:
                 logger.warning("Could not track Live TV trial open: %s", exc)
             _send_html(self, 200, _page())
+            return
+        if path == "/trial-diamond-apk":
+            if not _authorized(self.path):
+                _send_html(self, 403, "<h3>Private test link invalid.</h3>")
+                return
+            _stream_diamond_apk(self)
             return
         previous_get(self)
 

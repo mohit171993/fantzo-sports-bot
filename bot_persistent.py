@@ -34,7 +34,7 @@ def premium_main_keyboard() -> InlineKeyboardMarkup:
     """Fantzo home menu with Join Fantzo as the dominant conversion CTA."""
     return InlineKeyboardMarkup(
         [
-            [InlineKeyboardButton("🚀 JOIN FANTZO — START NOW", callback_data="join_fantzo")],
+            [InlineKeyboardButton("🔥 JOIN FANTZO NOW 🔥", callback_data="join_fantzo")],
             [
                 InlineKeyboardButton("🔴 Live Now", callback_data="live_now"),
                 InlineKeyboardButton("🔥 Featured", callback_data="trending"),
@@ -59,8 +59,20 @@ def premium_main_keyboard() -> InlineKeyboardMarkup:
     )
 
 
-# Override the core menu everywhere, including Back to Home actions.
+def premium_join_keyboard() -> InlineKeyboardMarkup:
+    """Keep the conversion action visually consistent on the join screen."""
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("🔥 JOIN FANTZO NOW 🔥", url=core.FANTZO_REGISTER)],
+            [InlineKeyboardButton("✨ Visit Fantzo", url=core.FANTZO_HOME)],
+            [InlineKeyboardButton("⬅️ Back to Home", callback_data="back")],
+        ]
+    )
+
+
+# Override the core menus everywhere, including Back to Home and Join actions.
 core.main_keyboard = premium_main_keyboard
+core.join_keyboard = premium_join_keyboard
 
 
 async def configure_telegram_ui(application: Application) -> None:

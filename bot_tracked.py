@@ -1,5 +1,4 @@
 import logging
-from urllib.parse import urlencode
 
 from telegram import (
     BotCommand,
@@ -10,22 +9,13 @@ from telegram import (
 )
 
 import bot_persistent as app
+import fantzo_analytics as analytics
 
 logger = logging.getLogger(__name__)
 
-BASE_URL = "https://www.fantzo.com/"
 
-
-def tracked_url(content: str, campaign: str = "fantzo_sports_hub") -> str:
-    query = urlencode(
-        {
-            "utm_source": "telegram",
-            "utm_medium": "bot",
-            "utm_campaign": campaign,
-            "utm_content": content,
-        }
-    )
-    return f"{BASE_URL}?{query}"
+def tracked_url(content: str) -> str:
+    return analytics.tracking_url(content)
 
 
 def mini_app_button(label: str, content: str) -> InlineKeyboardButton:
@@ -102,7 +92,7 @@ async def configure_telegram_ui(application) -> None:
     )
     await application.bot.set_chat_menu_button(
         menu_button=MenuButtonWebApp(
-            text="Open Fantzo",
+            text="Join Fantzo",
             web_app=WebAppInfo(url=tracked_url("telegram_native_menu")),
         )
     )
@@ -115,5 +105,6 @@ app.configure_telegram_ui = configure_telegram_ui
 
 
 if __name__ == "__main__":
-    logger.info("Starting Fantzo with tracked Mini App conversion links")
+    analytics.start_tracking_server()
+    logger.info("Starting Fantzo with tracked Mini App conversion links and admin analytics")
     app.run()

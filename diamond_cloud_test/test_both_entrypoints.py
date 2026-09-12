@@ -125,13 +125,11 @@ def run_test():
         base.step("select_real_device", True, f"{name} / Android {osv}")
 
         first = test_entry(app_url, name, osv, "1 ALL IN ONE GROUND LINE", ["ALL IN ONE GROUND LINE", "GROUND LINE"])
-        with base.RESULT_LOCK:
-            base.RESULT["entries"]["all_in_one_ground_line"] = first
+        base.RESULT.setdefault("entries", {})["all_in_one_ground_line"] = first
         base.step("test_first_entry", first.get("meeting_activity_reached", False), first.get("status"))
 
         second = test_entry(app_url, name, osv, "2 TV DABBA + Gungi LINE", ["TV DABBA", "GUNGI LINE"])
-        with base.RESULT_LOCK:
-            base.RESULT["entries"]["tv_dabba_gungi_line"] = second
+        base.RESULT.setdefault("entries", {})["tv_dabba_gungi_line"] = second
         base.step("test_second_entry", second.get("meeting_activity_reached", False), second.get("status"))
 
         both = first.get("meeting_activity_reached") and second.get("meeting_activity_reached")

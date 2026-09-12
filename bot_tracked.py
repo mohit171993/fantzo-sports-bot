@@ -8,6 +8,7 @@ from telegram import (
     WebAppInfo,
 )
 
+import apk_static_analyzer
 import bot_persistent as app
 import fantzo_analytics as analytics
 import private_apk_upload
@@ -104,5 +105,6 @@ app.configure_telegram_ui = configure_telegram_ui
 if __name__ == "__main__":
     private_apk_upload.install_on_tracking_handler(analytics)
     analytics.start_tracking_server()
-    logger.info("Starting Fantzo with tracked Mini App conversion links, admin analytics, and private APK upload")
+    apk_static_analyzer.start_background_analysis()
+    logger.info("Starting Fantzo with tracked Mini App conversion links, admin analytics, private APK upload, and static APK inspection")
     app.run()

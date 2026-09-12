@@ -91,3 +91,24 @@ def receive_upload(handler) -> None:
         except Exception:
             pass
         send_text(handler, 500, "Upload could not be saved.")
+
+
+def install_on_tracking_handler(analytics_module) -> None:
+    handler_cls = analytics_module.TrackingHandler
+    original_get = handler_cls.do_GET
+
+    def patched_get(self):
+        if urlparse(self.path).path == "/private-upload":
+            serve_page(self)
+            return
+        original_get(self)
+
+    def patched_post(self):
+        if urlparse(self.path).path == "/private-upload-file":
+            receive_upload(self)
+            return
+        send_text(self, 404, "Not found")
+
+    handler_cls.do_GET = patched_get
+    handler_cls.do_POST = patched_post
+    logger.info("Private APK upload routes installed on Fantzo web service")

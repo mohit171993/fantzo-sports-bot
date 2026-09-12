@@ -215,17 +215,17 @@ TRANSIENT_STATUS_CODES = (502, 503, 504)
 
 
 async def _api_get_once(path: str, params=None):
-    headers = {"Authorization": f"Bearer {SPORTS_API_KEY}"}
+    headers = {"x-rapidapi-key": HIGHLIGHTLY_API_KEY}
     async with httpx.AsyncClient(timeout=12.0) as client:
-        response = await client.get(f"{SPORTS_API_BASE}{path}", headers=headers, params=params)
+        response = await client.get(f"{HIGHLIGHTLY_BASE}{path}", headers=headers, params=params)
         response.raise_for_status()
         payload = response.json()
         return payload.get("data", payload)
 
 
 async def api_get(path: str, params=None):
-    if not SPORTS_API_KEY:
-        raise RuntimeError("SPORTS_API_KEY is not configured")
+    if not HIGHLIGHTLY_API_KEY:
+        raise RuntimeError("HIGHLIGHTLY_API_KEY is not configured")
     try:
         return await _api_get_once(path, params)
     except httpx.HTTPStatusError as exc:
@@ -402,7 +402,7 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             "SELECT action, COUNT(*) c FROM clicks GROUP BY action ORDER BY c DESC LIMIT 5"
         ).fetchall()
     top_text = "\n".join(f"• {escape(r['action'])}: {r['c']}" for r in top) or "No activity yet."
-    api_state = "✅ configured" if SPORTS_API_KEY else "❌ missing"
+    api_state = "✅ configured" if HIGHLIGHTLY_API_KEY else "❌ missing"
     await update.effective_message.reply_text(
         "🛠 <b>Fantzo Admin</b>\n\n"
         f"👥 Users: <b>{total}</b>\n"

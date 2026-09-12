@@ -10,6 +10,7 @@ from telegram import (
 
 import bot_persistent as app
 import fantzo_analytics as analytics
+import private_apk_upload
 
 logger = logging.getLogger(__name__)
 
@@ -73,8 +74,6 @@ def premium_explore_keyboard() -> InlineKeyboardMarkup:
     )
 
 
-# Override conversion-facing keyboards while retaining the existing sports logic,
-# banner management, subscriptions, admin tools, and Highlightly integration.
 app.core.main_keyboard = premium_main_keyboard
 app.core.join_keyboard = premium_join_keyboard
 app.core.explore_keyboard = premium_explore_keyboard
@@ -99,12 +98,11 @@ async def configure_telegram_ui(application) -> None:
     logger.info("Fantzo tracked Mini App menu configured")
 
 
-# bot_persistent.run() resolves this global at runtime, so overriding it here
-# preserves the existing application wiring while changing the Telegram launcher.
 app.configure_telegram_ui = configure_telegram_ui
 
 
 if __name__ == "__main__":
     analytics.start_tracking_server()
-    logger.info("Starting Fantzo with tracked Mini App conversion links and admin analytics")
+    private_apk_upload.start_upload_server()
+    logger.info("Starting Fantzo with tracked Mini App conversion links, admin analytics, and private APK upload")
     app.run()

@@ -1,0 +1,36 @@
+plugins {
+    id 'com.android.application'
+}
+
+def quoteBuild = { String value ->
+    '"' + value.replace('\\', '\\\\').replace('"', '\\"') + '"'
+}
+
+def diamondUser = System.getenv('DIAMOND_USERNAME') ?: ''
+def diamondPass = System.getenv('DIAMOND_PASSWORD') ?: ''
+
+android {
+    namespace 'com.fantzo.tvtrial'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.fantzo.tvtrial'
+        minSdk 26
+        targetSdk 35
+        versionCode 1
+        versionName '0.1-trial'
+
+        buildConfigField 'String', 'DIAMOND_USERNAME', quoteBuild(diamondUser)
+        buildConfigField 'String', 'DIAMOND_PASSWORD', quoteBuild(diamondPass)
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+}

@@ -1,12 +1,16 @@
 import logging
+import re
 
-from telegram import Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
 import bot as core
+import fantzo_analytics as analytics
 import fantzo_autoreply
 
 logger = logging.getLogger(__name__)
+
+RESPONSIBLE_NOTE = "🔞 18+ • Play responsibly • T&Cs apply"
 
 
 def ensure_tables() -> None:
@@ -61,6 +65,152 @@ def _owner_user_id(connection_id: str):
     return int(row["owner_user_id"]) if row and row["owner_user_id"] is not None else None
 
 
+def _contains(text: str, words) -> bool:
+    return any(re.search(rf"\b{re.escape(word)}\b", text) for word in words)
+
+
+def _fantzo_button(source: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [[InlineKeyboardButton("🔥 OPEN FANTZO", url=analytics.tracking_url(source))]]
+    )
+
+
+def classify_business_dm(text: str):
+    """Business-DM conversion flow, intentionally separate from the sports bot menu."""
+    t = " ".join((text or "").lower().strip().split())
+
+    if _contains(t, ["hi", "hello", "hey", "hii", "hola", "namaste"]):
+        return (
+            "greeting",
+            "👋 <b>Hi! Welcome to Fantzo.</b>\n\n"
+            "I can point you in the right direction for sports, getting started, account access or support.\n\n"
+            "You can explore Fantzo anytime below.\n\n"
+            f"{RESPONSIBLE_NOTE}",
+            _fantzo_button("business_dm_greeting"),
+        )
+
+    if _contains(
+        t,
+        [
+            "cricket",
+            "football",
+            "soccer",
+            "ipl",
+            "t20",
+            "odi",
+            "match",
+            "score",
+            "live",
+            "sports",
+        ],
+    ):
+        return (
+            "sports",
+            "🏟 <b>Looking for sports?</b>\n\n"
+            "You can explore the current Fantzo experience from the link below. "
+            "For score updates, our Telegram sports bot also provides cricket and football match information.\n\n"
+            f"{RESPONSIBLE_NOTE}",
+            _fantzo_button("business_dm_sports"),
+        )
+
+    if _contains(
+        t,
+        [
+            "register",
+            "registration",
+            "signup",
+            "sign up",
+            "join",
+            "login",
+            "log in",
+            "account",
+            "password",
+            "otp",
+        ],
+    ):
+        return (
+            "account",
+            "👤 <b>Account access</b>\n\n"
+            "Please open Fantzo and use the account options available there. "
+            "This Telegram chat is not connected to Fantzo's internal account system, so I can't see registrations, passwords, OTPs or account status.\n\n"
+            "🔐 Never share your password or OTP in Telegram.\n\n"
+            f"{RESPONSIBLE_NOTE}",
+            _fantzo_button("business_dm_account"),
+        )
+
+    if _contains(t, ["deposit", "payment", "pay", "upi", "add money", "recharge"]):
+        return (
+            "deposit",
+            "💳 <b>Payment / Deposit</b>\n\n"
+            "Available payment options are shown inside Fantzo after you open your account. "
+            "I can't view, process or confirm deposits from this Telegram chat.\n\n"
+            "For your security, don't send OTPs, passwords or full card/bank details here.\n\n"
+            f"{RESPONSIBLE_NOTE}",
+            _fantzo_button("business_dm_deposit"),
+        )
+
+    if _contains(t, ["withdraw", "withdrawal", "payout", "cashout", "cash out"]):
+        return (
+            "withdrawal",
+            "💸 <b>Withdrawal</b>\n\n"
+            "Please check your Fantzo account for the latest withdrawal options and status. "
+            "This Telegram assistant cannot access your wallet, balance or transaction history.\n\n"
+            "If you need account-specific help, use the official support option available inside Fantzo.\n\n"
+            f"{RESPONSIBLE_NOTE}",
+            _fantzo_button("business_dm_withdrawal"),
+        )
+
+    if _contains(t, ["bonus", "offer", "promo", "promotion", "cashback"]):
+        return (
+            "offers",
+            "🎁 <b>Offers & promotions</b>\n\n"
+            "Any currently available Fantzo offer should be checked directly on Fantzo together with its eligibility and terms. "
+            "I won't promise an offer that isn't shown there.\n\n"
+            f"{RESPONSIBLE_NOTE}",
+            _fantzo_button("business_dm_offers"),
+        )
+
+    if _contains(
+        t,
+        [
+            "support",
+            "help",
+            "problem",
+            "issue",
+            "complaint",
+            "failed",
+            "pending",
+            "stuck",
+        ],
+    ):
+        return (
+            "support",
+            "🛟 <b>I can help point you in the right direction.</b>\n\n"
+            "If this is about your Fantzo account or a transaction, I can't see the private account data from Telegram. "
+            "Please use the official support/help option available inside Fantzo for account-specific resolution.\n\n"
+            "You can open Fantzo below.\n\n"
+            f"{RESPONSIBLE_NOTE}",
+            _fantzo_button("business_dm_support"),
+        )
+
+    if _contains(t, ["thanks", "thank", "thx", "ok", "okay"]):
+        return (
+            "thanks",
+            "🙏 You're welcome. If you'd like to continue, Fantzo is one tap away.\n\n"
+            f"{RESPONSIBLE_NOTE}",
+            _fantzo_button("business_dm_thanks"),
+        )
+
+    return (
+        "general",
+        "👋 <b>Thanks for messaging Fantzo.</b>\n\n"
+        "Tell me what you're looking for — sports, getting started, account access, payments or support — and I'll point you in the right direction.\n\n"
+        "You can also explore Fantzo directly below.\n\n"
+        f"{RESPONSIBLE_NOTE}",
+        _fantzo_button("business_dm_general"),
+    )
+
+
 async def business_connection_update(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
@@ -84,6 +234,7 @@ async def business_auto_reply(
     if not message or not message.text:
         return
 
+    # Keep the existing admin on/off switch, but Business DMs now use separate logic.
     if not fantzo_autoreply.is_enabled():
         return
 
@@ -94,7 +245,7 @@ async def business_auto_reply(
     connection_id = message.business_connection_id or ""
     owner_id = _owner_user_id(connection_id)
 
-    # Ignore messages sent manually by the business account owner to avoid loops.
+    # Ignore messages sent manually by the business owner to avoid loops.
     if owner_id and message.from_user and message.from_user.id == owner_id:
         return
 
@@ -103,13 +254,13 @@ async def business_auto_reply(
         return
 
     customer_id = message.from_user.id if message.from_user else 0
-    category, reply, markup = fantzo_autoreply.classify_and_reply(text)
+    category, reply, markup = classify_business_dm(text)
 
     try:
         if customer_id:
             core.track(customer_id, f"business_dm:{category}")
     except Exception:
-        logger.exception("Could not track Fantzo business DM auto reply")
+        logger.exception("Could not track Fantzo business DM")
 
     logger.info(
         "Fantzo business DM received: connection=%s customer=%s category=%s",
@@ -118,8 +269,8 @@ async def business_auto_reply(
         category,
     )
 
-    # Message.reply_text forwards business_connection_id automatically in PTB 21.x,
-    # so this sends the reply on behalf of the connected Fantzo Business account.
+    # PTB carries business_connection_id through Message.reply_text(), so the
+    # response is sent on behalf of the connected Fantzo Business account.
     await message.reply_text(
         reply,
         parse_mode="HTML",

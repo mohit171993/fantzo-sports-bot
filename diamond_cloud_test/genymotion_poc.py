@@ -80,14 +80,15 @@ def gmsaas(args, timeout=180, json_output=False):
 
 
 def ensure_adb():
-    if Path(ADB).exists():
-        return
-    url = "https://dl.google.com/android/repository/platform-tools-latest-linux.zip"
-    zip_path = "/tmp/platform-tools.zip"
-    urllib.request.urlretrieve(url, zip_path)
-    with zipfile.ZipFile(zip_path) as zf:
-        zf.extractall("/tmp")
-    os.chmod(ADB, 0o755)
+    if not Path(ADB).exists():
+        url = "https://dl.google.com/android/repository/platform-tools-latest-linux.zip"
+        zip_path = "/tmp/platform-tools.zip"
+        urllib.request.urlretrieve(url, zip_path)
+        with zipfile.ZipFile(zip_path) as zf:
+            zf.extractall("/tmp")
+        os.chmod(ADB, 0o755)
+    # gmsaas needs the Android SDK root, which contains platform-tools/adb.
+    run(["gmsaas", "config", "set", "android-sdk-path", "/tmp"], timeout=60)
 
 
 def auth_genymotion():

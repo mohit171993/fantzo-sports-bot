@@ -1,7 +1,8 @@
 import logging
 import re
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, WebAppInfo
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 
 import bot as core
@@ -12,6 +13,10 @@ logger = logging.getLogger(__name__)
 
 RESPONSIBLE_NOTE = "<i>🔞 18+ • Play responsibly • T&Cs apply</i>"
 SPORTS_BOT_URL = "https://t.me/fantzoofficialbot?start=dm"
+# Business-account messages cannot contain web_app buttons. Use Telegram's
+# Main Mini App deep link instead; when a Main Mini App is configured in
+# BotFather this opens it directly inside Telegram.
+FANTZO_MINI_APP_DEEP_LINK = "https://t.me/fantzoofficialbot?startapp=business_dm"
 
 
 def ensure_tables() -> None:
@@ -70,21 +75,20 @@ def _contains(text: str, words) -> bool:
     return any(re.search(rf"\b{re.escape(word)}\b", text) for word in words)
 
 
-def _fantzo_webapp_button(source: str, label: str = "🔥 EXPLORE FANTZO") -> InlineKeyboardButton:
-    return InlineKeyboardButton(
-        label,
-        web_app=WebAppInfo(url=analytics.tracking_url(source)),
-    )
+def _fantzo_url_button(label: str = "🔥 EXPLORE FANTZO") -> InlineKeyboardButton:
+    return InlineKeyboardButton(label, url=FANTZO_MINI_APP_DEEP_LINK)
 
 
 def _fantzo_button(source: str, label: str = "🔥 EXPLORE FANTZO") -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([[_fantzo_webapp_button(source, label)]])
+    # Source is still tracked at the DM-message level. Business messages can't
+    # use WebAppInfo, so the launch itself must use a Telegram deep link.
+    return InlineKeyboardMarkup([[_fantzo_url_button(label)]])
 
 
 def _welcome_buttons() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
-            [_fantzo_webapp_button("business_dm_greeting", "🔥 EXPLORE FANTZO")],
+            [_fantzo_url_button("🔥 EXPLORE FANTZO")],
             [InlineKeyboardButton("🏏 LIVE SCORES & FIXTURES", url=SPORTS_BOT_URL)],
         ]
     )
@@ -126,7 +130,7 @@ def classify_business_dm(text: str):
             f"{RESPONSIBLE_NOTE}",
             InlineKeyboardMarkup(
                 [
-                    [_fantzo_webapp_button("business_dm_sports", "🔥 EXPLORE FANTZO")],
+                    [_fantzo_url_button("🔥 EXPLORE FANTZO")],
                     [InlineKeyboardButton("🏏 LIVE SCORES & FIXTURES", url=SPORTS_BOT_URL)],
                 ]
             ),
@@ -280,9 +284,18 @@ async def business_auto_reply(
         category,
     )
 
-    await message.reply_text(
-        reply,
-        parse_mode="HTML",
-        reply_markup=markup,
-        disable_web_page_preview=True,
-    )
+    try:
+        await message.reply_text(
+            reply,
+            parse_mode="HTML",
+            reply_markup=markup,
+            disable_web_page_preview=True,
+        )
+    except BadRequest as exc:
+        # Never let a keyboard compatibility problem suppress the whole reply.
+        logger.warning("Fantzo Business DM keyboard failed: %s", exc)
+        await message.reply_text(
+            reply,
+            parse_mode="HTML",
+            disable_web_page_preview=True,
+        )

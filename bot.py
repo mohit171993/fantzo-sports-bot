@@ -349,16 +349,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 async def sports_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     touch_user(update)
-    try:
-        sports = await api_get("/v2/sports")
-        rows = []
-        for sport in sports[:20]:
-            name = sport.get("name") or sport.get("slug") or "sport"
-            live = sport.get("live", 0)
-            rows.append(f"• {escape(str(name)).title()}: {live} live")
-        text = "🏟 <b>Sports coverage</b>\n\n" + "\n".join(rows)
-    except Exception:
-        text = "⚠️ Could not load sports coverage right now."
+    text = "🏟 <b>Highlightly Sports Coverage</b>\n\n• Football\n• Cricket"
     await update.effective_message.reply_text(text, parse_mode="HTML", reply_markup=main_keyboard())
 
 

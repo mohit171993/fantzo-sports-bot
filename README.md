@@ -15,6 +15,7 @@ This repository is dedicated to Fantzo only and is intentionally separate from a
 
 - `BOT_TOKEN`
 - `ADMIN_USER_ID` (defaults to `8992664481`)
+- `HIGHLIGHTLY_API_KEY` (Highlightly Sports API key, sent as `x-rapidapi-key`)
 
 ## Run locally
 

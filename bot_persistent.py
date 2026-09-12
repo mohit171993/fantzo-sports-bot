@@ -167,6 +167,26 @@ async def quick_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     await show_home(update, context)
 
 
+async def setbanner_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Put the admin into one-shot banner upload mode."""
+    user = update.effective_user
+    message = update.effective_message
+    if not user or not message:
+        return
+
+    if user.id != core.ADMIN_USER_ID:
+        await message.reply_text("This command is restricted.")
+        return
+
+    context.user_data["awaiting_fantzo_banner"] = True
+    await message.reply_text(
+        "🖼 <b>Send the Fantzo banner now.</b>\n\n"
+        "Send it as a normal Telegram <b>photo</b>. No caption is required.\n"
+        "I will save Telegram's own image reference and confirm when it is ready.",
+        parse_mode="HTML",
+    )
+
+
 async def banner_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Allow only the Fantzo admin to upload a Telegram-hosted home banner."""
     user = update.effective_user
@@ -175,16 +195,16 @@ async def banner_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         return
 
     caption = (message.caption or "").strip().lower()
-    if caption not in {"/setbanner", "setbanner"}:
-        await message.reply_text(
-            "To use this image as the Fantzo home banner, send it again with caption <code>/setbanner</code>.",
-            parse_mode="HTML",
-        )
+    waiting = bool(context.user_data.get("awaiting_fantzo_banner"))
+    caption_trigger = caption in {"/setbanner", "setbanner"}
+
+    if not waiting and not caption_trigger:
         return
 
     file_id = message.photo[-1].file_id
     save_banner_file_id(file_id)
-    logger.info("Fantzo home banner captured; Telegram file_id=%s", file_id)
+    context.user_data["awaiting_fantzo_banner"] = False
+    logger.info("Fantzo home banner captured successfully")
 
     await message.reply_text(
         "✅ <b>Fantzo banner saved.</b>\n\n"
@@ -214,6 +234,7 @@ def run() -> None:
     app.add_handler(CommandHandler("team", core.team_command))
     app.add_handler(CommandHandler("admin", core.admin))
     app.add_handler(CommandHandler("broadcast", core.broadcast))
+    app.add_handler(CommandHandler("setbanner", setbanner_command))
     app.add_handler(
         MessageHandler(filters.TEXT & filters.Regex(r"^⚡ Fantzo Menu$"), quick_menu)
     )

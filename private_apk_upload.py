@@ -47,9 +47,13 @@ def serve_page(handler) -> None:
     send_text(handler, 200, PAGE, "text/html; charset=utf-8")
 
 
+def _valid_token(value: str) -> bool:
+    return bool(UPLOAD_TOKEN) and hmac.compare_digest(value or "", UPLOAD_TOKEN)
+
+
 def receive_upload(handler) -> None:
     supplied = handler.headers.get("X-Upload-Token", "")
-    if not UPLOAD_TOKEN or not hmac.compare_digest(supplied, UPLOAD_TOKEN):
+    if not _valid_token(supplied):
         send_text(handler, 403, "Invalid private upload link.")
         return
 
@@ -93,13 +97,44 @@ def receive_upload(handler) -> None:
         send_text(handler, 500, "Upload could not be saved.")
 
 
+def serve_private_download(handler) -> None:
+    parsed = urlparse(handler.path)
+    supplied = parse_qs(parsed.query).get("token", [""])[0]
+    if not _valid_token(supplied):
+        send_text(handler, 403, "Invalid private download link.")
+        return
+
+    src = UPLOAD_DIR / "diamond.apk"
+    if not src.exists() or not src.is_file():
+        send_text(handler, 404, "APK not found.")
+        return
+
+    size = src.stat().st_size
+    handler.send_response(200)
+    handler.send_header("Content-Type", "application/vnd.android.package-archive")
+    handler.send_header("Content-Length", str(size))
+    handler.send_header("Content-Disposition", 'attachment; filename="diamond.apk"')
+    handler.send_header("Cache-Control", "no-store")
+    handler.end_headers()
+    with src.open("rb") as fh:
+        while True:
+            chunk = fh.read(1024 * 1024)
+            if not chunk:
+                break
+            handler.wfile.write(chunk)
+
+
 def install_on_tracking_handler(analytics_module) -> None:
     handler_cls = analytics_module.TrackingHandler
     original_get = handler_cls.do_GET
 
     def patched_get(self):
-        if urlparse(self.path).path == "/private-upload":
+        path = urlparse(self.path).path
+        if path == "/private-upload":
             serve_page(self)
+            return
+        if path == "/private-upload-download":
+            serve_private_download(self)
             return
         original_get(self)
 

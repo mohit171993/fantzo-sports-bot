@@ -87,12 +87,22 @@ def login_page():
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
 body{{margin:0;background:#08111d;color:white;font-family:Arial,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center}}
-.card{{padding:28px;max-width:380px}}.spinner{{width:34px;height:34px;border:4px solid #355;border-top-color:white;border-radius:50%;margin:0 auto 18px;animation:s 1s linear infinite}}@keyframes s{{to{{transform:rotate(360deg)}}}}
-.small{{opacity:.72;font-size:13px;line-height:1.45}}
+.card{{padding:28px;max-width:380px;width:100%}}
+.spinner{{width:34px;height:34px;border:4px solid #355;border-top-color:white;border-radius:50%;margin:0 auto 18px;animation:s 1s linear infinite}}
+@keyframes s{{to{{transform:rotate(360deg)}}}}
+.small{{opacity:.72;font-size:13px;line-height:1.45;margin:0 auto 18px}}
+#continueBtn{{display:none;width:100%;max-width:320px;margin:20px auto 0;padding:15px 18px;border:0;border-radius:12px;font-size:17px;font-weight:700;background:white;color:#08111d}}
+#hint{{display:none;margin-top:12px;font-size:12px;opacity:.65}}
 </style>
 </head>
 <body>
-<div class="card"><div class="spinner"></div><h3>Opening Sky test…</h3><div class="small">Private test mode. You will be handed directly to Sky Live Pro inside this WebView.</div></div>
+<div class="card">
+  <div class="spinner" id="spinner"></div>
+  <h3 id="title">Opening Sky test…</h3>
+  <div class="small">Private test mode. Your Sky login is prefilled securely for this test.</div>
+  <button id="continueBtn" type="button">Continue to Sky</button>
+  <div id="hint">Telegram blocked the automatic handoff. Tap once to continue inside this WebView.</div>
+</div>
 <form id="skyLogin" action="https://skylivepro.com/" method="post" style="display:none">
 <input name="username" value="{user}">
 <input name="password" value="{password}">
@@ -100,8 +110,36 @@ body{{margin:0;background:#08111d;color:white;font-family:Arial,sans-serif;displ
 <input name="submit" value="">
 </form>
 <script>
-try {{ if (window.Telegram && Telegram.WebApp) {{ Telegram.WebApp.ready(); Telegram.WebApp.expand(); }} }} catch(e) {{}}
-setTimeout(function(){{ document.getElementById('skyLogin').submit(); }}, 700);
+try {{
+  if (window.Telegram && Telegram.WebApp) {{
+    Telegram.WebApp.ready();
+    Telegram.WebApp.expand();
+  }}
+}} catch(e) {{}}
+
+function handoff() {{
+  try {{
+    document.getElementById('skyLogin').submit();
+  }} catch(e) {{
+    showFallback();
+  }}
+}}
+
+function showFallback() {{
+  document.getElementById('spinner').style.display = 'none';
+  document.getElementById('title').textContent = 'Ready to continue';
+  document.getElementById('continueBtn').style.display = 'block';
+  document.getElementById('hint').style.display = 'block';
+}}
+
+document.getElementById('continueBtn').addEventListener('click', function() {{
+  this.disabled = true;
+  this.textContent = 'Opening…';
+  handoff();
+}});
+
+setTimeout(handoff, 500);
+setTimeout(showFallback, 2500);
 </script>
 </body>
 </html>""".encode("utf-8")

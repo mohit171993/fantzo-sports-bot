@@ -15,7 +15,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
 ADMIN_USER_ID = os.getenv("ADMIN_USER_ID", "").strip()
 TEST_BASE_URL = os.getenv("TEST_BASE_URL", "").strip().rstrip("/")
 
-STATE = {"status": "starting", "message_sent": False}
+STATE = {"status": "starting", "message_sent": False, "handoff_count": 0}
 LOCK = threading.Lock()
 
 
@@ -77,6 +77,7 @@ def login_page():
     user = html.escape(SKY_USERNAME, quote=True)
     password = html.escape(SKY_PASSWORD, quote=True)
     hwid = html.escape(secrets.token_urlsafe(15)[:20] + "_web", quote=True)
+    key = html.escape(SKY_TEST_TOKEN, quote=True)
     return f"""<!doctype html>
 <html>
 <head>
@@ -101,9 +102,9 @@ body{{margin:0;background:#08111d;color:white;font-family:Arial,sans-serif;displ
   <h3 id="title">Opening Sky test…</h3>
   <div class="small">Private test mode. Your Sky login is prefilled securely for this test.</div>
   <button id="continueBtn" type="button">Continue to Sky</button>
-  <div id="hint">Telegram blocked the automatic handoff. Tap once to continue inside this WebView.</div>
+  <div id="hint">Tap once to continue inside this Telegram WebView.</div>
 </div>
-<form id="skyLogin" action="https://skylivepro.com/" method="post" style="display:none">
+<form id="skyLogin" action="/handoff?key={key}" method="post" style="display:none">
 <input name="username" value="{user}">
 <input name="password" value="{password}">
 <input name="HWID" value="{hwid}">
@@ -129,6 +130,8 @@ function showFallback() {{
   document.getElementById('spinner').style.display = 'none';
   document.getElementById('title').textContent = 'Ready to continue';
   document.getElementById('continueBtn').style.display = 'block';
+  document.getElementById('continueBtn').disabled = false;
+  document.getElementById('continueBtn').textContent = 'Continue to Sky';
   document.getElementById('hint').style.display = 'block';
 }}
 
@@ -136,6 +139,7 @@ document.getElementById('continueBtn').addEventListener('click', function() {{
   this.disabled = true;
   this.textContent = 'Opening…';
   handoff();
+  setTimeout(showFallback, 3000);
 }});
 
 setTimeout(handoff, 500);
@@ -146,42 +150,74 @@ setTimeout(showFallback, 2500);
 
 
 class Handler(BaseHTTPRequestHandler):
+    def _send_common(self, body: bytes, content_type: str, status: int = 200):
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
+        self.send_header("Pragma", "no-cache")
+        self.end_headers()
+        if body:
+            self.wfile.write(body)
+
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
         if parsed.path == "/health":
-            body = b"ok"
-            self.send_response(200)
-            self.send_header("Content-Type", "text/plain")
-        elif parsed.path == "/status":
+            self._send_common(b"ok", "text/plain")
+            return
+        if parsed.path == "/status":
             with LOCK:
                 body = json.dumps(STATE, indent=2).encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-        elif parsed.path == "/open":
+            self._send_common(body, "application/json")
+            return
+        if parsed.path == "/open":
             key = urllib.parse.parse_qs(parsed.query).get("key", [""])[0]
             if not SKY_TEST_TOKEN or not secrets.compare_digest(key, SKY_TEST_TOKEN):
-                body = b"Not found"
-                self.send_response(404)
-                self.send_header("Content-Type", "text/plain")
-            elif not SKY_USERNAME or not SKY_PASSWORD:
-                body = b"Test credentials are not configured"
-                self.send_response(503)
-                self.send_header("Content-Type", "text/plain")
-            else:
-                body = login_page()
-                self.send_response(200)
-                self.send_header("Content-Type", "text/html; charset=utf-8")
-                self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
-                self.send_header("Pragma", "no-cache")
-                self.send_header("Referrer-Policy", "no-referrer")
-                self.send_header("X-Robots-Tag", "noindex, nofollow")
-        else:
-            body = b"Fantzo Sky Telegram test"
+                self._send_common(b"Not found", "text/plain", 404)
+                return
+            if not SKY_USERNAME or not SKY_PASSWORD:
+                self._send_common(b"Test credentials are not configured", "text/plain", 503)
+                return
+            body = login_page()
             self.send_response(200)
-            self.send_header("Content-Type", "text/plain")
-        self.send_header("Content-Length", str(len(body)))
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
+            self.send_header("Pragma", "no-cache")
+            self.send_header("Referrer-Policy", "no-referrer")
+            self.send_header("X-Robots-Tag", "noindex, nofollow")
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        self._send_common(b"Fantzo Sky Telegram test", "text/plain")
+
+    def do_POST(self):
+        parsed = urllib.parse.urlparse(self.path)
+        if parsed.path != "/handoff":
+            self._send_common(b"Not found", "text/plain", 404)
+            return
+        key = urllib.parse.parse_qs(parsed.query).get("key", [""])[0]
+        if not SKY_TEST_TOKEN or not secrets.compare_digest(key, SKY_TEST_TOKEN):
+            self._send_common(b"Not found", "text/plain", 404)
+            return
+
+        # Do not proxy or inspect Sky content. The browser POSTs to this same-origin
+        # endpoint, then a 307 preserves that POST body while navigating directly
+        # to Sky Live Pro.
+        length = int(self.headers.get("Content-Length", "0") or "0")
+        if length <= 0 or length > 16384:
+            self._send_common(b"Invalid handoff", "text/plain", 400)
+            return
+
+        with LOCK:
+            STATE["handoff_count"] = int(STATE.get("handoff_count", 0)) + 1
+            STATE["status"] = "handoff_redirected"
+
+        self.send_response(307)
+        self.send_header("Location", "https://skylivepro.com/")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", "0")
         self.end_headers()
-        self.wfile.write(body)
 
     def log_message(self, *args):
         return

@@ -147,7 +147,6 @@ def click_text(driver, terms):
 
 def try_login(driver):
     time.sleep(8)
-    # Handle common consent/onboarding screens first.
     click_text(driver, ["i agree", "agree", "accept", "continue", "ok"])
     time.sleep(3)
 
@@ -162,9 +161,23 @@ def try_login(driver):
     edits[1].clear()
     edits[1].send_keys(RACE_PASS)
 
-    term = click_text(driver, ["login", "log in", "sign in", "submit", "enter", "continue"])
+    try:
+        driver.hide_keyboard()
+    except Exception:
+        try:
+            driver.press_keycode(4)
+        except Exception:
+            pass
+    time.sleep(1)
+
+    term = click_text(driver, ["sign in", "login", "log in", "submit", "enter", "continue"])
     if not term:
-        # Fallback: click the first visible enabled button after filling credentials.
+        try:
+            driver.press_keycode(66)
+            term = "keyboard enter"
+        except Exception:
+            pass
+    if not term:
         for el in driver.find_elements(By.CLASS_NAME, "android.widget.Button"):
             try:
                 if el.is_displayed() and el.is_enabled():
@@ -267,7 +280,6 @@ def worker():
         if web_url:
             step("webview_endpoint_detected", True, web_url)
 
-        # Conservative navigation probe: only tap clearly-labelled Live/Channels controls.
         clicked = click_text(driver, ["live", "channels", "channel"])
         if clicked:
             time.sleep(8)

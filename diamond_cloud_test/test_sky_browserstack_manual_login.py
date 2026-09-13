@@ -31,9 +31,9 @@ def choose_device():
     r.raise_for_status()
     items=[]
     for d in r.json():
-        if str(d.get('os','')).lower()=='android' and str(d.get('browser','')).lower()=='chrome':
-            if d.get('real_mobile') is True or str(d.get('real_mobile','')).lower()=='true': items.append(d)
-    if not items: raise RuntimeError('No real Android Chrome device available')
+        if str(d.get('os','')).lower()=='android' and str(d.get('browser','')).lower()=='chrome' and d.get('device'):
+            items.append(d)
+    if not items: raise RuntimeError('No Android Chrome device available in BrowserStack Automate catalog')
     pref=['Samsung Galaxy S24','Samsung Galaxy S23','Google Pixel 8','Google Pixel 7']
     for name in pref:
         for d in items:

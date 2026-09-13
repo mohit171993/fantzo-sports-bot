@@ -1,9 +1,9 @@
-# Sky Live Pro BrowserStack manual-login playback PoC
+# Sky Live Pro BrowserStack real-device Chrome playback PoC
 import json, os, threading, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import requests
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options as ChromeOptions
+from appium import webdriver
+from appium.options.android import UiAutomator2Options
 from selenium.webdriver.common.by import By
 
 PORT=int(os.getenv('PORT','8080'))
@@ -27,13 +27,10 @@ def safe(e):
     return s[:800]
 
 def choose_device():
-    r=requests.get('https://api.browserstack.com/automate/browsers.json',auth=(BS_USER,BS_KEY),timeout=60)
+    r=requests.get('https://api-cloud.browserstack.com/app-automate/devices.json',auth=(BS_USER,BS_KEY),timeout=60)
     r.raise_for_status()
-    items=[]
-    for d in r.json():
-        if str(d.get('os','')).lower()=='android' and str(d.get('browser','')).lower()=='chrome' and d.get('device'):
-            items.append(d)
-    if not items: raise RuntimeError('No Android Chrome device available in BrowserStack Automate catalog')
+    items=[d for d in r.json() if str(d.get('os','')).lower()=='android']
+    if not items: raise RuntimeError('No Android real device available in BrowserStack App Automate')
     pref=['Samsung Galaxy S24','Samsung Galaxy S23','Google Pixel 8','Google Pixel 7']
     for name in pref:
         for d in items:
@@ -43,16 +40,36 @@ def choose_device():
 def vids(driver):
     return driver.execute_script("return Array.from(document.querySelectorAll('video')).map((v,i)=>({i,currentTime:Number(v.currentTime||0),readyState:Number(v.readyState||0),w:Number(v.videoWidth||0),h:Number(v.videoHeight||0),paused:!!v.paused}));")
 
+def session_browser_url(session_id):
+    try:
+        r=requests.get(f'https://api.browserstack.com/automate/sessions/{session_id}.json',auth=(BS_USER,BS_KEY),timeout=20)
+        if r.ok:
+            data=r.json().get('automation_session',{})
+            return data.get('browser_url') or data.get('public_url')
+    except Exception:
+        pass
+    return None
+
 def worker():
     if not BS_USER or not BS_KEY:
         set_state(status='waiting_for_browserstack_variables'); return
     driver=None
     try:
         d=choose_device(); dev=d.get('device'); osv=str(d.get('os_version'))
-        opt=ChromeOptions(); opt.set_capability('browserName','Chrome')
-        opt.set_capability('bstack:options',{'userName':BS_USER,'accessKey':BS_KEY,'deviceName':dev,'osVersion':osv,'realMobile':'true','projectName':'Fantzo Sky Web PoC','buildName':f'sky-{int(time.time())}','sessionName':'Sky manual-login playback test','debug':True,'video':True,'networkLogs':False})
+        step('select_real_android_device',True,f'{dev} / Android {osv}')
+        opt=UiAutomator2Options()
+        opt.set_capability('platformName','Android')
+        opt.set_capability('browserName','Chrome')
+        opt.set_capability('appium:deviceName',dev)
+        opt.set_capability('appium:platformVersion',osv)
+        opt.set_capability('appium:automationName','UiAutomator2')
+        opt.set_capability('appium:newCommandTimeout',360)
+        opt.set_capability('bstack:options',{'userName':BS_USER,'accessKey':BS_KEY,'projectName':'Fantzo Sky Web PoC','buildName':f'sky-{int(time.time())}','sessionName':'Sky manual-login playback test','debug':True,'video':True,'networkLogs':False})
         driver=webdriver.Remote('https://hub-cloud.browserstack.com/wd/hub',options=opt)
-        set_state(status='waiting_for_manual_login',session_id=driver.session_id,device=dev,android_version=osv)
+        sid=driver.session_id
+        set_state(status='waiting_for_manual_login',session_id=sid,device=dev,android_version=osv)
+        burl=session_browser_url(sid)
+        if burl: set_state(browserstack_session_url=burl)
         driver.get('https://skylivepro.com')
         step('open_sky_login',True)
         deadline=time.time()+300
@@ -74,8 +91,10 @@ def worker():
         step('channel_buttons_loaded',True,len(buttons))
         buttons[0].click(); step('open_first_available_channel',True)
         deadline=time.time()+60
-        while time.time()<deadline and not driver.find_elements(By.TAG_NAME,'video'): time.sleep(2)
-        if not driver.find_elements(By.TAG_NAME,'video'): raise RuntimeError('No video element appeared')
+        while time.time()<deadline and not driver.find_elements(By.TAG_NAME,'video'):
+            time.sleep(2)
+        if not driver.find_elements(By.TAG_NAME,'video'):
+            raise RuntimeError('No video element appeared')
         a=vids(driver); time.sleep(10); b=vids(driver)
         playing=False; checks=[]
         for x,y in zip(a,b):

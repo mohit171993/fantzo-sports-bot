@@ -48,13 +48,14 @@ def send_test_message():
     payload = {
         "chat_id": ADMIN_USER_ID,
         "text": (
-            "🔴 FANTZO LIVE · PRIVATE TEST\n\n"
-            "Tap below to open the isolated Sky Live compatibility test inside Telegram.\n\n"
-            "Production Fantzo remains unchanged."
+            "🔴 FANTZO LIVE · ADMIN TEST\n\n"
+            "Private Sky Live test inside Telegram.\n"
+            "Tap below → open channels → choose the match.\n\n"
+            "Public Fantzo is unchanged."
         ),
         "reply_markup": {
             "inline_keyboard": [[{
-                "text": "🔴 OPEN FANTZO LIVE TEST",
+                "text": "🔴 OPEN FANTZO LIVE",
                 "web_app": {"url": open_url}
             }]]
         }
@@ -88,36 +89,57 @@ def login_page():
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
-<title>Fantzo Live Test</title>
+<title>Fantzo Live</title>
 <style>
-html,body{{margin:0;min-height:100%;background:#07111f;color:#fff;font-family:Arial,sans-serif}}
-body{{display:flex;align-items:center;justify-content:center;min-height:100vh}}
-.card{{box-sizing:border-box;width:100%;max-width:440px;padding:30px 22px;text-align:center}}
-.badge{{display:inline-block;padding:8px 12px;border-radius:999px;background:#172235;font-size:12px;font-weight:800;letter-spacing:.5px;margin-bottom:20px}}
-h1{{margin:0 0 10px;font-size:32px;line-height:1.05}}
-.sub{{margin:0 auto 24px;max-width:340px;color:#aeb9c9;font-size:15px;line-height:1.5}}
-.panel{{background:#0d1929;border:1px solid #1b2a40;border-radius:22px;padding:20px}}
-button{{display:block;width:100%;min-height:66px;padding:18px 20px;border:0;border-radius:16px;background:#fff;color:#07111f;font-size:19px;font-weight:900;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:rgba(0,0,0,0)}}
-.steps{{margin-top:16px;color:#8fa0b6;font-size:13px;line-height:1.5}}
-.private{{margin-top:18px;color:#68788e;font-size:12px}}
+*{{box-sizing:border-box}}
+html,body{{margin:0;min-height:100%;background:#050b14;color:#fff;font-family:Arial,Helvetica,sans-serif}}
+body{{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:22px}}
+.shell{{width:100%;max-width:460px}}
+.hero{{position:relative;overflow:hidden;background:linear-gradient(180deg,#101b2b 0%,#091321 100%);border:1px solid #1f2d42;border-radius:28px;padding:26px 22px;box-shadow:0 24px 70px rgba(0,0,0,.35)}}
+.glow{{position:absolute;width:220px;height:220px;border-radius:50%;background:rgba(255,45,61,.12);right:-90px;top:-105px;filter:blur(2px)}}
+.top{{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:26px}}
+.brand{{font-size:18px;font-weight:900;letter-spacing:.7px}}
+.mode{{display:inline-flex;align-items:center;gap:7px;border:1px solid #2a394f;border-radius:999px;padding:8px 10px;color:#9dafc6;font-size:11px;font-weight:800;letter-spacing:.45px}}
+.dot{{width:8px;height:8px;border-radius:50%;background:#ff2d3d;box-shadow:0 0 0 5px rgba(255,45,61,.12)}}
+h1{{position:relative;margin:0;font-size:36px;line-height:1.02;letter-spacing:-1px}}
+.lead{{position:relative;margin:12px 0 22px;color:#a9b7c9;font-size:15px;line-height:1.55}}
+.status{{display:flex;gap:10px;margin:0 0 18px}}
+.pill{{flex:1;background:#0a1422;border:1px solid #1e2b3e;border-radius:14px;padding:12px 10px;text-align:center}}
+.pill strong{{display:block;font-size:13px;margin-bottom:3px}}
+.pill span{{font-size:11px;color:#7f91a8}}
+.cta{{background:#ff2d3d;border-radius:20px;padding:5px}}
+button{{display:block;width:100%;min-height:68px;border:0;border-radius:16px;background:#fff;color:#07101c;font-size:19px;font-weight:900;letter-spacing:.1px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}}
+button:active{{transform:scale(.99)}}
+.flow{{margin:16px 0 0;color:#8799b0;font-size:12px;text-align:center;line-height:1.5}}
+.footer{{margin-top:13px;text-align:center;color:#53657c;font-size:11px;line-height:1.45}}
 </style>
 </head>
 <body>
-<div class="card">
-  <div class="badge">PRIVATE TEST MODE</div>
-  <h1>🔴 FANTZO LIVE</h1>
-  <p class="sub">Your Sky account is prepared. Open the live channel list inside Telegram, then choose the match you want to test.</p>
-  <div class="panel">
-    <form action="/handoff?key={key}" method="post">
-      <input type="hidden" name="username" value="{user}">
-      <input type="hidden" name="password" value="{password}">
-      <input type="hidden" name="HWID" value="{hwid}">
-      <input type="hidden" name="submit" value="">
-      <button type="submit">▶ OPEN LIVE CHANNELS</button>
-    </form>
-    <div class="steps">1 tap here → Sky opens logged in → tap the match/channel.</div>
+<div class="shell">
+  <div class="hero">
+    <div class="glow"></div>
+    <div class="top">
+      <div class="brand">FANTZO</div>
+      <div class="mode"><span class="dot"></span> ADMIN TEST</div>
+    </div>
+    <h1>Live sports,<br>inside Telegram.</h1>
+    <p class="lead">Sky is ready for this private compatibility test. Open the live channel list, then choose the match you want to watch.</p>
+    <div class="status">
+      <div class="pill"><strong>✓ Login ready</strong><span>No typing required</span></div>
+      <div class="pill"><strong>✓ In Telegram</strong><span>WebView flow</span></div>
+    </div>
+    <div class="cta">
+      <form action="/handoff?key={key}" method="post">
+        <input type="hidden" name="username" value="{user}">
+        <input type="hidden" name="password" value="{password}">
+        <input type="hidden" name="HWID" value="{hwid}">
+        <input type="hidden" name="submit" value="">
+        <button type="submit">▶ OPEN LIVE CHANNELS</button>
+      </form>
+    </div>
+    <div class="flow">One tap → Sky opens logged in → select a live channel.</div>
   </div>
-  <div class="private">Isolated test only. Public Fantzo is unchanged.</div>
+  <div class="footer">Private/admin test only · Public Fantzo remains unchanged</div>
 </div>
 </body>
 </html>""".encode("utf-8")
@@ -163,7 +185,7 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
-        self._send_common(b"Fantzo Live private test", "text/plain")
+        self._send_common(b"Fantzo Live private admin test", "text/plain")
 
     def do_POST(self):
         parsed = urllib.parse.urlparse(self.path)

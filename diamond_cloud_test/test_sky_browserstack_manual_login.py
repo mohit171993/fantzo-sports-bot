@@ -1,3 +1,4 @@
+# Sky Live Pro BrowserStack manual-login playback PoC
 import json, os, threading, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import requests

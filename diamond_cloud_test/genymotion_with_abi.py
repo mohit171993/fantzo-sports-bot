@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 
 import genymotion_poc as base
 
+# Diagnostic wrapper: keeps the Genymotion PoC intact and exposes only sanitized ABI metadata.
 
 def abi_summary():
     apk = Path('/tmp/diamond.apk')

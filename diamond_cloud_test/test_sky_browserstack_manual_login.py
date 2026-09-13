@@ -1,9 +1,9 @@
-# Sky Live Pro BrowserStack real-device Chrome playback PoC
+# Sky Live Pro BrowserStack mobile-web playback PoC
 import json, os, threading, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import requests
-from appium import webdriver
-from appium.options.android import UiAutomator2Options
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options as ChromeOptions
 from selenium.webdriver.common.by import By
 
 PORT=int(os.getenv('PORT','8080'))
@@ -30,7 +30,7 @@ def choose_device():
     r=requests.get('https://api-cloud.browserstack.com/app-automate/devices.json',auth=(BS_USER,BS_KEY),timeout=60)
     r.raise_for_status()
     items=[d for d in r.json() if str(d.get('os','')).lower()=='android']
-    if not items: raise RuntimeError('No Android real device available in BrowserStack App Automate')
+    if not items: raise RuntimeError('No Android real device available in BrowserStack pool')
     pref=['Samsung Galaxy S24','Samsung Galaxy S23','Google Pixel 8','Google Pixel 7']
     for name in pref:
         for d in items:
@@ -57,14 +57,21 @@ def worker():
     try:
         d=choose_device(); dev=d.get('device'); osv=str(d.get('os_version'))
         step('select_real_android_device',True,f'{dev} / Android {osv}')
-        opt=UiAutomator2Options()
-        opt.set_capability('platformName','Android')
+        opt=ChromeOptions()
         opt.set_capability('browserName','Chrome')
-        opt.set_capability('appium:deviceName',dev)
-        opt.set_capability('appium:platformVersion',osv)
-        opt.set_capability('appium:automationName','UiAutomator2')
-        opt.set_capability('appium:newCommandTimeout',360)
-        opt.set_capability('bstack:options',{'userName':BS_USER,'accessKey':BS_KEY,'projectName':'Fantzo Sky Web PoC','buildName':f'sky-{int(time.time())}','sessionName':'Sky manual-login playback test','debug':True,'video':True,'networkLogs':False})
+        opt.set_capability('bstack:options',{
+            'userName':BS_USER,
+            'accessKey':BS_KEY,
+            'deviceName':dev,
+            'osVersion':osv,
+            'realMobile':'true',
+            'projectName':'Fantzo Sky Web PoC',
+            'buildName':f'sky-{int(time.time())}',
+            'sessionName':'Sky manual-login playback test',
+            'debug':True,
+            'video':True,
+            'networkLogs':False
+        })
         driver=webdriver.Remote('https://hub-cloud.browserstack.com/wd/hub',options=opt)
         sid=driver.session_id
         set_state(status='waiting_for_manual_login',session_id=sid,device=dev,android_version=osv)

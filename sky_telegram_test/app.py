@@ -47,10 +47,14 @@ def send_test_message():
     open_url = TEST_BASE_URL + "/open?" + urllib.parse.urlencode({"key": SKY_TEST_TOKEN})
     payload = {
         "chat_id": ADMIN_USER_ID,
-        "text": "🧪 FANTZO SKY TEST\n\nPrivate Telegram WebView compatibility test. Tap below to open the latest Sky test.\n\nThis does not change the public Fantzo menu.",
+        "text": (
+            "🔴 FANTZO LIVE · PRIVATE TEST\n\n"
+            "Tap below to open the isolated Sky Live compatibility test inside Telegram.\n\n"
+            "Production Fantzo remains unchanged."
+        ),
         "reply_markup": {
             "inline_keyboard": [[{
-                "text": "🧪 OPEN SKY TEST",
+                "text": "🔴 OPEN FANTZO LIVE TEST",
                 "web_app": {"url": open_url}
             }]]
         }
@@ -84,30 +88,36 @@ def login_page():
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
-<title>Fantzo Sky Test</title>
+<title>Fantzo Live Test</title>
 <style>
-html,body{{margin:0;min-height:100%;background:#08111d;color:#fff;font-family:Arial,sans-serif}}
-body{{display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center}}
-.card{{box-sizing:border-box;width:100%;max-width:430px;padding:30px 24px}}
-h2{{margin:0 0 14px;font-size:28px}}
-p{{margin:0 0 24px;opacity:.76;font-size:16px;line-height:1.5}}
-form{{margin:0}}
-button{{display:block;width:100%;min-height:64px;padding:18px 20px;border:0;border-radius:16px;background:#fff;color:#08111d;font-size:19px;font-weight:800;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:rgba(0,0,0,0)}}
-.note{{margin-top:16px;font-size:13px;opacity:.58;line-height:1.45}}
+html,body{{margin:0;min-height:100%;background:#07111f;color:#fff;font-family:Arial,sans-serif}}
+body{{display:flex;align-items:center;justify-content:center;min-height:100vh}}
+.card{{box-sizing:border-box;width:100%;max-width:440px;padding:30px 22px;text-align:center}}
+.badge{{display:inline-block;padding:8px 12px;border-radius:999px;background:#172235;font-size:12px;font-weight:800;letter-spacing:.5px;margin-bottom:20px}}
+h1{{margin:0 0 10px;font-size:32px;line-height:1.05}}
+.sub{{margin:0 auto 24px;max-width:340px;color:#aeb9c9;font-size:15px;line-height:1.5}}
+.panel{{background:#0d1929;border:1px solid #1b2a40;border-radius:22px;padding:20px}}
+button{{display:block;width:100%;min-height:66px;padding:18px 20px;border:0;border-radius:16px;background:#fff;color:#07111f;font-size:19px;font-weight:900;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:rgba(0,0,0,0)}}
+.steps{{margin-top:16px;color:#8fa0b6;font-size:13px;line-height:1.5}}
+.private{{margin-top:18px;color:#68788e;font-size:12px}}
 </style>
 </head>
 <body>
 <div class="card">
-  <h2>Sky test ready</h2>
-  <p>Your Sky login is prepared for this private compatibility test.</p>
-  <form action="/handoff?key={key}" method="post">
-    <input type="hidden" name="username" value="{user}">
-    <input type="hidden" name="password" value="{password}">
-    <input type="hidden" name="HWID" value="{hwid}">
-    <input type="hidden" name="submit" value="">
-    <button type="submit">Continue to Sky</button>
-  </form>
-  <div class="note">This is a standard HTML button with no JavaScript. Tap once to continue inside Telegram.</div>
+  <div class="badge">PRIVATE TEST MODE</div>
+  <h1>🔴 FANTZO LIVE</h1>
+  <p class="sub">Your Sky account is prepared. Open the live channel list inside Telegram, then choose the match you want to test.</p>
+  <div class="panel">
+    <form action="/handoff?key={key}" method="post">
+      <input type="hidden" name="username" value="{user}">
+      <input type="hidden" name="password" value="{password}">
+      <input type="hidden" name="HWID" value="{hwid}">
+      <input type="hidden" name="submit" value="">
+      <button type="submit">▶ OPEN LIVE CHANNELS</button>
+    </form>
+    <div class="steps">1 tap here → Sky opens logged in → tap the match/channel.</div>
+  </div>
+  <div class="private">Isolated test only. Public Fantzo is unchanged.</div>
 </div>
 </body>
 </html>""".encode("utf-8")
@@ -153,7 +163,7 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
-        self._send_common(b"Fantzo Sky Telegram test", "text/plain")
+        self._send_common(b"Fantzo Live private test", "text/plain")
 
     def do_POST(self):
         parsed = urllib.parse.urlparse(self.path)

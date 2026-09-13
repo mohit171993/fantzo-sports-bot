@@ -47,7 +47,7 @@ def send_test_message():
     open_url = TEST_BASE_URL + "/open?" + urllib.parse.urlencode({"key": SKY_TEST_TOKEN})
     payload = {
         "chat_id": ADMIN_USER_ID,
-        "text": "🧪 FANTZO SKY TEST\n\nPrivate Telegram WebView compatibility test. Tap below to open Sky inside Telegram.\n\nThis does not change the public Fantzo menu.",
+        "text": "🧪 FANTZO SKY TEST\n\nPrivate Telegram WebView compatibility test. Tap below to open the latest Sky test.\n\nThis does not change the public Fantzo menu.",
         "reply_markup": {
             "inline_keyboard": [[{
                 "text": "🧪 OPEN SKY TEST",
@@ -85,66 +85,30 @@ def login_page():
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
 <title>Fantzo Sky Test</title>
-<script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
-body{{margin:0;background:#08111d;color:white;font-family:Arial,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center}}
-.card{{padding:28px;max-width:380px;width:100%}}
-.spinner{{width:34px;height:34px;border:4px solid #355;border-top-color:white;border-radius:50%;margin:0 auto 18px;animation:s 1s linear infinite}}
-@keyframes s{{to{{transform:rotate(360deg)}}}}
-.small{{opacity:.72;font-size:13px;line-height:1.45;margin:0 auto 18px}}
-#continueBtn{{display:none;width:100%;max-width:320px;margin:20px auto 0;padding:15px 18px;border:0;border-radius:12px;font-size:17px;font-weight:700;background:white;color:#08111d}}
-#hint{{display:none;margin-top:12px;font-size:12px;opacity:.65}}
+html,body{{margin:0;min-height:100%;background:#08111d;color:#fff;font-family:Arial,sans-serif}}
+body{{display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center}}
+.card{{box-sizing:border-box;width:100%;max-width:430px;padding:30px 24px}}
+h2{{margin:0 0 14px;font-size:28px}}
+p{{margin:0 0 24px;opacity:.76;font-size:16px;line-height:1.5}}
+form{{margin:0}}
+button{{display:block;width:100%;min-height:64px;padding:18px 20px;border:0;border-radius:16px;background:#fff;color:#08111d;font-size:19px;font-weight:800;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:rgba(0,0,0,0)}}
+.note{{margin-top:16px;font-size:13px;opacity:.58;line-height:1.45}}
 </style>
 </head>
 <body>
 <div class="card">
-  <div class="spinner" id="spinner"></div>
-  <h3 id="title">Opening Sky test…</h3>
-  <div class="small">Private test mode. Your Sky login is prefilled securely for this test.</div>
-  <button id="continueBtn" type="button">Continue to Sky</button>
-  <div id="hint">Tap once to continue inside this Telegram WebView.</div>
+  <h2>Sky test ready</h2>
+  <p>Your Sky login is prepared for this private compatibility test.</p>
+  <form action="/handoff?key={key}" method="post">
+    <input type="hidden" name="username" value="{user}">
+    <input type="hidden" name="password" value="{password}">
+    <input type="hidden" name="HWID" value="{hwid}">
+    <input type="hidden" name="submit" value="">
+    <button type="submit">Continue to Sky</button>
+  </form>
+  <div class="note">This is a standard HTML button with no JavaScript. Tap once to continue inside Telegram.</div>
 </div>
-<form id="skyLogin" action="/handoff?key={key}" method="post" style="display:none">
-<input name="username" value="{user}">
-<input name="password" value="{password}">
-<input name="HWID" value="{hwid}">
-<input name="submit" value="">
-</form>
-<script>
-try {{
-  if (window.Telegram && Telegram.WebApp) {{
-    Telegram.WebApp.ready();
-    Telegram.WebApp.expand();
-  }}
-}} catch(e) {{}}
-
-function handoff() {{
-  try {{
-    document.getElementById('skyLogin').submit();
-  }} catch(e) {{
-    showFallback();
-  }}
-}}
-
-function showFallback() {{
-  document.getElementById('spinner').style.display = 'none';
-  document.getElementById('title').textContent = 'Ready to continue';
-  document.getElementById('continueBtn').style.display = 'block';
-  document.getElementById('continueBtn').disabled = false;
-  document.getElementById('continueBtn').textContent = 'Continue to Sky';
-  document.getElementById('hint').style.display = 'block';
-}}
-
-document.getElementById('continueBtn').addEventListener('click', function() {{
-  this.disabled = true;
-  this.textContent = 'Opening…';
-  handoff();
-  setTimeout(showFallback, 3000);
-}});
-
-setTimeout(handoff, 500);
-setTimeout(showFallback, 2500);
-</script>
 </body>
 </html>""".encode("utf-8")
 
@@ -201,9 +165,6 @@ class Handler(BaseHTTPRequestHandler):
             self._send_common(b"Not found", "text/plain", 404)
             return
 
-        # Do not proxy or inspect Sky content. The browser POSTs to this same-origin
-        # endpoint, then a 307 preserves that POST body while navigating directly
-        # to Sky Live Pro.
         length = int(self.headers.get("Content-Length", "0") or "0")
         if length <= 0 or length > 16384:
             self._send_common(b"Invalid handoff", "text/plain", 400)

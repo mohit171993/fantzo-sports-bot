@@ -24,12 +24,17 @@ def apk_abi_summary():
     if not apk.exists():
         return None
     abi_libs = defaultdict(list)
-    with zipfile.ZipFile(apk) as zf:
-        for name in zf.namelist():
-            parts = name.split('/')
-            if len(parts) >= 3 and parts[0] == 'lib' and name.endswith('.so'):
-                abi_libs[parts[1]].append('/'.join(parts[2:]))
+    try:
+        with zipfile.ZipFile(apk) as zf:
+            for name in zf.namelist():
+                parts = name.split('/')
+                if len(parts) >= 3 and parts[0] == 'lib' and name.endswith('.so'):
+                    abi_libs[parts[1]].append('/'.join(parts[2:]))
+    except zipfile.BadZipFile:
+        return None
     abis = sorted(abi_libs.keys())
+    if not abis:
+        return None
     return {
         'source': 'apk_zip',
         'apk_size_bytes': apk.stat().st_size,

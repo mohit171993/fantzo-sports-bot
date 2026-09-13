@@ -52,15 +52,6 @@ def session_browser_url(session_id):
         pass
     return None
 
-def wait_for(driver, by, value, timeout=30):
-    end=time.time()+timeout
-    while time.time()<end:
-        found=driver.find_elements(by,value)
-        if found:
-            return found[0]
-        time.sleep(1)
-    return None
-
 def worker():
     missing=[name for name,val in (
         ('BROWSERSTACK_USERNAME',BS_USER),('BROWSERSTACK_ACCESS_KEY',BS_KEY),
@@ -74,17 +65,10 @@ def worker():
         opt=ChromeOptions()
         opt.set_capability('browserName','Chrome')
         opt.set_capability('bstack:options',{
-            'userName':BS_USER,
-            'accessKey':BS_KEY,
-            'deviceName':dev,
-            'osVersion':osv,
-            'realMobile':'true',
-            'projectName':'Fantzo Sky Web PoC',
-            'buildName':f'sky-{int(time.time())}',
-            'sessionName':'Sky automatic-login playback test',
-            'debug':True,
-            'video':True,
-            'networkLogs':False
+            'userName':BS_USER,'accessKey':BS_KEY,'deviceName':dev,'osVersion':osv,
+            'realMobile':'true','projectName':'Fantzo Sky Web PoC',
+            'buildName':f'sky-{int(time.time())}','sessionName':'Sky automatic-login playback test',
+            'debug':True,'video':True,'networkLogs':False
         })
         driver=webdriver.Remote('https://hub-cloud.browserstack.com/wd/hub',options=opt)
         sid=driver.session_id
@@ -94,35 +78,39 @@ def worker():
 
         driver.get('https://skylivepro.com')
         step('open_sky_login',True)
+        time.sleep(3)
 
-        user_box=wait_for(driver,By.ID,'username',30)
-        pass_box=wait_for(driver,By.ID,'password',10)
-        submit=wait_for(driver,By.ID,'loginSubmit',10)
-        if not user_box or not pass_box or not submit:
+        result=driver.execute_script("""
+          const u=document.getElementById('username');
+          const p=document.getElementById('password');
+          const b=document.getElementById('loginSubmit');
+          const c=document.getElementById('loginFormContainer');
+          if(!u||!p||!b) return {ok:false,reason:'form_missing'};
+          if(c) c.style.display='block';
+          u.value=arguments[0]; p.value=arguments[1];
+          for(const el of [u,p]) {
+            el.dispatchEvent(new Event('input',{bubbles:true}));
+            el.dispatchEvent(new Event('change',{bubbles:true}));
+          }
+          const f=b.closest('form');
+          if(f && f.requestSubmit) f.requestSubmit(b); else b.click();
+          return {ok:true};
+        """,SKY_USER,SKY_PASS)
+        if not result or not result.get('ok'):
             raise RuntimeError('Sky login form was not detected')
-        user_box.clear(); user_box.send_keys(SKY_USER)
-        pass_box.clear(); pass_box.send_keys(SKY_PASS)
-        submit.click()
-        step('automatic_login_submit',True)
+        step('automatic_login_submit',True,'DOM form submit')
         set_state(status='waiting_for_channels')
 
         deadline=time.time()+90
         while time.time()<deadline:
-            if driver.find_elements(By.ID,'button-container'):
-                break
+            buttons=driver.find_elements(By.CSS_SELECTOR,'#button-container button')
+            if any(x.is_displayed() for x in buttons): break
             time.sleep(2)
-        if not driver.find_elements(By.ID,'button-container'):
-            raise RuntimeError('Sky login did not reach the channel page')
-        step('login_detected',True)
-
-        deadline=time.time()+60
-        buttons=[]
-        while time.time()<deadline:
-            buttons=[b for b in driver.find_elements(By.CSS_SELECTOR,'#button-container button') if b.is_displayed()]
-            if buttons: break
-            time.sleep(2)
+        buttons=[x for x in driver.find_elements(By.CSS_SELECTOR,'#button-container button') if x.is_displayed()]
         if not buttons:
-            raise RuntimeError('No visible channel buttons after login')
+            page_text=(driver.find_element(By.TAG_NAME,'body').text or '')[:300]
+            raise RuntimeError('Sky login did not reach visible channel buttons; page='+page_text)
+        step('login_detected',True)
         set_state(visible_channel_button_count=len(buttons))
         step('channel_buttons_loaded',True,len(buttons))
 

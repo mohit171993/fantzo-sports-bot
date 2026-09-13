@@ -23,6 +23,7 @@ def set_state(**kw):
 def worker():
     if not BASE or not TOKEN:
         set_state(status='failed', error='missing internal APK source variables')
+        print('ABI_CHECK ' + json.dumps(STATE, sort_keys=True), flush=True)
         return
     try:
         url = f"{BASE}/trial-diamond-apk?t={quote(TOKEN, safe='')}"
@@ -50,16 +51,19 @@ def worker():
             }
             for abi, libs in sorted(abi_libs.items())
         }
-        set_state(
-            status='done',
-            apk_size_bytes=apk.stat().st_size,
-            abis=list(summary.keys()),
-            native_libraries=summary,
-            digitalocean_x86_compatible=bool(set(summary) & {'x86','x86_64'}),
-            arm_compatible=bool(set(summary) & {'armeabi-v7a','arm64-v8a'}),
-        )
+        result = {
+            'status':'done',
+            'apk_size_bytes':apk.stat().st_size,
+            'abis':list(summary.keys()),
+            'native_libraries':summary,
+            'digitalocean_x86_compatible':bool(set(summary) & {'x86','x86_64'}),
+            'arm_compatible':bool(set(summary) & {'armeabi-v7a','arm64-v8a'}),
+        }
+        set_state(**result)
+        print('ABI_CHECK ' + json.dumps(result, sort_keys=True), flush=True)
     except Exception as e:
         set_state(status='failed', error=str(e)[:1000])
+        print('ABI_CHECK ' + json.dumps(STATE, sort_keys=True), flush=True)
 
 
 class H(BaseHTTPRequestHandler):

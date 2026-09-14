@@ -7,9 +7,11 @@ from telegram import (
     MenuButtonWebApp,
     WebAppInfo,
 )
+from telegram.ext import CommandHandler
 
 import bot_persistent as app
 import fantzo_analytics as analytics
+import fantzo_reminders as reminders
 import private_apk_upload
 import trial_live_tv
 
@@ -80,6 +82,107 @@ app.core.join_keyboard = premium_join_keyboard
 app.core.explore_keyboard = premium_explore_keyboard
 
 
+# Capture Fantzo activity without rewriting the existing bot/business handlers.
+_original_track = app.core.track
+_original_touch_user = app.core.touch_user
+_original_start = app.start
+
+
+def _business_connection_id() -> str:
+    try:
+        with app.core.db() as conn:
+            row = conn.execute(
+                "SELECT connection_id FROM business_connections WHERE enabled = 1 ORDER BY updated_at DESC LIMIT 1"
+            ).fetchone()
+        return str(row["connection_id"]) if row and row["connection_id"] else ""
+    except Exception:
+        return ""
+
+
+def _category_from_action(action: str) -> str:
+    if ":" in action:
+        return action.split(":", 1)[1]
+    if action in {"cricket", "football", "sports", "live_now", "trending"}:
+        return action
+    return "general"
+
+
+def tracked_core_event(user_id: int, action: str):
+    result = _original_track(user_id, action)
+    try:
+        if action.startswith("business_dm:"):
+            reminders.touch_user(
+                "business_dm",
+                user_id,
+                _category_from_action(action),
+                _business_connection_id(),
+            )
+        else:
+            reminders.touch_user("bot", user_id, _category_from_action(action))
+    except Exception:
+        logger.exception("Could not update Fantzo reminder activity from track event")
+    return result
+
+
+def tracked_touch_user(update):
+    result = _original_touch_user(update)
+    try:
+        user = update.effective_user
+        if user:
+            reminders.touch_user("bot", user.id, "general")
+    except Exception:
+        logger.exception("Could not update Fantzo reminder activity from user touch")
+    return result
+
+
+app.core.track = tracked_core_event
+app.core.touch_user = tracked_touch_user
+
+
+async def smart_start(update, context) -> None:
+    user = update.effective_user
+    arg = (context.args[0].lower() if context.args else "")
+    if user and arg == "stopreminders":
+        reminders.set_opt_out("bot", user.id, True)
+        reminders.set_opt_out("business_dm", user.id, True)
+        await update.effective_message.reply_text(
+            "🔕 <b>Fantzo reminders are OFF.</b>\n\nYou can still use Fantzo normally anytime.",
+            parse_mode="HTML",
+        )
+        return
+    await _original_start(update, context)
+
+
+app.start = smart_start
+
+
+async def stop_reminders_command(update, context) -> None:
+    user = update.effective_user
+    if not user:
+        return
+    reminders.set_opt_out("bot", user.id, True)
+    reminders.set_opt_out("business_dm", user.id, True)
+    await update.effective_message.reply_text(
+        "🔕 <b>Fantzo reminders are OFF.</b>\n\nYou can still open the bot and Fantzo whenever you want.",
+        parse_mode="HTML",
+    )
+
+
+async def reminder_stats_command(update, context) -> None:
+    user = update.effective_user
+    if not user or user.id != app.core.ADMIN_USER_ID:
+        return
+    data = reminders.stats()
+    await update.effective_message.reply_text(
+        "📊 <b>Fantzo Reminder Stats</b>\n\n"
+        f"Eligible users: <b>{data['users']}</b>\n"
+        f"Business DM: <b>{data['dm']}</b>\n"
+        f"Bot users: <b>{data['bot']}</b>\n"
+        f"Reminders sent: <b>{data['sent']}</b>",
+        parse_mode="HTML",
+    )
+
+
 async def configure_telegram_ui(application) -> None:
     await application.bot.set_my_commands(
         [
@@ -87,6 +190,7 @@ async def configure_telegram_ui(application) -> None:
             BotCommand("team", "Find a cricket or football team"),
             BotCommand("sports", "View Fantzo sports coverage"),
             BotCommand("help", "Fantzo quick guide"),
+            BotCommand("stop", "Stop Fantzo reminders"),
             BotCommand("setbanner", "Change the Fantzo home banner"),
         ]
     )
@@ -96,7 +200,11 @@ async def configure_telegram_ui(application) -> None:
             web_app=WebAppInfo(url=tracked_url("telegram_native_menu")),
         )
     )
-    logger.info("Fantzo tracked Mini App menu configured")
+    application.add_handler(CommandHandler("stop", stop_reminders_command))
+    application.add_handler(CommandHandler("reminderstats", reminder_stats_command))
+    reminders.ensure_tables()
+    reminders.start_background_loop(application)
+    logger.info("Fantzo tracked Mini App menu and smart reminder engine configured")
 
 
 app.configure_telegram_ui = configure_telegram_ui
@@ -106,5 +214,7 @@ if __name__ == "__main__":
     private_apk_upload.install_on_tracking_handler(analytics)
     trial_live_tv.install_on_tracking_handler(analytics)
     analytics.start_tracking_server()
-    logger.info("Starting Fantzo with tracked Mini App conversion links, admin analytics, private APK upload, and Live TV trial")
+    logger.info(
+        "Starting Fantzo with tracked Mini App conversion links, admin analytics, private APK upload, Live TV trial, and smart reminders"
+    )
     app.run()

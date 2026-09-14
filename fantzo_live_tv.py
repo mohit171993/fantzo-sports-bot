@@ -9,7 +9,9 @@ logger = logging.getLogger(__name__)
 
 LIVE_TV_URL = os.getenv("FANTZO_LIVE_TV_URL", "https://skylivepro.com/").strip()
 TRACKING_BASE_URL = os.getenv("TRACKING_BASE_URL", "").strip().rstrip("/")
-LIVE_TV_ENABLED = os.getenv("FANTZO_LIVE_TV_ENABLED", "1").strip().lower() not in {"0", "false", "off", "no"}
+LIVE_TV_MODE = os.getenv("LIVE_TV_MODE", "admin").strip().lower()
+if LIVE_TV_MODE not in {"off", "admin", "public"}:
+    LIVE_TV_MODE = "admin"
 MINITV_PATH = "/minitv"
 
 
@@ -20,7 +22,6 @@ def minitv_url() -> str:
 
 
 def live_tv_button(label: str = "📺 Live TV") -> InlineKeyboardButton:
-    # Open Fantzo Live inside Telegram's WebApp surface instead of an external browser.
     return InlineKeyboardButton(label, web_app=WebAppInfo(url=minitv_url()))
 
 
@@ -33,8 +34,13 @@ def live_tv_keyboard() -> InlineKeyboardMarkup:
     )
 
 
+def is_public_enabled() -> bool:
+    return LIVE_TV_MODE == "public" and bool(LIVE_TV_URL)
+
+
 def is_enabled() -> bool:
-    return LIVE_TV_ENABLED and bool(LIVE_TV_URL)
+    """Backward-compatible alias for public MiniTV availability."""
+    return is_public_enabled()
 
 
 def _page() -> str:
@@ -109,7 +115,7 @@ def install_on_tracking_handler(analytics_module) -> None:
     def patched_get(self):
         path = urlparse(self.path).path
         if path == MINITV_PATH:
-            if not is_enabled():
+            if not is_public_enabled():
                 _send_html(self, 503, "<h3>Fantzo Live TV is temporarily unavailable.</h3>")
                 return
             try:
@@ -121,4 +127,4 @@ def install_on_tracking_handler(analytics_module) -> None:
         previous_get(self)
 
     handler_cls.do_GET = patched_get
-    logger.info("Fantzo MiniTV WebApp route installed at %s", MINITV_PATH)
+    logger.info("Fantzo MiniTV WebApp route installed at %s (mode=%s)", MINITV_PATH, LIVE_TV_MODE)

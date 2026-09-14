@@ -211,7 +211,7 @@ async def configure_telegram_ui(application) -> None:
     application.add_handler(CommandHandler("reminderstats", reminder_stats_command))
     reminders.ensure_tables()
     reminders.start_background_loop(application)
-    logger.info("Fantzo tracked Mini App menu, Live TV normal-login link, and smart reminder engine configured")
+    logger.info("Fantzo tracked Mini App menu, MiniTV Live TV, and smart reminder engine configured")
 
 
 app.configure_telegram_ui = configure_telegram_ui
@@ -220,8 +220,9 @@ app.configure_telegram_ui = configure_telegram_ui
 if __name__ == "__main__":
     private_apk_upload.install_on_tracking_handler(analytics)
     trial_live_tv.install_on_tracking_handler(analytics)
+    fantzo_live_tv.install_on_tracking_handler(analytics)
     analytics.start_tracking_server()
     logger.info(
-        "Starting Fantzo with tracked Mini App conversion links, public Live TV login, admin Live TV trial, and smart reminders"
+        "Starting Fantzo with tracked Mini App conversion links, MiniTV Live TV, admin Live TV trial, and smart reminders"
     )
     app.run()

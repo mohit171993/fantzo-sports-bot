@@ -8,6 +8,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import BadRequest, Forbidden, RetryAfter
 
 import bot as core
+import ibetin_match_alerts as match_alerts
 
 logger = logging.getLogger(__name__)
 APP_TZ = ZoneInfo("Asia/Dubai")
@@ -289,13 +290,25 @@ async def reminder_loop(application) -> None:
     while True:
         try:
             await run_due_reminders(application)
+        except asyncio.CancelledError:
+            raise
         except Exception:
             logger.exception("IBETIN reminder loop error")
         await asyncio.sleep(CHECK_INTERVAL_SECONDS)
 
 
 def start_background_loop(application) -> None:
-    application.create_task(reminder_loop(application))
+    if application.bot_data.get("ibetin_background_workers_started"):
+        return
+    application.bot_data["ibetin_background_workers_started"] = True
+    match_alerts.ensure_tables()
+    application.bot_data["ibetin_reminder_task"] = asyncio.create_task(
+        reminder_loop(application), name="ibetin-reminders"
+    )
+    application.bot_data["ibetin_match_alert_task"] = asyncio.create_task(
+        match_alerts.match_alert_loop(application), name="ibetin-match-alerts"
+    )
+    logger.info("IBETIN reminder and real-time match-alert workers started")
 
 
 def stats() -> dict:

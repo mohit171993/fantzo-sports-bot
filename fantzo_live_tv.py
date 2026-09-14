@@ -7,7 +7,10 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 
 logger = logging.getLogger(__name__)
 
-LIVE_TV_URL = os.getenv("FANTZO_LIVE_TV_URL", "https://skylivepro.com/").strip()
+LIVE_TV_URL = os.getenv(
+    "IBETIN_LIVE_TV_URL",
+    os.getenv("FANTZO_LIVE_TV_URL", "https://skylivepro.com/"),
+).strip()
 TRACKING_BASE_URL = os.getenv("TRACKING_BASE_URL", "").strip().rstrip("/")
 LIVE_TV_MODE = os.getenv("LIVE_TV_MODE", "admin").strip().lower()
 if LIVE_TV_MODE not in {"off", "admin", "public"}:
@@ -16,7 +19,7 @@ MINITV_PATH = "/minitv"
 
 
 def minitv_url() -> str:
-    """Return the public Fantzo MiniTV URL used by Telegram WebApp buttons."""
+    """Return the public IBETIN MiniTV URL used by Telegram WebApp buttons."""
     if TRACKING_BASE_URL:
         return f"{TRACKING_BASE_URL}{MINITV_PATH}"
     return LIVE_TV_URL
@@ -30,7 +33,7 @@ def live_tv_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
             [live_tv_button("📺 OPEN LIVE TV")],
-            [InlineKeyboardButton("⬅️ Back to Fantzo", callback_data="back")],
+            [InlineKeyboardButton("⬅️ Back to IBETIN", callback_data="back")],
         ]
     )
 
@@ -52,7 +55,7 @@ def _page() -> str:
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
-<title>Fantzo MiniTV</title>
+<title>IBETIN MiniTV</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
 *{{box-sizing:border-box}}
@@ -72,7 +75,7 @@ iframe{{width:100%;height:100%;border:0;background:#000}}
 </head>
 <body>
 <div class="shell">
-  <div class="top"><div class="brand">FANTZO · MINITV</div><div class="badge">LIVE TV</div></div>
+  <div class="top"><div class="brand">IBETIN · MINITV</div><div class="badge">LIVE TV</div></div>
   <div class="frame-wrap">
     <iframe id="sky" src="{target}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen referrerpolicy="no-referrer"></iframe>
     <div class="fallback" id="fallback">
@@ -117,15 +120,15 @@ def install_on_tracking_handler(analytics_module) -> None:
         path = urlparse(self.path).path
         if path == MINITV_PATH:
             if not is_public_enabled():
-                _send_html(self, 503, "<h3>Fantzo Live TV is temporarily unavailable.</h3>")
+                _send_html(self, 503, "<h3>IBETIN Live TV is temporarily unavailable.</h3>")
                 return
             try:
                 _send_html(self, 200, _page())
             except Exception:
-                logger.exception("Could not render Fantzo MiniTV")
-                _send_html(self, 500, "<h3>Fantzo MiniTV could not load.</h3>")
+                logger.exception("Could not render IBETIN MiniTV")
+                _send_html(self, 500, "<h3>IBETIN MiniTV could not load.</h3>")
             return
         previous_get(self)
 
     handler_cls.do_GET = patched_get
-    logger.info("Fantzo MiniTV WebApp route installed at %s (mode=%s)", MINITV_PATH, LIVE_TV_MODE)
+    logger.info("IBETIN MiniTV WebApp route installed at %s (mode=%s)", MINITV_PATH, LIVE_TV_MODE)

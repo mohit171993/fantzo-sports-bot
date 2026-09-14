@@ -14,9 +14,9 @@ UPLOAD_MAX_BYTES = int(os.getenv("UPLOAD_MAX_BYTES", str(400 * 1024 * 1024)))
 
 PAGE = """<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Fantzo Private APK Upload</title>
+<title>IBETIN Private APK Upload</title>
 <style>body{font-family:Arial,sans-serif;background:#11151b;color:#fff;padding:24px}.box{max-width:640px;margin:40px auto;background:#1b2028;padding:24px;border-radius:16px}input,button{width:100%;box-sizing:border-box;padding:14px;margin-top:16px}button{font-weight:700}progress{width:100%;margin-top:16px}.muted{color:#adb6c4}.ok{color:#79e7aa}.err{color:#ff9696}</style></head>
-<body><div class="box"><h2>Fantzo Private APK Upload</h2><p class="muted">Select the completed Diamond .apk file. Maximum 400 MB. The file is stored privately and is not executed.</p>
+<body><div class="box"><h2>IBETIN Private APK Upload</h2><p class="muted">Select the completed Diamond .apk file. Maximum 400 MB. The file is stored privately and is not executed.</p>
 <input id="f" type="file" accept=".apk"><button id="b">Upload APK</button><progress id="p" value="0" max="100" hidden></progress><div id="s"></div></div>
 <script>
 const f=document.getElementById('f'),b=document.getElementById('b'),p=document.getElementById('p'),s=document.getElementById('s');
@@ -111,4 +111,4 @@ def install_on_tracking_handler(analytics_module) -> None:
 
     handler_cls.do_GET = patched_get
     handler_cls.do_POST = patched_post
-    logger.info("Private APK upload routes installed on Fantzo web service")
+    logger.info("Private APK upload routes installed on IBETIN web service")

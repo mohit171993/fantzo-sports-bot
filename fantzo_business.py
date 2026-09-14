@@ -1,8 +1,9 @@
+import asyncio
 import logging
 import re
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.error import BadRequest
+from telegram.error import BadRequest, RetryAfter
 from telegram.ext import ContextTypes
 
 import bot as core
@@ -14,9 +15,6 @@ logger = logging.getLogger(__name__)
 RESPONSIBLE_NOTE = "<i>🔞 18+ • Play responsibly • T&Cs apply</i>"
 SPORTS_BOT_URL = "https://t.me/fantzoofficialbot?start=dm"
 FANTZO_CHANNEL_URL = "https://t.me/fantzoupdates"
-# Business-account messages cannot contain web_app buttons. Use Telegram's
-# Main Mini App deep link instead; when a Main Mini App is configured in
-# BotFather this opens it directly inside Telegram.
 FANTZO_MINI_APP_DEEP_LINK = "https://t.me/fantzoofficialbot?startapp=business_dm"
 
 
@@ -81,8 +79,6 @@ def _fantzo_url_button(label: str = "🔥 EXPLORE FANTZO") -> InlineKeyboardButt
 
 
 def _fantzo_button(source: str, label: str = "🔥 EXPLORE FANTZO") -> InlineKeyboardMarkup:
-    # Source is still tracked at the DM-message level. Business messages can't
-    # use WebAppInfo, so the launch itself must use a Telegram deep link.
     return InlineKeyboardMarkup([[_fantzo_url_button(label)]])
 
 
@@ -97,7 +93,6 @@ def _welcome_buttons() -> InlineKeyboardMarkup:
 
 
 def classify_business_dm(text: str):
-    """Premium Business-DM conversion flow, separate from the sports bot menu."""
     t = " ".join((text or "").lower().strip().split())
 
     if _contains(t, ["hi", "hello", "hey", "hii", "hola", "namaste"]):
@@ -111,21 +106,7 @@ def classify_business_dm(text: str):
             _welcome_buttons(),
         )
 
-    if _contains(
-        t,
-        [
-            "cricket",
-            "football",
-            "soccer",
-            "ipl",
-            "t20",
-            "odi",
-            "match",
-            "score",
-            "live",
-            "sports",
-        ],
-    ):
+    if _contains(t, ["cricket", "football", "soccer", "ipl", "t20", "odi", "match", "score", "live", "sports"]):
         return (
             "sports",
             "🏏 <b>Sports & live action</b>\n\n"
@@ -149,17 +130,7 @@ def classify_business_dm(text: str):
             _fantzo_button("business_dm_join", "🔥 OPEN FANTZO"),
         )
 
-    if _contains(
-        t,
-        [
-            "login",
-            "log in",
-            "account",
-            "password",
-            "otp",
-            "account help",
-        ],
-    ):
+    if _contains(t, ["login", "log in", "account", "password", "otp", "account help"]):
         return (
             "account",
             "👤 <b>Account help</b>\n\n"
@@ -195,19 +166,7 @@ def classify_business_dm(text: str):
             _fantzo_button("business_dm_offers", "🔥 CHECK FANTZO"),
         )
 
-    if _contains(
-        t,
-        [
-            "support",
-            "help",
-            "problem",
-            "issue",
-            "complaint",
-            "failed",
-            "pending",
-            "stuck",
-        ],
-    ):
+    if _contains(t, ["support", "help", "problem", "issue", "complaint", "failed", "pending", "stuck"]):
         return (
             "support",
             "🛟 <b>Tell me what happened.</b>\n\n"
@@ -217,11 +176,7 @@ def classify_business_dm(text: str):
         )
 
     if _contains(t, ["thanks", "thank", "thx", "ok", "okay"]):
-        return (
-            "thanks",
-            "🙏 You’re welcome. If you need anything else, just message me here.",
-            None,
-        )
+        return ("thanks", "🙏 You’re welcome. If you need anything else, just message me here.", None)
 
     return (
         "general",
@@ -233,13 +188,10 @@ def classify_business_dm(text: str):
     )
 
 
-async def business_connection_update(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> None:
+async def business_connection_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     connection = update.business_connection
     if not connection:
         return
-
     _save_connection(connection)
     logger.info(
         "Fantzo business connection update: id=%s owner=%s enabled=%s",
@@ -249,9 +201,47 @@ async def business_connection_update(
     )
 
 
-async def business_auto_reply(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> None:
+def _retry_seconds(exc: RetryAfter) -> float:
+    value = exc.retry_after
+    if hasattr(value, "total_seconds"):
+        value = value.total_seconds()
+    try:
+        return max(1.0, float(value))
+    except (TypeError, ValueError):
+        return 1.0
+
+
+async def _reply_with_retry(message, reply: str, markup=None) -> None:
+    kwargs = {
+        "parse_mode": "HTML",
+        "reply_markup": markup,
+        "disable_web_page_preview": True,
+    }
+
+    for attempt in range(3):
+        try:
+            await message.reply_text(reply, **kwargs)
+            return
+        except BadRequest as exc:
+            if kwargs.get("reply_markup") is not None:
+                logger.warning("Fantzo Business DM keyboard failed: %s", exc)
+                kwargs["reply_markup"] = None
+                continue
+            raise
+        except RetryAfter as exc:
+            if attempt >= 2:
+                logger.error("Fantzo Business DM still rate-limited after retries: %s", exc)
+                raise
+            delay = _retry_seconds(exc) + 1.0
+            logger.warning(
+                "Fantzo Business DM rate-limited; retrying in %.1f seconds (attempt %s/3)",
+                delay,
+                attempt + 2,
+            )
+            await asyncio.sleep(delay)
+
+
+async def business_auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.business_message
     if not message or not message.text:
         return
@@ -288,18 +278,4 @@ async def business_auto_reply(
         category,
     )
 
-    try:
-        await message.reply_text(
-            reply,
-            parse_mode="HTML",
-            reply_markup=markup,
-            disable_web_page_preview=True,
-        )
-    except BadRequest as exc:
-        # Never let a keyboard compatibility problem suppress the whole reply.
-        logger.warning("Fantzo Business DM keyboard failed: %s", exc)
-        await message.reply_text(
-            reply,
-            parse_mode="HTML",
-            disable_web_page_preview=True,
-        )
+    await _reply_with_retry(message, reply, markup)

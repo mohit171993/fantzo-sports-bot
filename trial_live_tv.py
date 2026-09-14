@@ -44,7 +44,7 @@ def _page() -> str:
     )
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Fantzo Live TV Trial</title>
+<title>IBETIN Live TV Trial</title>
 <style>
 body{{font-family:Arial,sans-serif;background:#0f141c;color:#fff;padding:22px}}
 .box{{max-width:620px;margin:35px auto;background:#1a212c;padding:26px;border-radius:18px}}
@@ -54,11 +54,11 @@ body{{font-family:Arial,sans-serif;background:#0f141c;color:#fff;padding:22px}}
 </style></head>
 <body><div class="box">
 <span class="badge">ADMIN TRIAL ONLY</span>
-<h2>📺 Fantzo Live TV Trial</h2>
+<h2>📺 IBETIN Live TV Trial</h2>
 <p class="muted">This test only tries to open the installed Diamond Live Android app. It does not expose or rebroadcast any stream.</p>
 <a class="btn" href="{escape(intent)}">📺 OPEN DIAMOND LIVE</a>
 <a class="btn alt" href="{escape(PLAY_URL)}">Get / Open from Google Play</a>
-<p class="muted">If the first button does not open the app from Telegram, tell me exactly what happens and I can adjust the launch method before anything is shown to Fantzo users.</p>
+<p class="muted">If the first button does not open the app from Telegram, tell me exactly what happens and I can adjust the launch method before anything is shown to IBETIN users.</p>
 </div></body></html>"""
 
 
@@ -135,7 +135,7 @@ async def trial_tv_command(update, context) -> None:
     await message.reply_text(
         "📺 <b>LIVE TV · TRIAL MODE</b>\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
-        "Admin-only test. Nothing has been added to the public Fantzo menu.\n\n"
+        "Admin-only test. Nothing has been added to the public IBETIN menu.\n\n"
         "Tap below on an Android phone with Diamond Live installed.",
         parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(

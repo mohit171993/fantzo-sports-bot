@@ -22,6 +22,9 @@ logger = logging.getLogger(__name__)
 
 SKY_ADMIN_BASE_URL = os.getenv("SKY_ADMIN_BASE_URL", "").strip().rstrip("/")
 SKY_ADMIN_TEST_TOKEN = os.getenv("SKY_ADMIN_TEST_TOKEN", "").strip()
+LIVE_TV_MODE = os.getenv("LIVE_TV_MODE", "admin").strip().lower()
+if LIVE_TV_MODE not in {"off", "admin", "public"}:
+    LIVE_TV_MODE = "admin"
 
 
 def tracked_url(content: str) -> str:
@@ -49,7 +52,7 @@ def premium_main_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton("🔥 Featured", callback_data="trending"),
         ],
     ]
-    if fantzo_live_tv.is_enabled():
+    if LIVE_TV_MODE == "public" and fantzo_live_tv.is_public_enabled():
         rows.append([fantzo_live_tv.live_tv_button("📺 LIVE TV")])
     rows.extend(
         [
@@ -89,7 +92,7 @@ def premium_explore_keyboard() -> InlineKeyboardMarkup:
         [mini_app_button("✨ OPEN FANTZO", "explore_home")],
         [mini_app_button("🚀 JOIN FANTZO NOW", "explore_join")],
     ]
-    if fantzo_live_tv.is_enabled():
+    if LIVE_TV_MODE == "public" and fantzo_live_tv.is_public_enabled():
         rows.append([fantzo_live_tv.live_tv_button("📺 OPEN LIVE TV")])
     rows.append([InlineKeyboardButton("⬅️ Back to Home", callback_data="back")])
     return InlineKeyboardMarkup(rows)
@@ -104,6 +107,7 @@ app.core.explore_keyboard = premium_explore_keyboard
 _original_track = app.core.track
 _original_touch_user = app.core.touch_user
 _original_start = app.start
+_original_admin = app.core.admin
 
 
 def _business_connection_id() -> str:
@@ -174,6 +178,41 @@ async def smart_start(update, context) -> None:
 app.start = smart_start
 
 
+async def smart_admin(update, context) -> None:
+    user = update.effective_user
+    message = update.effective_message
+    if not user or not message or user.id != app.core.ADMIN_USER_ID:
+        return
+
+    await _original_admin(update, context)
+
+    if LIVE_TV_MODE not in {"admin", "public"}:
+        return
+
+    url = sky_admin_url()
+    if not url:
+        await message.reply_text(
+            "⚠️ <b>Live TV mode is enabled, but the private Sky admin URL is not configured.</b>",
+            parse_mode="HTML",
+        )
+        return
+
+    await message.reply_text(
+        f"📺 <b>LIVE TV CONTROL</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n\n"
+        f"Current mode: <b>{LIVE_TV_MODE.upper()}</b>\n\n"
+        "Open the private Sky test below.",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(
+            [[InlineKeyboardButton("📺 OPEN LIVE TV", web_app=WebAppInfo(url=url))]]
+        ),
+        disable_web_page_preview=True,
+    )
+
+
+app.core.admin = smart_admin
+
+
 async def stop_reminders_command(update, context) -> None:
     user = update.effective_user
     if not user:
@@ -207,6 +246,13 @@ async def live_tv_admin_command(update, context) -> None:
     if not user or not message or user.id != app.core.ADMIN_USER_ID:
         return
 
+    if LIVE_TV_MODE == "off":
+        await message.reply_text(
+            "⛔ <b>Live TV mode is OFF.</b>",
+            parse_mode="HTML",
+        )
+        return
+
     url = sky_admin_url()
     if not url:
         await message.reply_text(
@@ -223,11 +269,11 @@ async def live_tv_admin_command(update, context) -> None:
     await message.reply_text(
         "📺 <b>FANTZO LIVE TV · ADMIN</b>\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
-        "Private Sky Live test with the existing auto-login flow.\n"
-        "This option is visible only to the Fantzo admin.",
+        f"Current mode: <b>{LIVE_TV_MODE.upper()}</b>\n"
+        "Private Sky Live test with the existing admin flow.",
         parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(
-            [[InlineKeyboardButton("▶ OPEN SKY LIVE · AUTO LOGIN", web_app=WebAppInfo(url=url))]]
+            [[InlineKeyboardButton("▶ OPEN SKY LIVE · ADMIN", web_app=WebAppInfo(url=url))]]
         ),
         disable_web_page_preview=True,
     )
@@ -255,7 +301,10 @@ async def configure_telegram_ui(application) -> None:
     application.add_handler(CommandHandler("livetvadmin", live_tv_admin_command))
     reminders.ensure_tables()
     reminders.start_background_loop(application)
-    logger.info("Fantzo tracked Mini App menu, admin-only Sky Live entry, and smart reminder engine configured")
+    logger.info(
+        "Fantzo tracked Mini App menu, Live TV single-switch mode=%s, and smart reminder engine configured",
+        LIVE_TV_MODE,
+    )
 
 
 app.configure_telegram_ui = configure_telegram_ui
@@ -266,7 +315,5 @@ if __name__ == "__main__":
     trial_live_tv.install_on_tracking_handler(analytics)
     fantzo_live_tv.install_on_tracking_handler(analytics)
     analytics.start_tracking_server()
-    logger.info(
-        "Starting Fantzo with public Live TV disabled, admin-only Sky Live auto-login, and smart reminders"
-    )
+    logger.info("Starting Fantzo with LIVE_TV_MODE=%s", LIVE_TV_MODE)
     app.run()

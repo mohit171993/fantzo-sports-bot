@@ -28,6 +28,35 @@ import trial_live_tv
 
 logger = logging.getLogger(__name__)
 
+
+def _install_ibetin_core_branding() -> None:
+    """Rebrand the locked Fantzo core at runtime without changing its behavior."""
+    replacements = (
+        ("FANTZO", "IBETIN"),
+        ("Fantzo", "IBETIN"),
+        ("fantzo.com", "ibetin.com"),
+    )
+
+    for language in core.TEXT.values():
+        for key, value in list(language.items()):
+            if not isinstance(value, str):
+                continue
+            branded = value
+            for old, new in replacements:
+                branded = branded.replace(old, new)
+            language[key] = branded
+
+    home = os.getenv("IBETIN_HOME_URL", "https://ibetin.com").strip().rstrip("/")
+    core.FANTZO_HOME = home
+    core.FANTZO_LIVE = os.getenv("IBETIN_LIVE_URL", f"{home}/en/live").strip()
+    core.FANTZO_SLOTS = os.getenv("IBETIN_SLOTS_URL", f"{home}/en/slots").strip()
+    core.FANTZO_REGISTER = os.getenv(
+        "IBETIN_REGISTER_URL", f"{home}/en/registration"
+    ).strip()
+
+
+_install_ibetin_core_branding()
+
 QUICK_MENU_LABEL = "⚡ IBETIN Menu"
 QUICK_MENU = ReplyKeyboardMarkup(
     [[QUICK_MENU_LABEL]],
@@ -90,7 +119,6 @@ def premium_join_keyboard() -> InlineKeyboardMarkup:
     )
 
 
-# Override the core menus everywhere, including Back to Home and Join actions.
 core.main_keyboard = premium_main_keyboard
 core.join_keyboard = premium_join_keyboard
 
@@ -253,7 +281,6 @@ def run() -> None:
         .build()
     )
 
-    # Telegram Business integration: connection updates + incoming customer DMs.
     app.add_handler(BusinessConnectionHandler(fantzo_business.business_connection_update))
     app.add_handler(
         MessageHandler(
@@ -280,7 +307,6 @@ def run() -> None:
             quick_menu,
         )
     )
-    # Normal direct messages to the IBETIN bot remain supported separately.
     app.add_handler(
         MessageHandler(
             filters.UpdateType.MESSAGE & filters.TEXT & ~filters.COMMAND,

@@ -53,7 +53,7 @@ def premium_main_keyboard() -> InlineKeyboardMarkup:
         ],
     ]
     if LIVE_TV_MODE == "public" and fantzo_live_tv.is_public_enabled():
-        rows.append([InlineKeyboardButton(     "📺 LIVE TV",     web_app=WebAppInfo(url=sky_admin_url()) )("📺 LIVE TV")])
+        rows.append([fantzo_live_tv.live_tv_button("📺 LIVE TV")])
     rows.extend(
         [
             [
@@ -93,7 +93,7 @@ def premium_explore_keyboard() -> InlineKeyboardMarkup:
         [mini_app_button("🚀 JOIN FANTZO NOW", "explore_join")],
     ]
     if LIVE_TV_MODE == "public" and fantzo_live_tv.is_public_enabled():
-        rows.append([InlineKeyboardButton(     "📺 LIVE TV",     web_app=WebAppInfo(url=sky_admin_url()) )("📺 OPEN LIVE TV")])
+        rows.append([fantzo_live_tv.live_tv_button("📺 OPEN LIVE TV")])
     rows.append([InlineKeyboardButton("⬅️ Back to Home", callback_data="back")])
     return InlineKeyboardMarkup(rows)
 

@@ -15,6 +15,7 @@ import bot_persistent as app
 import fantzo_analytics as analytics
 import fantzo_live_tv
 import fantzo_reminders as reminders
+import ibetin_news as news
 import private_apk_upload
 import trial_live_tv
 
@@ -62,6 +63,7 @@ def _install_ibetin_hub_copy() -> None:
                 "Your quick gateway to the main IBETIN sections.\n\n"
                 "🏆 Sports & pre-match\n"
                 "🔴 Live events\n"
+                "📰 Fresh sports news\n"
                 "🎰 Live Casino\n"
                 "🎮 Games\n"
                 "📊 Results\n"
@@ -99,6 +101,7 @@ def _install_ibetin_hub_copy() -> None:
                 "IBETIN के मुख्य सेक्शन सीधे Telegram से खोलें।\n\n"
                 "🏆 Sports\n"
                 "🔴 Live\n"
+                "📰 Sports News\n"
                 "🎰 Live Casino\n"
                 "🎮 Games\n"
                 "📊 Results\n"
@@ -168,6 +171,7 @@ def premium_main_keyboard() -> InlineKeyboardMarkup:
             site_button("📊 RESULTS", IBETIN_RESULTS_URL),
             site_button("💳 PAYMENTS", IBETIN_PAYMENT_URL),
         ],
+        [InlineKeyboardButton("📰 SPORTS NEWS", callback_data="news:latest")],
         [
             InlineKeyboardButton("🏏 Cricket Scores", callback_data="cricket"),
             InlineKeyboardButton("⚽ Football Scores", callback_data="football"),
@@ -225,6 +229,7 @@ def premium_explore_keyboard() -> InlineKeyboardMarkup:
             site_button("📊 RESULTS", IBETIN_RESULTS_URL),
             site_button("💳 PAYMENTS", IBETIN_PAYMENT_URL),
         ],
+        [InlineKeyboardButton("📰 SPORTS NEWS", callback_data="news:latest")],
         [site_button("🛟 SUPPORT", IBETIN_SUPPORT_URL)],
     ]
 
@@ -252,6 +257,7 @@ _original_track = app.core.track
 _original_touch_user = app.core.touch_user
 _original_start = app.start
 _original_admin = app.core.admin
+_original_callback_router = app.core.callback_router
 
 
 def _business_connection_id() -> str:
@@ -314,7 +320,7 @@ app.core.touch_user = tracked_touch_user
 
 
 # =========================================================
-# START / WEBSITE COMMANDS
+# START / WEBSITE / NEWS COMMANDS
 # =========================================================
 
 async def smart_start(update, context) -> None:
@@ -383,6 +389,40 @@ async def support_command(update, context) -> None:
         ),
         disable_web_page_preview=True,
     )
+
+
+async def news_command(update, context) -> None:
+    user = update.effective_user
+    message = update.effective_message
+    if not message:
+        return
+    if user:
+        try:
+            app.core.track(user.id, "news:latest")
+        except Exception:
+            pass
+    await news.send_news_message(message, "latest")
+
+
+async def smart_callback_router(update, context) -> None:
+    query = update.callback_query
+    action = query.data if query else ""
+    if action.startswith("news:"):
+        await query.answer()
+        user = update.effective_user
+        try:
+            app.core.touch_user(update)
+            if user:
+                app.core.track(user.id, action)
+        except Exception:
+            logger.exception("Could not track IBETIN news action")
+        category = action.split(":", 1)[1] or "latest"
+        await news.edit_news_query(query, category)
+        return
+    await _original_callback_router(update, context)
+
+
+app.core.callback_router = smart_callback_router
 
 
 # =========================================================
@@ -459,6 +499,7 @@ async def configure_telegram_ui(application) -> None:
     await application.bot.set_my_commands(
         [
             BotCommand("start", "Open IBETIN Hub"),
+            BotCommand("news", "Latest sports news"),
             BotCommand("website", "Open IBETIN website sections"),
             BotCommand("live", "Open IBETIN live sections"),
             BotCommand("sports", "View sports scores and fixtures"),
@@ -475,6 +516,7 @@ async def configure_telegram_ui(application) -> None:
         )
     )
 
+    application.add_handler(CommandHandler("news", news_command))
     application.add_handler(CommandHandler("website", website_command))
     application.add_handler(CommandHandler("live", live_command))
     application.add_handler(CommandHandler("support", support_command))

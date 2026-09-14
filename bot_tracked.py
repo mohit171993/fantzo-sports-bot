@@ -66,6 +66,51 @@ def mini_app_button(
 
 
 # =========================================================
+# PREMIUM SPORTS UI COPY
+# =========================================================
+
+def install_premium_ui_copy() -> None:
+    """Keep the first screen short, sports-first, and easy to scan."""
+
+    app.core.TEXT["en"]["welcome"] = (
+        "🏟 <b>FANTZO SPORTS</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
+        "<b>Your sports. Live.</b>\n\n"
+        "🔴 Live scores & match action\n"
+        "🏏 Cricket   •   ⚽ Football\n"
+        "📅 Fixtures   •   🏆 Results\n"
+        "🔔 Match alerts & fast updates\n\n"
+        "Choose what you want to follow 👇"
+    )
+
+    app.core.TEXT["hi"]["welcome"] = (
+        "🏟 <b>FANTZO SPORTS</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
+        "<b>आपके खेल। लाइव।</b>\n\n"
+        "🔴 लाइव स्कोर और मैच अपडेट\n"
+        "🏏 क्रिकेट   •   ⚽ फुटबॉल\n"
+        "📅 फिक्स्चर   •   🏆 रिज़ल्ट\n"
+        "🔔 मैच अलर्ट और तेज़ अपडेट\n\n"
+        "अपना स्पोर्ट चुनें 👇"
+    )
+
+    app.core.TEXT["en"]["explore"] = (
+        "✨ <b>EXPLORE FANTZO</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
+        "Discover featured sports, find a team, or open the full Fantzo experience."
+    )
+
+    app.core.TEXT["hi"]["explore"] = (
+        "✨ <b>EXPLORE FANTZO</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
+        "Featured sports देखें, अपनी team खोजें या पूरा Fantzo experience खोलें।"
+    )
+
+
+install_premium_ui_copy()
+
+
+# =========================================================
 # PRIVATE SKY ADMIN ROUTE
 # =========================================================
 
@@ -93,101 +138,78 @@ def sky_admin_url() -> str:
 # =========================================================
 
 def premium_main_keyboard() -> InlineKeyboardMarkup:
+    """Sports-first home with fewer, stronger primary actions."""
 
     rows = [
-
         [
-            mini_app_button(
-                "🔥 JOIN FANTZO NOW 🔥",
-                "home_join_cta"
+            InlineKeyboardButton(
+                "🔴 LIVE NOW",
+                callback_data="live_now"
             )
         ],
-
         [
             InlineKeyboardButton(
-                "🔴 Live Now",
-                callback_data="live_now"
+                "🏏 CRICKET",
+                callback_data="cricket"
             ),
-
             InlineKeyboardButton(
-                "🔥 Featured",
-                callback_data="trending"
+                "⚽ FOOTBALL",
+                callback_data="football"
             ),
         ],
-
+        [
+            InlineKeyboardButton(
+                "📅 FIXTURES",
+                callback_data="upcoming"
+            ),
+            InlineKeyboardButton(
+                "🏆 RESULTS",
+                callback_data="results"
+            ),
+        ],
     ]
 
-
-    # =====================================================
-    # PUBLIC LIVE TV
-    # This uses the SAME private route as admin
-    # =====================================================
-
+    # Keep the existing Live TV route and visibility logic unchanged.
     if LIVE_TV_MODE == "public":
-
         url = sky_admin_url()
 
         if url:
             rows.append([
                 InlineKeyboardButton(
-                    "📺 LIVE TV",
+                    "📺 WATCH LIVE TV",
                     web_app=WebAppInfo(
                         url=url
                     )
                 )
             ])
 
-
     rows.extend([
-
         [
             InlineKeyboardButton(
-                "🏏 Cricket",
-                callback_data="cricket"
-            ),
-
-            InlineKeyboardButton(
-                "⚽ Football",
-                callback_data="football"
-            ),
-        ],
-
-        [
-            InlineKeyboardButton(
-                "🗓 Upcoming",
-                callback_data="upcoming"
-            ),
-
-            InlineKeyboardButton(
-                "✅ Results",
-                callback_data="results"
-            ),
-        ],
-
-        [
-            InlineKeyboardButton(
-                "🔎 Find Team",
-                callback_data="find_team"
-            ),
-
-            InlineKeyboardButton(
-                "🔔 Match Alerts",
+                "🔔 MATCH ALERTS",
                 callback_data="subscribe"
             ),
-        ],
-
-        [
             InlineKeyboardButton(
-                "✨ Explore Fantzo",
-                callback_data="explore"
-            ),
-
-            InlineKeyboardButton(
-                "⚙️ Settings",
+                "⚙️ SETTINGS",
                 callback_data="settings"
             ),
         ],
-
+        [
+            InlineKeyboardButton(
+                "✨ EXPLORE",
+                callback_data="explore"
+            ),
+            InlineKeyboardButton(
+                "🔎 FIND TEAM",
+                callback_data="find_team"
+            ),
+        ],
+        [
+            mini_app_button(
+                "✨ OPEN FANTZO",
+                "home_open_fantzo"
+            )
+        ],
     ])
 
     return InlineKeyboardMarkup(rows)
@@ -200,28 +222,28 @@ def premium_main_keyboard() -> InlineKeyboardMarkup:
 def premium_join_keyboard() -> InlineKeyboardMarkup:
 
     return InlineKeyboardMarkup([
-
-        [
-            mini_app_button(
-                "🔥 JOIN FANTZO NOW 🔥",
-                "join_screen_cta"
-            )
-        ],
-
         [
             mini_app_button(
                 "✨ OPEN FANTZO",
-                "join_screen_explore"
+                "join_screen_open"
             )
         ],
-
         [
             InlineKeyboardButton(
-                "⬅️ Back to Home",
+                "🔴 LIVE NOW",
+                callback_data="live_now"
+            ),
+            InlineKeyboardButton(
+                "📅 FIXTURES",
+                callback_data="upcoming"
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                "⬅️ BACK TO HOME",
                 callback_data="back"
             )
         ],
-
     ])
 
 
@@ -232,44 +254,40 @@ def premium_join_keyboard() -> InlineKeyboardMarkup:
 def premium_explore_keyboard() -> InlineKeyboardMarkup:
 
     rows = [
-
+        [
+            InlineKeyboardButton(
+                "🔥 FEATURED",
+                callback_data="trending"
+            ),
+            InlineKeyboardButton(
+                "🔎 FIND TEAM",
+                callback_data="find_team"
+            ),
+        ],
         [
             mini_app_button(
                 "✨ OPEN FANTZO",
-                "explore_home"
+                "explore_open_fantzo"
             )
         ],
-
-        [
-            mini_app_button(
-                "🚀 JOIN FANTZO NOW",
-                "explore_join"
-            )
-        ],
-
     ]
 
-
-    # SAME PRIVATE SKY ROUTE HERE TOO
-
     if LIVE_TV_MODE == "public":
-
         url = sky_admin_url()
 
         if url:
             rows.append([
                 InlineKeyboardButton(
-                    "📺 OPEN LIVE TV",
+                    "📺 WATCH LIVE TV",
                     web_app=WebAppInfo(
                         url=url
                     )
                 )
             ])
 
-
     rows.append([
         InlineKeyboardButton(
-            "⬅️ Back to Home",
+            "⬅️ BACK TO HOME",
             callback_data="back"
         )
     ])
@@ -451,7 +469,9 @@ async def smart_start(
 
         return
 
-    await _original_start(
+    # Premium start: show one clean sports dashboard instead of
+    # following it with the old extra Quick Access explanation.
+    await app.show_home(
         update,
         context
     )
@@ -618,7 +638,7 @@ async def configure_telegram_ui(
 
         BotCommand(
             "start",
-            "Open Fantzo Sports Hub"
+            "Open Fantzo Sports"
         ),
 
         BotCommand(
@@ -643,7 +663,7 @@ async def configure_telegram_ui(
 
         menu_button=MenuButtonWebApp(
 
-            text="Join Fantzo",
+            text="Open Fantzo",
 
             web_app=WebAppInfo(
                 url=tracked_url(

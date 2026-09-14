@@ -28,16 +28,19 @@ import trial_live_tv
 
 logger = logging.getLogger(__name__)
 
-QUICK_MENU_LABEL = "⚡ Fantzo Menu"
+QUICK_MENU_LABEL = "⚡ IBETIN Menu"
 QUICK_MENU = ReplyKeyboardMarkup(
     [[QUICK_MENU_LABEL]],
     resize_keyboard=True,
     is_persistent=True,
-    input_field_placeholder="Tap Fantzo Menu anytime",
+    input_field_placeholder="Tap IBETIN Menu anytime",
 )
 
-BANNER_ENV = "FANTZO_BANNER_FILE_ID"
-MINI_APP_URL = os.getenv("FANTZO_MINI_APP_URL", "https://www.fantzo.com").strip()
+BANNER_ENV = "IBETIN_BANNER_FILE_ID"
+MINI_APP_URL = os.getenv(
+    "IBETIN_MINI_APP_URL",
+    os.getenv("FANTZO_MINI_APP_URL", "https://ibetin.com"),
+).strip()
 
 
 def tracked_url(content: str) -> str:
@@ -49,10 +52,10 @@ def mini_app_button(label: str, content: str) -> InlineKeyboardButton:
 
 
 def premium_main_keyboard() -> InlineKeyboardMarkup:
-    """Fantzo home menu with Join Fantzo as the dominant Mini App CTA."""
+    """IBETIN home menu with Join IBETIN as the dominant Mini App CTA."""
     return InlineKeyboardMarkup(
         [
-            [mini_app_button("🔥 JOIN FANTZO NOW 🔥", "home_join_cta")],
+            [mini_app_button("🔥 JOIN IBETIN NOW 🔥", "home_join_cta")],
             [
                 InlineKeyboardButton("🔴 Live Now", callback_data="live_now"),
                 InlineKeyboardButton("🔥 Featured", callback_data="trending"),
@@ -70,7 +73,7 @@ def premium_main_keyboard() -> InlineKeyboardMarkup:
                 InlineKeyboardButton("🔔 Match Alerts", callback_data="subscribe"),
             ],
             [
-                InlineKeyboardButton("✨ Explore Fantzo", callback_data="explore"),
+                InlineKeyboardButton("✨ Explore IBETIN", callback_data="explore"),
                 InlineKeyboardButton("⚙️ Settings", callback_data="settings"),
             ],
         ]
@@ -80,8 +83,8 @@ def premium_main_keyboard() -> InlineKeyboardMarkup:
 def premium_join_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
-            [mini_app_button("🔥 JOIN FANTZO NOW 🔥", "join_screen_cta")],
-            [mini_app_button("✨ OPEN FANTZO", "join_screen_explore")],
+            [mini_app_button("🔥 JOIN IBETIN NOW 🔥", "join_screen_cta")],
+            [mini_app_button("✨ OPEN IBETIN", "join_screen_explore")],
             [InlineKeyboardButton("⬅️ Back to Home", callback_data="back")],
         ]
     )
@@ -112,7 +115,7 @@ def get_banner_file_id() -> str:
             ).fetchone()
         return str(row["value"]).strip() if row and row["value"] else ""
     except Exception as exc:
-        logger.warning("Could not read Fantzo banner setting: %s", exc)
+        logger.warning("Could not read IBETIN banner setting: %s", exc)
         return ""
 
 
@@ -127,23 +130,23 @@ def save_banner_file_id(file_id: str) -> None:
 
 
 async def configure_telegram_ui(application: Application) -> None:
-    """Configure Telegram native UI with a direct tracked Fantzo Mini App launcher."""
+    """Configure Telegram native UI with a direct tracked IBETIN Mini App launcher."""
     await application.bot.set_my_commands(
         [
-            BotCommand("start", "Open Fantzo Sports Hub"),
+            BotCommand("start", "Open IBETIN Sports Hub"),
             BotCommand("team", "Find a cricket or football team"),
-            BotCommand("sports", "View Fantzo sports coverage"),
-            BotCommand("help", "Fantzo quick guide"),
-            BotCommand("setbanner", "Change the Fantzo home banner"),
+            BotCommand("sports", "View IBETIN sports coverage"),
+            BotCommand("help", "IBETIN quick guide"),
+            BotCommand("setbanner", "Change the IBETIN home banner"),
         ]
     )
     await application.bot.set_chat_menu_button(
         menu_button=MenuButtonWebApp(
-            text="Join Fantzo",
+            text="Join IBETIN",
             web_app=WebAppInfo(url=tracked_url("telegram_native_menu")),
         )
     )
-    logger.info("Fantzo Telegram Mini App menu configured")
+    logger.info("IBETIN Telegram Mini App menu configured")
 
 
 async def show_home(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -161,7 +164,7 @@ async def show_home(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             )
             return
         except Exception as exc:
-            logger.warning("Fantzo banner send failed, falling back to text: %s", exc)
+            logger.warning("IBETIN banner send failed, falling back to text: %s", exc)
 
     await update.effective_message.reply_text(
         core.TEXT[lang]["welcome"],
@@ -175,8 +178,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await show_home(update, context)
     await update.effective_message.reply_text(
         "⚡ <b>Quick access enabled</b>\n\n"
-        "Tap <b>⚡ Fantzo Menu</b> below anytime for sports.\n"
-        "Telegram's <b>Join Fantzo</b> Menu button opens Fantzo inside Telegram.",
+        "Tap <b>⚡ IBETIN Menu</b> below anytime for sports.\n"
+        "Telegram's <b>Join IBETIN</b> Menu button opens IBETIN inside Telegram.",
         parse_mode="HTML",
         reply_markup=QUICK_MENU,
     )
@@ -197,9 +200,9 @@ async def setbanner_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         await message.reply_text("This command is restricted.")
         return
 
-    context.user_data["awaiting_fantzo_banner"] = True
+    context.user_data["awaiting_ibetin_banner"] = True
     await message.reply_text(
-        "🖼 <b>Send the Fantzo banner now.</b>\n\n"
+        "🖼 <b>Send the IBETIN banner now.</b>\n\n"
         "Send it as a normal Telegram <b>photo</b>. No caption is required.\n"
         "I will save Telegram's own image reference and confirm when it is ready.",
         parse_mode="HTML",
@@ -213,7 +216,7 @@ async def banner_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         return
 
     caption = (message.caption or "").strip().lower()
-    waiting = bool(context.user_data.get("awaiting_fantzo_banner"))
+    waiting = bool(context.user_data.get("awaiting_ibetin_banner"))
     caption_trigger = caption in {"/setbanner", "setbanner"}
 
     if not waiting and not caption_trigger:
@@ -221,13 +224,13 @@ async def banner_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     file_id = message.photo[-1].file_id
     save_banner_file_id(file_id)
-    context.user_data["awaiting_fantzo_banner"] = False
-    logger.info("Fantzo home banner captured successfully")
+    context.user_data["awaiting_ibetin_banner"] = False
+    logger.info("IBETIN home banner captured successfully")
 
     await message.reply_text(
-        "✅ <b>Fantzo banner saved.</b>\n\n"
+        "✅ <b>IBETIN banner saved.</b>\n\n"
         "It will now appear above the premium home menu.\n"
-        "Tap <b>⚡ Fantzo Menu</b> to test it.",
+        "Tap <b>⚡ IBETIN Menu</b> to test it.",
         parse_mode="HTML",
         reply_markup=QUICK_MENU,
     )
@@ -273,11 +276,11 @@ def run() -> None:
         MessageHandler(
             filters.UpdateType.MESSAGE
             & filters.TEXT
-            & filters.Regex(r"^⚡ Fantzo Menu$"),
+            & filters.Regex(r"^⚡ IBETIN Menu$"),
             quick_menu,
         )
     )
-    # Normal direct messages to @fantzoofficialbot remain supported separately.
+    # Normal direct messages to the IBETIN bot remain supported separately.
     app.add_handler(
         MessageHandler(
             filters.UpdateType.MESSAGE & filters.TEXT & ~filters.COMMAND,
@@ -288,7 +291,7 @@ def run() -> None:
     app.add_handler(CallbackQueryHandler(core.callback_router))
 
     logger.info(
-        "Starting Fantzo Premium Sports Hub with direct-chat and Telegram Business DM auto reply"
+        "Starting IBETIN Premium Sports Hub with direct-chat and Telegram Business DM auto reply"
     )
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 

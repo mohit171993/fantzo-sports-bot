@@ -1,4 +1,5 @@
 import logging
+import os
 import re
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -8,6 +9,15 @@ import bot as core
 
 logger = logging.getLogger(__name__)
 SETTING_KEY = "auto_reply_enabled"
+
+IBETIN_HOME_URL = os.getenv("IBETIN_HOME_URL", "https://ibetin.com").strip().rstrip("/")
+IBETIN_SPORTS_URL = os.getenv("IBETIN_SPORTS_URL", f"{IBETIN_HOME_URL}/line").strip()
+IBETIN_LIVE_URL = os.getenv("IBETIN_LIVE_URL", f"{IBETIN_HOME_URL}/live").strip()
+IBETIN_CASINO_URL = os.getenv("IBETIN_CASINO_URL", f"{IBETIN_HOME_URL}/casino").strip()
+IBETIN_GAMES_URL = os.getenv("IBETIN_GAMES_URL", f"{IBETIN_HOME_URL}/games").strip()
+IBETIN_RESULTS_URL = os.getenv("IBETIN_RESULTS_URL", f"{IBETIN_HOME_URL}/results").strip()
+IBETIN_PAYMENT_URL = os.getenv("IBETIN_PAYMENT_URL", f"{IBETIN_HOME_URL}/information/payment").strip()
+IBETIN_SUPPORT_URL = os.getenv("IBETIN_SUPPORT_URL", f"{IBETIN_HOME_URL}/information/contacts").strip()
 
 
 def ensure_setting() -> None:
@@ -42,26 +52,57 @@ def _contains(text: str, words) -> bool:
 
 def _sports_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
-        [[
-            InlineKeyboardButton("🏏 Cricket", callback_data="cricket"),
-            InlineKeyboardButton("⚽ Football", callback_data="football"),
-        ], [
-            InlineKeyboardButton("🔴 Live Now", callback_data="live_now"),
-            InlineKeyboardButton("🗓 Upcoming", callback_data="upcoming"),
-        ]]
+        [
+            [
+                InlineKeyboardButton("🏏 Cricket Scores", callback_data="cricket"),
+                InlineKeyboardButton("⚽ Football Scores", callback_data="football"),
+            ],
+            [
+                InlineKeyboardButton("🏆 IBETIN Sports", url=IBETIN_SPORTS_URL),
+                InlineKeyboardButton("🔴 IBETIN Live", url=IBETIN_LIVE_URL),
+            ],
+            [InlineKeyboardButton("⚡ Back to IBETIN Hub", callback_data="back")],
+        ]
+    )
+
+
+def _website_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton("🏆 Sports", url=IBETIN_SPORTS_URL),
+                InlineKeyboardButton("🔴 Live", url=IBETIN_LIVE_URL),
+            ],
+            [
+                InlineKeyboardButton("🎰 Live Casino", url=IBETIN_CASINO_URL),
+                InlineKeyboardButton("🎮 Games", url=IBETIN_GAMES_URL),
+            ],
+            [
+                InlineKeyboardButton("📊 Results", url=IBETIN_RESULTS_URL),
+                InlineKeyboardButton("💳 Payments", url=IBETIN_PAYMENT_URL),
+            ],
+            [InlineKeyboardButton("🛟 Support", url=IBETIN_SUPPORT_URL)],
+            [InlineKeyboardButton("⚡ Back to IBETIN Hub", callback_data="back")],
+        ]
     )
 
 
 def _account_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
-        [[InlineKeyboardButton("🔥 JOIN IBETIN NOW 🔥", callback_data="join_fantzo")],
-         [InlineKeyboardButton("⚡ Back to IBETIN Menu", callback_data="back")]]
+        [
+            [InlineKeyboardButton("🌐 OPEN IBETIN", url=IBETIN_HOME_URL)],
+            [InlineKeyboardButton("🛟 SUPPORT", url=IBETIN_SUPPORT_URL)],
+            [InlineKeyboardButton("⚡ Back to IBETIN Hub", callback_data="back")],
+        ]
     )
 
 
 def _support_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
-        [[InlineKeyboardButton("⚡ IBETIN Menu", callback_data="back")]]
+        [
+            [InlineKeyboardButton("🛟 OFFICIAL SUPPORT", url=IBETIN_SUPPORT_URL)],
+            [InlineKeyboardButton("⚡ IBETIN Hub", callback_data="back")],
+        ]
     )
 
 
@@ -72,84 +113,113 @@ def classify_and_reply(text: str):
         return (
             "greeting",
             "👋 <b>Welcome to IBETIN!</b>\n\n"
-            "I can help with live scores, cricket, football, account access, deposits/withdrawals and general IBETIN questions.\n\n"
-            "What would you like help with?",
-            _sports_keyboard(),
+            "I can help you navigate Sports, Live, Live Casino, Games, Results, Payments, Support and sports scores.\n\n"
+            "What would you like to open?",
+            _website_keyboard(),
+        )
+
+    if _contains(t, ["casino", "live casino", "dealer", "roulette", "blackjack", "baccarat"]):
+        return (
+            "casino",
+            "🎰 <b>IBETIN Live Casino</b>\n\nOpen the official Live Casino section below.",
+            InlineKeyboardMarkup(
+                [[InlineKeyboardButton("🎰 OPEN LIVE CASINO", url=IBETIN_CASINO_URL)],
+                 [InlineKeyboardButton("⚡ Back to IBETIN Hub", callback_data="back")]]
+            ),
+        )
+
+    if _contains(t, ["games", "game", "slots", "slot"]):
+        return (
+            "games",
+            "🎮 <b>IBETIN Games</b>\n\nOpen the official Games section below.",
+            InlineKeyboardMarkup(
+                [[InlineKeyboardButton("🎮 OPEN GAMES", url=IBETIN_GAMES_URL)],
+                 [InlineKeyboardButton("⚡ Back to IBETIN Hub", callback_data="back")]]
+            ),
+        )
+
+    if _contains(t, ["result", "results", "score result", "live result"]):
+        return (
+            "results",
+            "📊 <b>IBETIN Results</b>\n\nOpen the official Results section below.",
+            InlineKeyboardMarkup(
+                [[InlineKeyboardButton("📊 OPEN RESULTS", url=IBETIN_RESULTS_URL)],
+                 [InlineKeyboardButton("⚡ Back to IBETIN Hub", callback_data="back")]]
+            ),
         )
 
     if _contains(t, ["cricket", "ipl", "t20", "odi", "test", "wicket", "score"]):
         return (
             "cricket",
-            "🏏 <b>Cricket</b>\n\nUse the buttons below for live matches and upcoming fixtures.",
+            "🏏 <b>Cricket</b>\n\nUse the bot for scores, or open IBETIN Sports/Live from the buttons below.",
             _sports_keyboard(),
         )
 
     if _contains(t, ["football", "soccer", "goal", "premier", "champions"]):
         return (
             "football",
-            "⚽ <b>Football</b>\n\nUse the buttons below for live matches and upcoming fixtures.",
+            "⚽ <b>Football</b>\n\nUse the bot for scores, or open IBETIN Sports/Live from the buttons below.",
             _sports_keyboard(),
         )
 
-    if ("live tv" in t or "live stream" in t or "watch live" in t or "ground commentary" in t):
+    if _contains(t, ["live", "live sports", "live match", "watch live"]):
         return (
-            "live_tv",
-            "📺 <b>Live TV</b>\n\nLive TV is currently being tested and is not yet available to public users. Live scores and match updates are available from the IBETIN sports menu.",
+            "live",
+            "🔴 <b>IBETIN Live</b>\n\nOpen the official live section below, or use the score buttons for match updates.",
             _sports_keyboard(),
         )
 
-    if _contains(t, ["deposit", "add money", "payment", "upi", "recharge"]):
+    if _contains(t, ["deposit", "add money", "payment", "payments", "upi", "recharge", "withdraw", "withdrawal", "cashout", "payout"]):
         return (
-            "deposit",
-            "💳 <b>Deposit / Add Money</b>\n\nOpen IBETIN and use the payment options shown inside your account. For security, never send card details, OTPs or passwords in Telegram chat.",
-            _account_keyboard(),
-        )
-
-    if _contains(t, ["withdraw", "withdrawal", "cashout", "payout"]):
-        return (
-            "withdrawal",
-            "💸 <b>Withdrawal</b>\n\nPlease check the withdrawal section inside your IBETIN account for the current status and available methods. If a transaction is pending, keep the transaction/reference ID ready for support.",
-            _account_keyboard(),
+            "payments",
+            "💳 <b>IBETIN Payments</b>\n\nUse the official payment information page and your IBETIN account for available deposit/withdrawal methods.\n\n🔐 Never send card details, OTPs or passwords in Telegram chat.",
+            InlineKeyboardMarkup(
+                [[InlineKeyboardButton("💳 PAYMENT METHODS", url=IBETIN_PAYMENT_URL)],
+                 [InlineKeyboardButton("🌐 OPEN IBETIN", url=IBETIN_HOME_URL)],
+                 [InlineKeyboardButton("🛟 SUPPORT", url=IBETIN_SUPPORT_URL)]]
+            ),
         )
 
     if _contains(t, ["login", "password", "otp", "account", "register", "registration", "signup", "sign up"]):
         return (
             "account",
-            "👤 <b>Account Help</b>\n\nTap <b>JOIN IBETIN NOW</b> below to open IBETIN. If you have a login or OTP problem, use the recovery/help option shown on the IBETIN account screen.\n\n🔐 Never share your password or OTP in this chat.",
+            "👤 <b>Account Help</b>\n\nOpen the official IBETIN website for login or registration. If you have an account problem, use the official support page.\n\n🔐 Never share your password or OTP in this chat.",
             _account_keyboard(),
         )
 
     if _contains(t, ["bonus", "offer", "promo", "promotion", "cashback"]):
         return (
             "offers",
-            "🎁 <b>Offers & Promotions</b>\n\nAny currently available offer should be checked directly inside IBETIN, together with its eligibility and terms. I won't invent or promise an offer that isn't shown there.",
+            "🎁 <b>Offers & Promotions</b>\n\nPlease check IBETIN directly for currently available offers, eligibility and terms.",
             _account_keyboard(),
         )
 
     if _contains(t, ["support", "help", "problem", "issue", "complaint", "failed", "pending"]):
         return (
             "support",
-            "🛟 <b>IBETIN Help</b>\n\nPlease send a short description of the issue and, if it involves a transaction, include only the transaction/reference ID. Do not send passwords, OTPs or full card/bank credentials here.\n\nYou can also open IBETIN and use its official support/help option.",
+            "🛟 <b>IBETIN Support</b>\n\nFor account or transaction-specific assistance, use the official IBETIN support page. Do not send passwords, OTPs or full card/bank credentials here.",
             _support_keyboard(),
         )
 
     if _contains(t, ["thanks", "thank", "thx"]):
         return (
             "thanks",
-            "🙏 You're welcome. Tap <b>⚡ IBETIN Menu</b> anytime for sports and IBETIN options.",
+            "🙏 You're welcome. Tap <b>⚡ IBETIN Hub</b> anytime to open the main sections.",
             _support_keyboard(),
         )
 
     return (
         "fallback",
-        "🤖 <b>IBETIN Assistant</b>\n\nI didn't fully understand that yet. You can ask me about:\n"
-        "• 🏏 Cricket / ⚽ Football\n"
-        "• 🔴 Live matches\n"
-        "• 💳 Deposit / 💸 Withdrawal\n"
+        "🤖 <b>IBETIN Assistant</b>\n\nYou can ask me about:\n"
+        "• 🏆 Sports / 🔴 Live\n"
+        "• 🎰 Live Casino / 🎮 Games\n"
+        "• 📊 Results\n"
+        "• 💳 Payments\n"
         "• 👤 Login / Registration\n"
-        "• 🛟 Support\n\n"
-        "Or tap the IBETIN Menu below.",
-        _support_keyboard(),
+        "• 🛟 Support\n"
+        "• 🏏 Cricket / ⚽ Football scores\n\n"
+        "Or use the IBETIN Hub below.",
+        _website_keyboard(),
     )
 
 
@@ -189,7 +259,7 @@ async def autoreply_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         await message.reply_text("This command is restricted.")
         return
 
-    arg = (context.args[0].lower() if context.args else "status")
+    arg = context.args[0].lower() if context.args else "status"
     if arg in {"on", "enable", "1"}:
         set_enabled(True)
         await message.reply_text("✅ IBETIN auto reply is ON.")

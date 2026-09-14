@@ -1,4 +1,6 @@
 import logging
+import os
+from urllib.parse import urlencode
 
 from telegram import (
     BotCommand,
@@ -18,6 +20,9 @@ import trial_live_tv
 
 logger = logging.getLogger(__name__)
 
+SKY_ADMIN_BASE_URL = os.getenv("SKY_ADMIN_BASE_URL", "").strip().rstrip("/")
+SKY_ADMIN_TEST_TOKEN = os.getenv("SKY_ADMIN_TEST_TOKEN", "").strip()
+
 
 def tracked_url(content: str) -> str:
     return analytics.tracking_url(content)
@@ -28,6 +33,12 @@ def mini_app_button(label: str, content: str) -> InlineKeyboardButton:
         label,
         web_app=WebAppInfo(url=tracked_url(content)),
     )
+
+
+def sky_admin_url() -> str:
+    if not SKY_ADMIN_BASE_URL or not SKY_ADMIN_TEST_TOKEN:
+        return ""
+    return f"{SKY_ADMIN_BASE_URL}/open?{urlencode({'key': SKY_ADMIN_TEST_TOKEN})}"
 
 
 def premium_main_keyboard() -> InlineKeyboardMarkup:
@@ -190,6 +201,38 @@ async def reminder_stats_command(update, context) -> None:
     )
 
 
+async def live_tv_admin_command(update, context) -> None:
+    user = update.effective_user
+    message = update.effective_message
+    if not user or not message or user.id != app.core.ADMIN_USER_ID:
+        return
+
+    url = sky_admin_url()
+    if not url:
+        await message.reply_text(
+            "⚠️ <b>Sky admin Live TV is not configured.</b>",
+            parse_mode="HTML",
+        )
+        return
+
+    try:
+        app.core.track(user.id, "admin_sky_live_open")
+    except Exception:
+        logger.exception("Could not track admin Sky Live open")
+
+    await message.reply_text(
+        "📺 <b>FANTZO LIVE TV · ADMIN</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
+        "Private Sky Live test with the existing auto-login flow.\n"
+        "This option is visible only to the Fantzo admin.",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(
+            [[InlineKeyboardButton("▶ OPEN SKY LIVE · AUTO LOGIN", web_app=WebAppInfo(url=url))]]
+        ),
+        disable_web_page_preview=True,
+    )
+
+
 async def configure_telegram_ui(application) -> None:
     await application.bot.set_my_commands(
         [
@@ -209,9 +252,10 @@ async def configure_telegram_ui(application) -> None:
     )
     application.add_handler(CommandHandler("stop", stop_reminders_command))
     application.add_handler(CommandHandler("reminderstats", reminder_stats_command))
+    application.add_handler(CommandHandler("livetvadmin", live_tv_admin_command))
     reminders.ensure_tables()
     reminders.start_background_loop(application)
-    logger.info("Fantzo tracked Mini App menu, MiniTV Live TV, and smart reminder engine configured")
+    logger.info("Fantzo tracked Mini App menu, admin-only Sky Live entry, and smart reminder engine configured")
 
 
 app.configure_telegram_ui = configure_telegram_ui
@@ -223,6 +267,6 @@ if __name__ == "__main__":
     fantzo_live_tv.install_on_tracking_handler(analytics)
     analytics.start_tracking_server()
     logger.info(
-        "Starting Fantzo with tracked Mini App conversion links, MiniTV Live TV, admin Live TV trial, and smart reminders"
+        "Starting Fantzo with public Live TV disabled, admin-only Sky Live auto-login, and smart reminders"
     )
     app.run()

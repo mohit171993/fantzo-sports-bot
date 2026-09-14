@@ -1,5 +1,8 @@
+import asyncio
 import logging
 import os
+from datetime import datetime, timezone
+from html import escape
 from urllib.parse import urlencode
 
 from telegram import (
@@ -134,6 +137,257 @@ def sky_admin_url() -> str:
 
 
 # =========================================================
+# PUBLIC LIVE TV STATUS CHECK
+# =========================================================
+
+def public_live_tv_button(
+    label: str = "📺 WATCH LIVE TV"
+) -> InlineKeyboardButton:
+    return InlineKeyboardButton(
+        label,
+        callback_data="live_tv_status"
+    )
+
+
+def _match_local_datetime(match):
+    dt = app.core._match_datetime(match)
+
+    if not dt:
+        return None
+
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+
+    return dt.astimezone(app.core.APP_TIMEZONE)
+
+
+def _match_name(match, sport: str) -> str:
+    icon = "🏏" if sport == "cricket" else "⚽"
+    home = escape(app.core._team_name(match, "home"))
+    away = escape(app.core._team_name(match, "away"))
+    return f"{icon} <b>{home}</b> vs <b>{away}</b>"
+
+
+def _match_time(match) -> str:
+    dt = _match_local_datetime(match)
+
+    if not dt:
+        return "Time TBA"
+
+    return dt.strftime("%I:%M %p").lstrip("0")
+
+
+async def _today_tv_matches():
+    today = datetime.now(app.core.APP_TIMEZONE).date().isoformat()
+    now = datetime.now(app.core.APP_TIMEZONE)
+
+    cricket_result, football_result = await asyncio.gather(
+        app.core.get_sport_matches_for_date("cricket", today),
+        app.core.get_sport_matches_for_date("football", today),
+        return_exceptions=True,
+    )
+
+    all_today = []
+    live_now = []
+    future_today = []
+    successful_sources = 0
+
+    for sport, result in (
+        ("cricket", cricket_result),
+        ("football", football_result),
+    ):
+        if isinstance(result, Exception):
+            logger.warning(
+                "Live TV status lookup failed for %s: %s",
+                sport,
+                result,
+            )
+            continue
+
+        successful_sources += 1
+        matches = result if isinstance(result, list) else []
+
+        for match in matches:
+            if not isinstance(match, dict):
+                continue
+
+            all_today.append((sport, match))
+
+            if app.core._is_live(match, sport):
+                live_now.append((sport, match))
+                continue
+
+            match_dt = _match_local_datetime(match)
+
+            if match_dt and match_dt > now:
+                future_today.append((match_dt, sport, match))
+
+    if successful_sources == 0:
+        raise RuntimeError("Sports data temporarily unavailable")
+
+    future_today.sort(key=lambda item: item[0])
+
+    return all_today, live_now, future_today
+
+
+def _tv_live_keyboard() -> InlineKeyboardMarkup:
+    url = sky_admin_url()
+
+    rows = []
+
+    if url:
+        rows.append([
+            InlineKeyboardButton(
+                "▶ OPEN LIVE TV",
+                web_app=WebAppInfo(url=url)
+            )
+        ])
+
+    rows.extend([
+        [
+            InlineKeyboardButton(
+                "🔄 CHECK STATUS",
+                callback_data="live_tv_status"
+            ),
+            InlineKeyboardButton(
+                "🔴 LIVE SCORES",
+                callback_data="live_now"
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                "⬅️ BACK TO HOME",
+                callback_data="back"
+            )
+        ],
+    ])
+
+    return InlineKeyboardMarkup(rows)
+
+
+def _tv_wait_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton(
+                "🔄 CHECK AGAIN",
+                callback_data="live_tv_status"
+            ),
+            InlineKeyboardButton(
+                "📅 FIXTURES",
+                callback_data="upcoming"
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                "⬅️ BACK TO HOME",
+                callback_data="back"
+            )
+        ],
+    ])
+
+
+async def live_tv_status_screen(update, context) -> None:
+    query = update.callback_query
+
+    if not query:
+        return
+
+    await query.answer("Checking Live TV…")
+
+    if LIVE_TV_MODE != "public":
+        await query.edit_message_text(
+            "📺 <b>FANTZO LIVE TV</b>\n"
+            "━━━━━━━━━━━━━━━━━━\n\n"
+            "Live TV is not currently available for public viewing.",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton(
+                    "⬅️ BACK TO HOME",
+                    callback_data="back"
+                )
+            ]]),
+        )
+        return
+
+    try:
+        all_today, live_now, future_today = await _today_tv_matches()
+
+    except Exception:
+        logger.exception("Could not check Live TV match status")
+
+        await query.edit_message_text(
+            "📺 <b>FANTZO LIVE TV</b>\n"
+            "━━━━━━━━━━━━━━━━━━\n\n"
+            "⚠️ <b>Live match status is temporarily unavailable.</b>\n\n"
+            "Please check again in a moment.",
+            parse_mode="HTML",
+            reply_markup=_tv_wait_keyboard(),
+        )
+        return
+
+    if live_now:
+        lines = [
+            "📺 <b>FANTZO LIVE TV</b>",
+            "━━━━━━━━━━━━━━━━━━",
+            "",
+            "🔴 <b>LIVE NOW</b>",
+            "",
+        ]
+
+        for sport, match in live_now[:3]:
+            lines.append(_match_name(match, sport))
+
+        lines.extend([
+            "",
+            "Tap below to open Live TV.",
+        ])
+
+        await query.edit_message_text(
+            "\n".join(lines),
+            parse_mode="HTML",
+            reply_markup=_tv_live_keyboard(),
+        )
+        return
+
+    if future_today:
+        _, sport, match = future_today[0]
+
+        await query.edit_message_text(
+            "📺 <b>FANTZO LIVE TV</b>\n"
+            "━━━━━━━━━━━━━━━━━━\n\n"
+            "😴 <b>No live match right now.</b>\n\n"
+            "<b>Next match today</b>\n"
+            f"{_match_name(match, sport)}\n"
+            f"🕒 {_match_time(match)} Dubai time\n\n"
+            "Check again when the match starts.",
+            parse_mode="HTML",
+            reply_markup=_tv_wait_keyboard(),
+        )
+        return
+
+    if all_today:
+        await query.edit_message_text(
+            "📺 <b>FANTZO LIVE TV</b>\n"
+            "━━━━━━━━━━━━━━━━━━\n\n"
+            "😴 <b>No live match right now.</b>\n\n"
+            "Today's scheduled matches have finished or are not currently live.",
+            parse_mode="HTML",
+            reply_markup=_tv_wait_keyboard(),
+        )
+        return
+
+    await query.edit_message_text(
+        "📺 <b>FANTZO LIVE TV</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
+        "🏟 <b>NO MATCHES TODAY</b>\n\n"
+        "There are no cricket or football matches scheduled today.\n\n"
+        "Check upcoming fixtures or come back later.",
+        parse_mode="HTML",
+        reply_markup=_tv_wait_keyboard(),
+    )
+
+
+# =========================================================
 # MAIN HOME KEYBOARD
 # =========================================================
 
@@ -169,19 +423,10 @@ def premium_main_keyboard() -> InlineKeyboardMarkup:
         ],
     ]
 
-    # Keep the existing Live TV route and visibility logic unchanged.
-    if LIVE_TV_MODE == "public":
-        url = sky_admin_url()
-
-        if url:
-            rows.append([
-                InlineKeyboardButton(
-                    "📺 WATCH LIVE TV",
-                    web_app=WebAppInfo(
-                        url=url
-                    )
-                )
-            ])
+    if LIVE_TV_MODE == "public" and sky_admin_url():
+        rows.append([
+            public_live_tv_button("📺 WATCH LIVE TV")
+        ])
 
     rows.extend([
         [
@@ -272,18 +517,10 @@ def premium_explore_keyboard() -> InlineKeyboardMarkup:
         ],
     ]
 
-    if LIVE_TV_MODE == "public":
-        url = sky_admin_url()
-
-        if url:
-            rows.append([
-                InlineKeyboardButton(
-                    "📺 WATCH LIVE TV",
-                    web_app=WebAppInfo(
-                        url=url
-                    )
-                )
-            ])
+    if LIVE_TV_MODE == "public" and sky_admin_url():
+        rows.append([
+            public_live_tv_button("📺 WATCH LIVE TV")
+        ])
 
     rows.append([
         InlineKeyboardButton(
@@ -312,6 +549,7 @@ _original_track = app.core.track
 _original_touch_user = app.core.touch_user
 _original_start = app.start
 _original_admin = app.core.admin
+_original_callback_router = app.core.callback_router
 
 
 def _business_connection_id() -> str:
@@ -424,8 +662,24 @@ def tracked_touch_user(update):
     return result
 
 
+async def smart_callback_router(update, context) -> None:
+    query = update.callback_query
+
+    if query and query.data == "live_tv_status":
+        user = update.effective_user
+
+        if user:
+            tracked_core_event(user.id, "live_tv_status")
+
+        await live_tv_status_screen(update, context)
+        return
+
+    await _original_callback_router(update, context)
+
+
 app.core.track = tracked_core_event
 app.core.touch_user = tracked_touch_user
+app.core.callback_router = smart_callback_router
 
 
 # =========================================================

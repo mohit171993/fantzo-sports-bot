@@ -15,14 +15,11 @@ if LIVE_TV_MODE not in {"off", "admin", "public"}:
 MINITV_PATH = "/minitv"
 
 
-def sky_admin_url():
-    if not SKY_ADMIN_BASE_URL or not SKY_ADMIN_TEST_TOKEN:
-        return ""
-
-    return (
-        f"{SKY_ADMIN_BASE_URL}/open?"
-        f"{urlencode({'key': SKY_ADMIN_TEST_TOKEN})}"
-    )
+def minitv_url() -> str:
+    """Return the public Fantzo MiniTV URL used by Telegram WebApp buttons."""
+    if TRACKING_BASE_URL:
+        return f"{TRACKING_BASE_URL}{MINITV_PATH}"
+    return LIVE_TV_URL
 
 
 def live_tv_button(label: str = "📺 Live TV") -> InlineKeyboardButton:

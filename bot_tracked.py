@@ -6,7 +6,9 @@ from telegram import (
     BotCommand,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    KeyboardButton,
     MenuButtonWebApp,
+    ReplyKeyboardMarkup,
     WebAppInfo,
 )
 from telegram.ext import CommandHandler
@@ -15,6 +17,7 @@ import bot_persistent as app
 import fantzo_analytics as analytics
 import fantzo_live_tv
 import fantzo_reminders as reminders
+import ibetin_hub as hub
 import ibetin_news as news
 import private_apk_upload
 import trial_live_tv
@@ -31,6 +34,7 @@ IBETIN_LIVE_URL = os.getenv("IBETIN_LIVE_URL", f"{IBETIN_HOME_URL}/live").strip(
 IBETIN_CASINO_URL = os.getenv("IBETIN_CASINO_URL", f"{IBETIN_HOME_URL}/casino").strip()
 IBETIN_GAMES_URL = os.getenv("IBETIN_GAMES_URL", f"{IBETIN_HOME_URL}/games").strip()
 IBETIN_RESULTS_URL = os.getenv("IBETIN_RESULTS_URL", f"{IBETIN_HOME_URL}/results").strip()
+IBETIN_LIVE_RESULTS_URL = os.getenv("IBETIN_LIVE_RESULTS_URL", IBETIN_RESULTS_URL).strip()
 IBETIN_PAYMENT_URL = os.getenv(
     "IBETIN_PAYMENT_URL", f"{IBETIN_HOME_URL}/information/payment"
 ).strip()
@@ -60,7 +64,7 @@ def _install_ibetin_hub_copy() -> None:
             "welcome": (
                 "⚡ <b>IBETIN HUB</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
-                "Your quick gateway to the main IBETIN sections.\n\n"
+                "Everything below opens inside Telegram as a Mini App.\n\n"
                 "🏆 Sports & pre-match\n"
                 "🔴 Live events\n"
                 "📰 Fresh sports news\n"
@@ -68,26 +72,25 @@ def _install_ibetin_hub_copy() -> None:
                 "🎮 Games\n"
                 "📊 Results\n"
                 "💳 Payment information\n\n"
-                "You can also use the bot for cricket and football scores, team search and match alerts.\n\n"
-                "Choose where you want to go 👇\n\n"
+                "Choose a section 👇\n\n"
                 "🔞 18+ • Play responsibly • T&Cs apply"
             ),
             "explore": (
-                "🌐 <b>EXPLORE IBETIN</b>\n"
+                "🌐 <b>IBETIN MINI APP HUB</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
-                "Open Sports, Live, Live Casino, Games, Results, Payments or Support directly from Telegram.\n\n"
+                "Every navigation button opens inside Telegram.\n\n"
                 "🔞 18+ • Play responsibly • T&Cs apply"
             ),
             "join": (
                 "🌐 <b>OPEN IBETIN</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
-                "Open the official IBETIN website to log in, register or browse available sections.\n\n"
+                "Continue inside Telegram using the IBETIN Mini App.\n\n"
                 "🔞 18+ • Play responsibly • T&Cs apply"
             ),
             "settings": (
                 "⚙️ <b>IBETIN SETTINGS</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
-                "Choose your language and sports-alert preferences."
+                "Open settings in the IBETIN Mini App."
             ),
         }
     )
@@ -98,7 +101,7 @@ def _install_ibetin_hub_copy() -> None:
             "welcome": (
                 "⚡ <b>IBETIN HUB</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
-                "IBETIN के मुख्य सेक्शन सीधे Telegram से खोलें।\n\n"
+                "नीचे दिए गए सभी विकल्प Telegram के अंदर Mini App में खुलेंगे।\n\n"
                 "🏆 Sports\n"
                 "🔴 Live\n"
                 "📰 Sports News\n"
@@ -106,20 +109,19 @@ def _install_ibetin_hub_copy() -> None:
                 "🎮 Games\n"
                 "📊 Results\n"
                 "💳 Payments\n\n"
-                "साथ में cricket/football scores, team search और match alerts भी उपलब्ध हैं।\n\n"
                 "अपना विकल्प चुनें 👇\n\n"
                 "🔞 18+ • जिम्मेदारी से खेलें • T&Cs लागू"
             ),
             "explore": (
-                "🌐 <b>EXPLORE IBETIN</b>\n"
+                "🌐 <b>IBETIN MINI APP HUB</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
-                "Sports, Live, Live Casino, Games, Results, Payments और Support खोलें।\n\n"
+                "सभी navigation विकल्प Telegram के अंदर खुलेंगे।\n\n"
                 "🔞 18+ • जिम्मेदारी से खेलें • T&Cs लागू"
             ),
             "join": (
                 "🌐 <b>OPEN IBETIN</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
-                "Login, registration या browsing के लिए official IBETIN website खोलें।\n\n"
+                "IBETIN को Telegram Mini App के अंदर खोलें।\n\n"
                 "🔞 18+ • जिम्मेदारी से खेलें • T&Cs लागू"
             ),
         }
@@ -130,7 +132,7 @@ _install_ibetin_hub_copy()
 
 
 # =========================================================
-# HELPERS
+# MINI APP HELPERS
 # =========================================================
 
 def tracked_url(content: str) -> str:
@@ -142,7 +144,12 @@ def mini_app_button(label: str, content: str) -> InlineKeyboardButton:
 
 
 def site_button(label: str, url: str) -> InlineKeyboardButton:
-    return InlineKeyboardButton(label, url=url)
+    """Open an IBETIN web section inside Telegram WebApp instead of external browser."""
+    return InlineKeyboardButton(label, web_app=WebAppInfo(url=url))
+
+
+def hub_button(label: str, section: str = "home") -> InlineKeyboardButton:
+    return hub.webapp_button(label, section)
 
 
 def sky_admin_url() -> str:
@@ -152,13 +159,50 @@ def sky_admin_url() -> str:
     return f"{SKY_ADMIN_BASE_URL}/open?{query}"
 
 
+# Persistent quick-access keyboard is now a WebApp button too.
+app.QUICK_MENU = ReplyKeyboardMarkup(
+    [[KeyboardButton("⚡ OPEN IBETIN MINI APP", web_app=WebAppInfo(url=hub.hub_url("home")))]],
+    resize_keyboard=True,
+    is_persistent=True,
+    input_field_placeholder="Open IBETIN Mini App",
+)
+
+
+# Convert URL/callback buttons produced by the assistant/reminder modules to Mini Apps.
+def _mini_only_button(text: str, url=None, callback_data=None, **kwargs):
+    if url:
+        return InlineKeyboardButton(text, web_app=WebAppInfo(url=url))
+    callback_map = {
+        "back": hub.hub_url("home"),
+        "settings": hub.hub_url("settings"),
+        "subscribe": hub.hub_url("alerts"),
+        "find_team": IBETIN_SPORTS_URL,
+        "cricket": IBETIN_LIVE_RESULTS_URL,
+        "football": IBETIN_LIVE_RESULTS_URL,
+        "live_now": IBETIN_LIVE_URL,
+        "trending": IBETIN_SPORTS_URL,
+        "upcoming": IBETIN_SPORTS_URL,
+        "results": IBETIN_RESULTS_URL,
+        "explore": hub.hub_url("home"),
+        "join_fantzo": IBETIN_HOME_URL,
+    }
+    if callback_data in callback_map:
+        return InlineKeyboardButton(text, web_app=WebAppInfo(url=callback_map[callback_data]))
+    return InlineKeyboardButton(text, callback_data=callback_data, **kwargs)
+
+
+app.fantzo_autoreply.InlineKeyboardButton = _mini_only_button
+app.fantzo_business.InlineKeyboardButton = _mini_only_button
+reminders.InlineKeyboardButton = _mini_only_button
+
+
 # =========================================================
-# MAIN IBETIN HUB
+# MAIN IBETIN HUB — ALL BUTTONS ARE WEB APPS
 # =========================================================
 
 def premium_main_keyboard() -> InlineKeyboardMarkup:
     rows = [
-        [mini_app_button("🌐 OPEN IBETIN", "home_open_ibetin")],
+        [hub_button("🌐 OPEN IBETIN MINI APP", "home")],
         [
             site_button("🏆 SPORTS", IBETIN_SPORTS_URL),
             site_button("🔴 LIVE", IBETIN_LIVE_URL),
@@ -171,18 +215,18 @@ def premium_main_keyboard() -> InlineKeyboardMarkup:
             site_button("📊 RESULTS", IBETIN_RESULTS_URL),
             site_button("💳 PAYMENTS", IBETIN_PAYMENT_URL),
         ],
-        [InlineKeyboardButton("📰 SPORTS NEWS", callback_data="news:latest")],
+        [news.news_webapp_button("📰 SPORTS NEWS")],
         [
-            InlineKeyboardButton("🏏 Cricket Scores", callback_data="cricket"),
-            InlineKeyboardButton("⚽ Football Scores", callback_data="football"),
+            site_button("🏏 Cricket Scores", IBETIN_LIVE_RESULTS_URL),
+            site_button("⚽ Football Scores", IBETIN_LIVE_RESULTS_URL),
         ],
         [
-            InlineKeyboardButton("🔎 Find Team", callback_data="find_team"),
-            InlineKeyboardButton("🔔 Match Alerts", callback_data="subscribe"),
+            site_button("🔎 Find Team", IBETIN_SPORTS_URL),
+            hub_button("🔔 Match Alerts", "alerts"),
         ],
         [
             site_button("🛟 SUPPORT", IBETIN_SUPPORT_URL),
-            InlineKeyboardButton("⚙️ Settings", callback_data="settings"),
+            hub_button("⚙️ Settings", "settings"),
         ],
     ]
 
@@ -200,7 +244,7 @@ def premium_main_keyboard() -> InlineKeyboardMarkup:
 def premium_join_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
-            [mini_app_button("🌐 OPEN IBETIN", "join_open_ibetin")],
+            [site_button("🌐 OPEN IBETIN", IBETIN_HOME_URL)],
             [
                 site_button("🏆 SPORTS", IBETIN_SPORTS_URL),
                 site_button("🔴 LIVE", IBETIN_LIVE_URL),
@@ -209,14 +253,14 @@ def premium_join_keyboard() -> InlineKeyboardMarkup:
                 site_button("🎰 LIVE CASINO", IBETIN_CASINO_URL),
                 site_button("🎮 GAMES", IBETIN_GAMES_URL),
             ],
-            [InlineKeyboardButton("⬅️ Back to Home", callback_data="back")],
+            [hub_button("⚡ IBETIN MINI APP HOME", "home")],
         ]
     )
 
 
 def premium_explore_keyboard() -> InlineKeyboardMarkup:
     rows = [
-        [mini_app_button("🌐 OPEN IBETIN WEBSITE", "explore_home")],
+        [hub_button("🌐 IBETIN MINI APP HOME", "home")],
         [
             site_button("🏆 SPORTS", IBETIN_SPORTS_URL),
             site_button("🔴 LIVE", IBETIN_LIVE_URL),
@@ -229,18 +273,16 @@ def premium_explore_keyboard() -> InlineKeyboardMarkup:
             site_button("📊 RESULTS", IBETIN_RESULTS_URL),
             site_button("💳 PAYMENTS", IBETIN_PAYMENT_URL),
         ],
-        [InlineKeyboardButton("📰 SPORTS NEWS", callback_data="news:latest")],
+        [news.news_webapp_button("📰 SPORTS NEWS")],
         [site_button("🛟 SUPPORT", IBETIN_SUPPORT_URL)],
+        [hub_button("⚡ MINI APP HOME", "home")],
     ]
 
     if LIVE_TV_MODE == "public":
         url = sky_admin_url()
         if url:
-            rows.append(
-                [InlineKeyboardButton("📺 OPEN LIVE TV", web_app=WebAppInfo(url=url))]
-            )
+            rows.insert(-1, [InlineKeyboardButton("📺 OPEN LIVE TV", web_app=WebAppInfo(url=url))])
 
-    rows.append([InlineKeyboardButton("⬅️ Back to Home", callback_data="back")])
     return InlineKeyboardMarkup(rows)
 
 
@@ -255,7 +297,6 @@ app.core.explore_keyboard = premium_explore_keyboard
 
 _original_track = app.core.track
 _original_touch_user = app.core.touch_user
-_original_start = app.start
 _original_admin = app.core.admin
 _original_callback_router = app.core.callback_router
 
@@ -320,7 +361,7 @@ app.core.touch_user = tracked_touch_user
 
 
 # =========================================================
-# START / WEBSITE / NEWS COMMANDS
+# COMMANDS — RETURN MINI APP LAUNCHERS ONLY
 # =========================================================
 
 async def smart_start(update, context) -> None:
@@ -335,90 +376,81 @@ async def smart_start(update, context) -> None:
         )
         return
 
-    await _original_start(update, context)
+    await app.show_home(update, context)
+    await update.effective_message.reply_text(
+        "⚡ <b>Mini App quick access enabled</b>\n\n"
+        "Use the button below anytime. Every IBETIN navigation button now stays inside Telegram.",
+        parse_mode="HTML",
+        reply_markup=app.QUICK_MENU,
+    )
 
 
 app.start = smart_start
 
 
-async def website_command(update, context) -> None:
+async def _mini_launcher(update, title: str, button: InlineKeyboardButton, action: str) -> None:
     user = update.effective_user
     message = update.effective_message
     if not message:
         return
     if user:
         try:
-            app.core.track(user.id, "website_hub")
+            app.core.track(user.id, action)
         except Exception:
             pass
     await message.reply_text(
-        "🌐 <b>IBETIN WEBSITE HUB</b>\n\nChoose a section below.",
+        f"{title}\n\nOpen it inside Telegram below.",
         parse_mode="HTML",
-        reply_markup=premium_explore_keyboard(),
+        reply_markup=InlineKeyboardMarkup([[button]]),
         disable_web_page_preview=True,
     )
+
+
+async def website_command(update, context) -> None:
+    await _mini_launcher(update, "🌐 <b>IBETIN MINI APP</b>", hub_button("OPEN IBETIN MINI APP", "home"), "website_hub")
 
 
 async def live_command(update, context) -> None:
-    message = update.effective_message
-    if not message:
-        return
-    await message.reply_text(
-        "🔴 <b>IBETIN LIVE</b>\n\nOpen live sports or Live Casino.",
-        parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup(
-            [
-                [site_button("🔴 LIVE SPORTS", IBETIN_LIVE_URL)],
-                [site_button("🎰 LIVE CASINO", IBETIN_CASINO_URL)],
-                [InlineKeyboardButton("⬅️ Back to Home", callback_data="back")],
-            ]
-        ),
-        disable_web_page_preview=True,
-    )
+    await _mini_launcher(update, "🔴 <b>IBETIN LIVE</b>", site_button("OPEN LIVE", IBETIN_LIVE_URL), "live")
 
 
 async def support_command(update, context) -> None:
+    await _mini_launcher(update, "🛟 <b>IBETIN SUPPORT</b>", site_button("OPEN SUPPORT", IBETIN_SUPPORT_URL), "support")
+
+
+async def news_command(update, context) -> None:
+    await _mini_launcher(update, "📰 <b>IBETIN SPORTS NEWS</b>", news.news_webapp_button("OPEN SPORTS NEWS"), "news:latest")
+
+
+async def sports_command(update, context) -> None:
+    await _mini_launcher(update, "🏆 <b>IBETIN SPORTS</b>", site_button("OPEN SPORTS", IBETIN_SPORTS_URL), "sports")
+
+
+async def team_command(update, context) -> None:
+    await _mini_launcher(update, "🔎 <b>FIND A TEAM</b>", site_button("OPEN SPORTS SEARCH", IBETIN_SPORTS_URL), "find_team")
+
+
+async def help_command(update, context) -> None:
     message = update.effective_message
     if not message:
         return
     await message.reply_text(
-        "🛟 <b>IBETIN SUPPORT</b>\n\nOpen the official IBETIN contacts/support page below.",
+        "⚡ <b>IBETIN HELP</b>\n\nEvery option below opens as a Telegram Mini App.",
         parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup(
-            [[site_button("🛟 OPEN SUPPORT", IBETIN_SUPPORT_URL)]]
-        ),
+        reply_markup=premium_main_keyboard(),
         disable_web_page_preview=True,
     )
 
 
-async def news_command(update, context) -> None:
-    user = update.effective_user
-    message = update.effective_message
-    if not message:
-        return
-    if user:
-        try:
-            app.core.track(user.id, "news:latest")
-        except Exception:
-            pass
-    await news.send_news_message(message, "latest")
+# These assignments make the handlers registered inside bot_persistent.run()
+# use the Mini-App-only command versions.
+app.core.sports_command = sports_command
+app.core.team_command = team_command
+app.core.help_command = help_command
 
 
 async def smart_callback_router(update, context) -> None:
-    query = update.callback_query
-    action = query.data if query else ""
-    if action.startswith("news:"):
-        await query.answer()
-        user = update.effective_user
-        try:
-            app.core.touch_user(update)
-            if user:
-                app.core.track(user.id, action)
-        except Exception:
-            logger.exception("Could not track IBETIN news action")
-        category = action.split(":", 1)[1] or "latest"
-        await news.edit_news_query(query, category)
-        return
+    # Legacy callbacks can still arrive from old messages; keep them compatible.
     await _original_callback_router(update, context)
 
 
@@ -498,21 +530,21 @@ async def live_tv_admin_command(update, context) -> None:
 async def configure_telegram_ui(application) -> None:
     await application.bot.set_my_commands(
         [
-            BotCommand("start", "Open IBETIN Hub"),
-            BotCommand("news", "Latest sports news"),
-            BotCommand("website", "Open IBETIN website sections"),
-            BotCommand("live", "Open IBETIN live sections"),
-            BotCommand("sports", "View sports scores and fixtures"),
-            BotCommand("team", "Find a cricket or football team"),
-            BotCommand("support", "Open official IBETIN support"),
-            BotCommand("help", "IBETIN quick guide"),
+            BotCommand("start", "Open IBETIN Mini App Hub"),
+            BotCommand("news", "Open Sports News Mini App"),
+            BotCommand("website", "Open IBETIN Mini App"),
+            BotCommand("live", "Open Live Mini App"),
+            BotCommand("sports", "Open Sports Mini App"),
+            BotCommand("team", "Open team search"),
+            BotCommand("support", "Open Support Mini App"),
+            BotCommand("help", "IBETIN Mini App menu"),
         ]
     )
 
     await application.bot.set_chat_menu_button(
         menu_button=MenuButtonWebApp(
             text="Open IBETIN",
-            web_app=WebAppInfo(url=tracked_url("telegram_native_menu")),
+            web_app=WebAppInfo(url=hub.hub_url("home")),
         )
     )
 
@@ -534,9 +566,10 @@ app.configure_telegram_ui = configure_telegram_ui
 # =========================================================
 
 if __name__ == "__main__":
+    hub.install_on_tracking_handler(analytics)
     private_apk_upload.install_on_tracking_handler(analytics)
     trial_live_tv.install_on_tracking_handler(analytics)
     fantzo_live_tv.install_on_tracking_handler(analytics)
     analytics.start_tracking_server()
-    logger.info("Starting IBETIN with LIVE_TV_MODE=%s", LIVE_TV_MODE)
+    logger.info("Starting IBETIN Mini-App-first bot with LIVE_TV_MODE=%s", LIVE_TV_MODE)
     app.run()

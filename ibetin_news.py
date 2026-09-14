@@ -190,9 +190,18 @@ async def edit_news_query(query, category: str = "latest") -> None:
             "News is temporarily unavailable. Please try again shortly."
         )
         markup = _keyboard([], category)
-    await query.edit_message_text(
-        text,
-        parse_mode="HTML",
-        reply_markup=markup,
-        disable_web_page_preview=True,
-    )
+
+    if query.message and query.message.text:
+        await query.edit_message_text(
+            text,
+            parse_mode="HTML",
+            reply_markup=markup,
+            disable_web_page_preview=True,
+        )
+    elif query.message:
+        await query.message.reply_text(
+            text,
+            parse_mode="HTML",
+            reply_markup=markup,
+            disable_web_page_preview=True,
+        )

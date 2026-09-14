@@ -45,7 +45,7 @@ if LIVE_TV_MODE not in {"off", "admin", "public"}:
 
 
 # =========================================================
-# NORMAL FANTZO HELPERS
+# NORMAL IBETIN HELPERS
 # =========================================================
 
 def tracked_url(content: str) -> str:
@@ -98,7 +98,7 @@ def premium_main_keyboard() -> InlineKeyboardMarkup:
 
         [
             mini_app_button(
-                "🔥 JOIN FANTZO NOW 🔥",
+                "🔥 JOIN IBETIN NOW 🔥",
                 "home_join_cta"
             )
         ],
@@ -178,7 +178,7 @@ def premium_main_keyboard() -> InlineKeyboardMarkup:
 
         [
             InlineKeyboardButton(
-                "✨ Explore Fantzo",
+                "✨ Explore IBETIN",
                 callback_data="explore"
             ),
 
@@ -203,14 +203,14 @@ def premium_join_keyboard() -> InlineKeyboardMarkup:
 
         [
             mini_app_button(
-                "🔥 JOIN FANTZO NOW 🔥",
+                "🔥 JOIN IBETIN NOW 🔥",
                 "join_screen_cta"
             )
         ],
 
         [
             mini_app_button(
-                "✨ OPEN FANTZO",
+                "✨ OPEN IBETIN",
                 "join_screen_explore"
             )
         ],
@@ -235,14 +235,14 @@ def premium_explore_keyboard() -> InlineKeyboardMarkup:
 
         [
             mini_app_button(
-                "✨ OPEN FANTZO",
+                "✨ OPEN IBETIN",
                 "explore_home"
             )
         ],
 
         [
             mini_app_button(
-                "🚀 JOIN FANTZO NOW",
+                "🚀 JOIN IBETIN NOW",
                 "explore_join"
             )
         ],
@@ -445,7 +445,7 @@ async def smart_start(
         )
 
         await update.effective_message.reply_text(
-            "🔕 <b>Fantzo reminders are OFF.</b>",
+            "🔕 <b>IBETIN reminders are OFF.</b>",
             parse_mode="HTML"
         )
 
@@ -583,7 +583,7 @@ async def live_tv_admin_command(
 
     await message.reply_text(
 
-        "📺 <b>FANTZO LIVE TV · ADMIN</b>\n"
+        "📺 <b>IBETIN LIVE TV · ADMIN</b>\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
         f"Current mode: <b>{LIVE_TV_MODE.upper()}</b>",
 
@@ -618,7 +618,7 @@ async def configure_telegram_ui(
 
         BotCommand(
             "start",
-            "Open Fantzo Sports Hub"
+            "Open IBETIN Sports Hub"
         ),
 
         BotCommand(
@@ -628,12 +628,12 @@ async def configure_telegram_ui(
 
         BotCommand(
             "sports",
-            "View Fantzo sports coverage"
+            "View IBETIN sports coverage"
         ),
 
         BotCommand(
             "help",
-            "Fantzo quick guide"
+            "IBETIN quick guide"
         ),
 
     ])
@@ -643,7 +643,7 @@ async def configure_telegram_ui(
 
         menu_button=MenuButtonWebApp(
 
-            text="Join Fantzo",
+            text="Join IBETIN",
 
             web_app=WebAppInfo(
                 url=tracked_url(
@@ -675,7 +675,7 @@ app.configure_telegram_ui = configure_telegram_ui
 
 
 # =========================================================
-# START FANTZO
+# START IBETIN
 # =========================================================
 
 if __name__ == "__main__":
@@ -695,7 +695,7 @@ if __name__ == "__main__":
     analytics.start_tracking_server()
 
     logger.info(
-        "Starting Fantzo with LIVE_TV_MODE=%s",
+        "Starting IBETIN with LIVE_TV_MODE=%s",
         LIVE_TV_MODE
     )
 

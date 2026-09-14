@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 import re
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -13,9 +14,10 @@ import fantzo_autoreply
 logger = logging.getLogger(__name__)
 
 RESPONSIBLE_NOTE = "<i>🔞 18+ • Play responsibly • T&Cs apply</i>"
-SPORTS_BOT_URL = "https://t.me/fantzoofficialbot?start=dm"
-FANTZO_CHANNEL_URL = "https://t.me/fantzoupdates"
-FANTZO_MINI_APP_DEEP_LINK = "https://t.me/fantzoofficialbot?startapp=business_dm"
+IBETIN_HOME_URL = os.getenv("IBETIN_HOME_URL", "https://ibetin.com").strip()
+SPORTS_BOT_URL = os.getenv("IBETIN_SPORTS_BOT_URL", IBETIN_HOME_URL).strip()
+IBETIN_CHANNEL_URL = os.getenv("IBETIN_CHANNEL_URL", IBETIN_HOME_URL).strip()
+IBETIN_MINI_APP_DEEP_LINK = os.getenv("IBETIN_MINI_APP_DEEP_LINK", IBETIN_HOME_URL).strip()
 
 
 def ensure_tables() -> None:
@@ -74,20 +76,20 @@ def _contains(text: str, words) -> bool:
     return any(re.search(rf"\b{re.escape(word)}\b", text) for word in words)
 
 
-def _fantzo_url_button(label: str = "🔥 EXPLORE FANTZO") -> InlineKeyboardButton:
-    return InlineKeyboardButton(label, url=FANTZO_MINI_APP_DEEP_LINK)
+def _fantzo_url_button(label: str = "🔥 EXPLORE IBETIN") -> InlineKeyboardButton:
+    return InlineKeyboardButton(label, url=IBETIN_MINI_APP_DEEP_LINK)
 
 
-def _fantzo_button(source: str, label: str = "🔥 EXPLORE FANTZO") -> InlineKeyboardMarkup:
+def _fantzo_button(source: str, label: str = "🔥 EXPLORE IBETIN") -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([[_fantzo_url_button(label)]])
 
 
 def _welcome_buttons() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
-            [_fantzo_url_button("🔥 EXPLORE FANTZO")],
+            [_fantzo_url_button("🔥 EXPLORE IBETIN")],
             [InlineKeyboardButton("🏏 LIVE SCORES & FIXTURES", url=SPORTS_BOT_URL)],
-            [InlineKeyboardButton("📢 SUBSCRIBE CHANNEL", url=FANTZO_CHANNEL_URL)],
+            [InlineKeyboardButton("📢 SUBSCRIBE CHANNEL", url=IBETIN_CHANNEL_URL)],
         ]
     )
 
@@ -98,10 +100,10 @@ def classify_business_dm(text: str):
     if _contains(t, ["hi", "hello", "hey", "hii", "hola", "namaste"]):
         return (
             "greeting",
-            "👋 <b>Welcome to Fantzo</b>\n\n"
-            "Follow the action, explore Fantzo, or simply message me what you need — I’ll point you in the right direction.\n\n"
+            "👋 <b>Welcome to IBETIN</b>\n\n"
+            "Follow the action, explore IBETIN, or simply message me what you need — I’ll point you in the right direction.\n\n"
             "🏏 Live scores & fixtures are available through our sports bot.\n"
-            "📢 Subscribe to Fantzo Updates for the latest posts and announcements.\n\n"
+            "📢 Subscribe to IBETIN Updates for the latest posts and announcements.\n\n"
             f"{RESPONSIBLE_NOTE}",
             _welcome_buttons(),
         )
@@ -110,13 +112,13 @@ def classify_business_dm(text: str):
         return (
             "sports",
             "🏏 <b>Sports & live action</b>\n\n"
-            "For live scores and fixtures, use our sports bot. If you want to continue to Fantzo, tap below.\n\n"
+            "For live scores and fixtures, use our sports bot. If you want to continue to IBETIN, tap below.\n\n"
             f"{RESPONSIBLE_NOTE}",
             InlineKeyboardMarkup(
                 [
-                    [_fantzo_url_button("🔥 EXPLORE FANTZO")],
+                    [_fantzo_url_button("🔥 EXPLORE IBETIN")],
                     [InlineKeyboardButton("🏏 LIVE SCORES & FIXTURES", url=SPORTS_BOT_URL)],
-                    [InlineKeyboardButton("📢 SUBSCRIBE CHANNEL", url=FANTZO_CHANNEL_URL)],
+                    [InlineKeyboardButton("📢 SUBSCRIBE CHANNEL", url=IBETIN_CHANNEL_URL)],
                 ]
             ),
         )
@@ -125,45 +127,45 @@ def classify_business_dm(text: str):
         return (
             "join",
             "🚀 <b>Ready to get started?</b>\n\n"
-            "Open Fantzo and continue from the options available there.\n\n"
+            "Open IBETIN and continue from the options available there.\n\n"
             f"{RESPONSIBLE_NOTE}",
-            _fantzo_button("business_dm_join", "🔥 OPEN FANTZO"),
+            _fantzo_button("business_dm_join", "🔥 OPEN IBETIN"),
         )
 
     if _contains(t, ["login", "log in", "account", "password", "otp", "account help"]):
         return (
             "account",
             "👤 <b>Account help</b>\n\n"
-            "I can guide you, but I can’t see private Fantzo account data from Telegram. For login or account options, open Fantzo below.\n\n"
+            "I can guide you, but I can’t see private IBETIN account data from Telegram. For login or account options, open IBETIN below.\n\n"
             "🔐 Never share your password or OTP here.",
-            _fantzo_button("business_dm_account", "OPEN FANTZO"),
+            _fantzo_button("business_dm_account", "OPEN IBETIN"),
         )
 
     if _contains(t, ["deposit", "payment", "pay", "upi", "add money", "recharge"]):
         return (
             "deposit",
             "💳 <b>Payment / deposit</b>\n\n"
-            "Payment options are shown inside Fantzo based on your account. Open Fantzo to continue.\n\n"
+            "Payment options are shown inside IBETIN based on your account. Open IBETIN to continue.\n\n"
             "🔐 Never send OTPs, passwords or full card/bank details in chat.\n\n"
             f"{RESPONSIBLE_NOTE}",
-            _fantzo_button("business_dm_deposit", "OPEN FANTZO"),
+            _fantzo_button("business_dm_deposit", "OPEN IBETIN"),
         )
 
     if _contains(t, ["withdraw", "withdrawal", "payout", "cashout", "cash out"]):
         return (
             "withdrawal",
             "💸 <b>Withdrawal</b>\n\n"
-            "I can’t see your wallet or transaction status from Telegram. Please open Fantzo to check your account and available support options.",
-            _fantzo_button("business_dm_withdrawal", "OPEN FANTZO"),
+            "I can’t see your wallet or transaction status from Telegram. Please open IBETIN to check your account and available support options.",
+            _fantzo_button("business_dm_withdrawal", "OPEN IBETIN"),
         )
 
     if _contains(t, ["bonus", "offer", "promo", "promotion", "cashback"]):
         return (
             "offers",
             "🎁 <b>Offers</b>\n\n"
-            "Please check Fantzo directly for any currently available offer, eligibility and terms.\n\n"
+            "Please check IBETIN directly for any currently available offer, eligibility and terms.\n\n"
             f"{RESPONSIBLE_NOTE}",
-            _fantzo_button("business_dm_offers", "🔥 CHECK FANTZO"),
+            _fantzo_button("business_dm_offers", "🔥 CHECK IBETIN"),
         )
 
     if _contains(t, ["support", "help", "problem", "issue", "complaint", "failed", "pending", "stuck"]):
@@ -171,8 +173,8 @@ def classify_business_dm(text: str):
             "support",
             "🛟 <b>Tell me what happened.</b>\n\n"
             "Send a short description of the issue here. I’ll guide you as far as possible from Telegram.\n\n"
-            "For anything requiring private account or transaction data, you’ll need to continue through Fantzo.",
-            _fantzo_button("business_dm_support", "OPEN FANTZO"),
+            "For anything requiring private account or transaction data, you’ll need to continue through IBETIN.",
+            _fantzo_button("business_dm_support", "OPEN IBETIN"),
         )
 
     if _contains(t, ["thanks", "thank", "thx", "ok", "okay"]):
@@ -182,7 +184,7 @@ def classify_business_dm(text: str):
         "general",
         "👋 <b>How can I help?</b>\n\n"
         "You can ask about sports, getting started, account access, payments or support.\n\n"
-        "Or explore Fantzo directly below.\n\n"
+        "Or explore IBETIN directly below.\n\n"
         f"{RESPONSIBLE_NOTE}",
         _fantzo_button("business_dm_general"),
     )
@@ -194,7 +196,7 @@ async def business_connection_update(update: Update, context: ContextTypes.DEFAU
         return
     _save_connection(connection)
     logger.info(
-        "Fantzo business connection update: id=%s owner=%s enabled=%s",
+        "IBETIN business connection update: id=%s owner=%s enabled=%s",
         connection.id,
         connection.user.id if connection.user else None,
         connection.is_enabled,
@@ -224,17 +226,17 @@ async def _reply_with_retry(message, reply: str, markup=None) -> None:
             return
         except BadRequest as exc:
             if kwargs.get("reply_markup") is not None:
-                logger.warning("Fantzo Business DM keyboard failed: %s", exc)
+                logger.warning("IBETIN Business DM keyboard failed: %s", exc)
                 kwargs["reply_markup"] = None
                 continue
             raise
         except RetryAfter as exc:
             if attempt >= 2:
-                logger.error("Fantzo Business DM still rate-limited after retries: %s", exc)
+                logger.error("IBETIN Business DM still rate-limited after retries: %s", exc)
                 raise
             delay = _retry_seconds(exc) + 1.0
             logger.warning(
-                "Fantzo Business DM rate-limited; retrying in %.1f seconds (attempt %s/3)",
+                "IBETIN Business DM rate-limited; retrying in %.1f seconds (attempt %s/3)",
                 delay,
                 attempt + 2,
             )
@@ -269,10 +271,10 @@ async def business_auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE
         if customer_id:
             core.track(customer_id, f"business_dm:{category}")
     except Exception:
-        logger.exception("Could not track Fantzo business DM")
+        logger.exception("Could not track IBETIN business DM")
 
     logger.info(
-        "Fantzo business DM received: connection=%s customer=%s category=%s",
+        "IBETIN business DM received: connection=%s customer=%s category=%s",
         connection_id,
         customer_id or None,
         category,

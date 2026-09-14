@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -14,6 +15,10 @@ CHECK_INTERVAL_SECONDS = 300
 QUIET_START_HOUR = 22
 QUIET_END_HOUR = 8
 MAX_SENDS_PER_RUN = 20
+
+IBETIN_HOME_URL = os.getenv("IBETIN_HOME_URL", "https://ibetin.com").strip()
+IBETIN_MINI_APP_DEEP_LINK = os.getenv("IBETIN_MINI_APP_DEEP_LINK", IBETIN_HOME_URL).strip()
+SPORTS_BOT_URL = os.getenv("IBETIN_SPORTS_BOT_URL", IBETIN_HOME_URL).strip()
 
 
 def ensure_tables() -> None:
@@ -161,7 +166,7 @@ def _copy_for(interest: str, stage: int, source: str):
     elif stage == 2:
         intro = "📅 Don’t miss what’s happening today"
     else:
-        intro = "👋 Your Fantzo sports updates are still here"
+        intro = "👋 Your IBETIN sports updates are still here"
 
     text = (
         f"<b>{intro}</b>\n\n"
@@ -171,14 +176,14 @@ def _copy_for(interest: str, stage: int, source: str):
 
     if source == "business_dm":
         markup = InlineKeyboardMarkup(
-            [[InlineKeyboardButton("🔥 OPEN FANTZO", url="https://t.me/fantzoofficialbot?startapp=reminder_dm")],
-             [InlineKeyboardButton("🏏 SPORTS BOT", url="https://t.me/fantzoofficialbot?start=reminder")]]
+            [[InlineKeyboardButton("🔥 OPEN IBETIN", url=IBETIN_MINI_APP_DEEP_LINK)],
+             [InlineKeyboardButton("🏏 SPORTS BOT", url=SPORTS_BOT_URL)]]
         )
     else:
         markup = InlineKeyboardMarkup(
             [[InlineKeyboardButton("🔴 LIVE NOW", callback_data="live_now"),
               InlineKeyboardButton("🗓 UPCOMING", callback_data="upcoming")],
-             [InlineKeyboardButton("✨ OPEN FANTZO", url="https://t.me/fantzoofficialbot?startapp=reminder_bot")]]
+             [InlineKeyboardButton("✨ OPEN IBETIN", url=IBETIN_MINI_APP_DEEP_LINK)]]
         )
     return text, markup
 
@@ -271,10 +276,10 @@ async def run_due_reminders(application) -> None:
             set_opt_out(str(row["source"]), int(row["user_id"]), True)
             _mark_send(str(row["source"]), int(row["user_id"]), stage, campaign_key, "blocked")
         except BadRequest as exc:
-            logger.warning("Fantzo reminder rejected for %s/%s: %s", row["source"], row["user_id"], exc)
+            logger.warning("IBETIN reminder rejected for %s/%s: %s", row["source"], row["user_id"], exc)
             _mark_send(str(row["source"]), int(row["user_id"]), stage, campaign_key, "bad_request")
         except Exception:
-            logger.exception("Fantzo reminder send failed for %s/%s", row["source"], row["user_id"])
+            logger.exception("IBETIN reminder send failed for %s/%s", row["source"], row["user_id"])
             _mark_send(str(row["source"]), int(row["user_id"]), stage, campaign_key, "failed")
 
 
@@ -285,7 +290,7 @@ async def reminder_loop(application) -> None:
         try:
             await run_due_reminders(application)
         except Exception:
-            logger.exception("Fantzo reminder loop error")
+            logger.exception("IBETIN reminder loop error")
         await asyncio.sleep(CHECK_INTERVAL_SECONDS)
 
 

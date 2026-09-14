@@ -192,7 +192,8 @@ def public_live_page():
         matches_html = (
             '<div class="empty-icon">😴</div>'
             '<div class="empty-title">No live matches right now</div>'
-            '<div class="empty-text">There are currently no authorized live matches available. '</n            'Please check again later.</div>'
+            '<div class="empty-text">There are currently no authorized live matches available. '
+            'Please check again later.</div>'
             '<button class="retry" onclick="location.reload()">🔄 CHECK AGAIN</button>'
         )
         headline = "NO LIVE MATCHES"
@@ -497,12 +498,10 @@ class Handler(BaseHTTPRequestHandler):
             self._send_common(body, "application/json")
             return
 
-        # Safe public route: no shared credentials, no admin token required.
         if parsed.path == "/public":
             self._send_html(public_live_page())
             return
 
-        # Private/admin route only.
         if parsed.path == "/open":
             key = urllib.parse.parse_qs(parsed.query).get("key", [""])[0]
             if not SKY_TEST_TOKEN or not secrets.compare_digest(key, SKY_TEST_TOKEN):
@@ -541,7 +540,6 @@ class Handler(BaseHTTPRequestHandler):
             self._send_common(b"Invalid handoff", "text/plain", 400)
             return
 
-        # Private/admin flow only. Re-check immediately before leaving Fantzo.
         gate, _ = live_gate_status(force=True)
         if gate == "none":
             self._send_html(gate_page("none"))

@@ -13,14 +13,17 @@ import bot as core
 logger = logging.getLogger(__name__)
 
 TRACKING_BASE_URL = os.getenv("TRACKING_BASE_URL", "").strip().rstrip("/")
-FANTZO_BASE_URL = os.getenv("FANTZO_MINI_APP_URL", "https://www.fantzo.com").strip().rstrip("/") + "/"
+FANTZO_BASE_URL = os.getenv(
+    "IBETIN_MINI_APP_URL",
+    os.getenv("FANTZO_MINI_APP_URL", "https://ibetin.com"),
+).strip().rstrip("/") + "/"
 _server_started = False
 
 SOURCE_LABELS = {
     "home_join_cta": "Home Join CTA",
     "join_screen_cta": "Join Screen CTA",
     "join_screen_explore": "Join Screen Explore",
-    "explore_home": "Explore Fantzo",
+    "explore_home": "Explore IBETIN",
     "explore_join": "Explore Join CTA",
     "telegram_native_menu": "Telegram Menu",
 }
@@ -35,10 +38,10 @@ ACTION_LABELS = {
     "find_team": "Find Team",
     "subscribe": "Match Alerts",
     "toggle_sub": "Toggle Alerts",
-    "quick_menu": "Fantzo Menu",
+    "quick_menu": "IBETIN Menu",
     "settings": "Settings",
-    "explore": "Explore Fantzo",
-    "join_fantzo": "Join Fantzo",
+    "explore": "Explore IBETIN",
+    "join_fantzo": "Join IBETIN",
     "back": "Back/Home",
 }
 
@@ -74,7 +77,7 @@ def destination_url(source: str) -> str:
         {
             "utm_source": "telegram",
             "utm_medium": "bot",
-            "utm_campaign": "fantzo_sports_hub",
+            "utm_campaign": "ibetin_sports_hub",
             "utm_content": source,
         }
     )
@@ -120,7 +123,7 @@ class TrackingHandler(BaseHTTPRequestHandler):
         try:
             record_open(source)
         except Exception as exc:
-            logger.exception("Could not record Fantzo open: %s", exc)
+            logger.exception("Could not record IBETIN open: %s", exc)
 
         self.send_response(302)
         self.send_header("Location", destination_url(source))
@@ -139,10 +142,10 @@ def start_tracking_server() -> None:
     ensure_tables()
     port = int(os.getenv("PORT", "8080"))
     server = ThreadingHTTPServer(("0.0.0.0", port), TrackingHandler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True, name="fantzo-tracker")
+    thread = threading.Thread(target=server.serve_forever, daemon=True, name="ibetin-tracker")
     thread.start()
     _server_started = True
-    logger.info("Fantzo analytics redirect server listening on port %s", port)
+    logger.info("IBETIN analytics redirect server listening on port %s", port)
 
 
 def _action_label(action: str) -> str:
@@ -226,10 +229,10 @@ async def stats_command(update, context) -> None:
     top_source_text = "\n".join(
         f"• {escape(_source_label(row['source']))}: <b>{int(row['c'])}</b>"
         for row in raw_sources[:6]
-    ) or "• No Fantzo opens recorded yet."
+    ) or "• No IBETIN opens recorded yet."
 
     await message.reply_text(
-        "📊 <b>FANTZO ANALYTICS</b>\n"
+        "📊 <b>IBETIN ANALYTICS</b>\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
         "👥 <b>USERS</b>\n"
         f"Total: <b>{total_users}</b>\n"
@@ -238,12 +241,12 @@ async def stats_command(update, context) -> None:
         f"🔔 Alerts ON: <b>{subscribers}</b>\n\n"
         "🎯 <b>ENGAGEMENT</b>\n"
         f"Bot actions — 24h: <b>{actions_24h}</b> | 7d: <b>{actions_7d}</b>\n"
-        f"Fantzo opens — 24h: <b>{opens_24h}</b> | 7d: <b>{opens_7d}</b> | All: <b>{opens_all}</b>\n\n"
+        f"IBETIN opens — 24h: <b>{opens_24h}</b> | 7d: <b>{opens_7d}</b> | All: <b>{opens_all}</b>\n\n"
         "🏆 <b>TOP BOT ACTIONS · 7D</b>\n"
         f"{top_action_text}\n\n"
-        "🔥 <b>FANTZO OPEN SOURCES · 7D</b>\n"
+        "🔥 <b>IBETIN OPEN SOURCES · 7D</b>\n"
         f"{top_source_text}\n\n"
-        "ℹ️ Completed registrations cannot be measured from the bot because the Fantzo site is white-label and does not send a registration event back.",
+        "ℹ️ Completed registrations cannot be measured from the bot unless the IBETIN site sends a registration event back.",
         parse_mode="HTML",
         disable_web_page_preview=True,
     )

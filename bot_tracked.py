@@ -11,6 +11,7 @@ from telegram.ext import CommandHandler
 
 import bot_persistent as app
 import fantzo_analytics as analytics
+import fantzo_live_tv
 import fantzo_reminders as reminders
 import private_apk_upload
 import trial_live_tv
@@ -30,13 +31,17 @@ def mini_app_button(label: str, content: str) -> InlineKeyboardButton:
 
 
 def premium_main_keyboard() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
+    rows = [
+        [mini_app_button("🔥 JOIN FANTZO NOW 🔥", "home_join_cta")],
         [
-            [mini_app_button("🔥 JOIN FANTZO NOW 🔥", "home_join_cta")],
-            [
-                InlineKeyboardButton("🔴 Live Now", callback_data="live_now"),
-                InlineKeyboardButton("🔥 Featured", callback_data="trending"),
-            ],
+            InlineKeyboardButton("🔴 Live Now", callback_data="live_now"),
+            InlineKeyboardButton("🔥 Featured", callback_data="trending"),
+        ],
+    ]
+    if fantzo_live_tv.is_enabled():
+        rows.append([fantzo_live_tv.live_tv_button("📺 LIVE TV")])
+    rows.extend(
+        [
             [
                 InlineKeyboardButton("🏏 Cricket", callback_data="cricket"),
                 InlineKeyboardButton("⚽ Football", callback_data="football"),
@@ -55,6 +60,7 @@ def premium_main_keyboard() -> InlineKeyboardMarkup:
             ],
         ]
     )
+    return InlineKeyboardMarkup(rows)
 
 
 def premium_join_keyboard() -> InlineKeyboardMarkup:
@@ -68,13 +74,14 @@ def premium_join_keyboard() -> InlineKeyboardMarkup:
 
 
 def premium_explore_keyboard() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        [
-            [mini_app_button("✨ OPEN FANTZO", "explore_home")],
-            [mini_app_button("🚀 JOIN FANTZO NOW", "explore_join")],
-            [InlineKeyboardButton("⬅️ Back to Home", callback_data="back")],
-        ]
-    )
+    rows = [
+        [mini_app_button("✨ OPEN FANTZO", "explore_home")],
+        [mini_app_button("🚀 JOIN FANTZO NOW", "explore_join")],
+    ]
+    if fantzo_live_tv.is_enabled():
+        rows.append([fantzo_live_tv.live_tv_button("📺 OPEN LIVE TV")])
+    rows.append([InlineKeyboardButton("⬅️ Back to Home", callback_data="back")])
+    return InlineKeyboardMarkup(rows)
 
 
 app.core.main_keyboard = premium_main_keyboard
@@ -204,7 +211,7 @@ async def configure_telegram_ui(application) -> None:
     application.add_handler(CommandHandler("reminderstats", reminder_stats_command))
     reminders.ensure_tables()
     reminders.start_background_loop(application)
-    logger.info("Fantzo tracked Mini App menu and smart reminder engine configured")
+    logger.info("Fantzo tracked Mini App menu, Live TV normal-login link, and smart reminder engine configured")
 
 
 app.configure_telegram_ui = configure_telegram_ui
@@ -215,6 +222,6 @@ if __name__ == "__main__":
     trial_live_tv.install_on_tracking_handler(analytics)
     analytics.start_tracking_server()
     logger.info(
-        "Starting Fantzo with tracked Mini App conversion links, admin analytics, private APK upload, Live TV trial, and smart reminders"
+        "Starting Fantzo with tracked Mini App conversion links, public Live TV login, admin Live TV trial, and smart reminders"
     )
     app.run()

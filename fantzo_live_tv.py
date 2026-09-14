@@ -16,14 +16,22 @@ MINITV_PATH = "/minitv"
 
 
 def minitv_url() -> str:
-    """Return the public Fantzo MiniTV URL used by Telegram WebApp buttons."""
+    """Return the optional Fantzo MiniTV wrapper URL."""
     if TRACKING_BASE_URL:
         return f"{TRACKING_BASE_URL}{MINITV_PATH}"
     return LIVE_TV_URL
 
 
+def public_live_tv_url() -> str:
+    """Return the provider URL for public Live TV without admin credentials."""
+    return LIVE_TV_URL
+
+
 def live_tv_button(label: str = "📺 Live TV") -> InlineKeyboardButton:
-    return InlineKeyboardButton(label, web_app=WebAppInfo(url=minitv_url()))
+    # Public users open the provider directly inside Telegram. This avoids
+    # iframe/frame-ancestor problems in the MiniTV wrapper and deliberately
+    # does not expose the private admin token or stored credentials.
+    return InlineKeyboardButton(label, web_app=WebAppInfo(url=public_live_tv_url()))
 
 
 def live_tv_keyboard() -> InlineKeyboardMarkup:
@@ -40,7 +48,7 @@ def is_public_enabled() -> bool:
 
 
 def is_enabled() -> bool:
-    """Backward-compatible alias for public MiniTV availability."""
+    """Backward-compatible alias for public Live TV availability."""
     return is_public_enabled()
 
 

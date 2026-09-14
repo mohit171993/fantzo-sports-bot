@@ -54,14 +54,14 @@ def _sports_keyboard() -> InlineKeyboardMarkup:
 
 def _account_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
-        [[InlineKeyboardButton("🔥 JOIN FANTZO NOW 🔥", callback_data="join_fantzo")],
-         [InlineKeyboardButton("⚡ Back to Fantzo Menu", callback_data="back")]]
+        [[InlineKeyboardButton("🔥 JOIN IBETIN NOW 🔥", callback_data="join_fantzo")],
+         [InlineKeyboardButton("⚡ Back to IBETIN Menu", callback_data="back")]]
     )
 
 
 def _support_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
-        [[InlineKeyboardButton("⚡ Fantzo Menu", callback_data="back")]]
+        [[InlineKeyboardButton("⚡ IBETIN Menu", callback_data="back")]]
     )
 
 
@@ -71,8 +71,8 @@ def classify_and_reply(text: str):
     if _contains(t, ["hi", "hello", "hey", "hii", "hola", "namaste"]):
         return (
             "greeting",
-            "👋 <b>Welcome to Fantzo!</b>\n\n"
-            "I can help with live scores, cricket, football, account access, deposits/withdrawals and general Fantzo questions.\n\n"
+            "👋 <b>Welcome to IBETIN!</b>\n\n"
+            "I can help with live scores, cricket, football, account access, deposits/withdrawals and general IBETIN questions.\n\n"
             "What would you like help with?",
             _sports_keyboard(),
         )
@@ -94,61 +94,61 @@ def classify_and_reply(text: str):
     if ("live tv" in t or "live stream" in t or "watch live" in t or "ground commentary" in t):
         return (
             "live_tv",
-            "📺 <b>Live TV</b>\n\nLive TV is currently being tested and is not yet available to public users. Live scores and match updates are available from the Fantzo sports menu.",
+            "📺 <b>Live TV</b>\n\nLive TV is currently being tested and is not yet available to public users. Live scores and match updates are available from the IBETIN sports menu.",
             _sports_keyboard(),
         )
 
     if _contains(t, ["deposit", "add money", "payment", "upi", "recharge"]):
         return (
             "deposit",
-            "💳 <b>Deposit / Add Money</b>\n\nOpen Fantzo and use the payment options shown inside your account. For security, never send card details, OTPs or passwords in Telegram chat.",
+            "💳 <b>Deposit / Add Money</b>\n\nOpen IBETIN and use the payment options shown inside your account. For security, never send card details, OTPs or passwords in Telegram chat.",
             _account_keyboard(),
         )
 
     if _contains(t, ["withdraw", "withdrawal", "cashout", "payout"]):
         return (
             "withdrawal",
-            "💸 <b>Withdrawal</b>\n\nPlease check the withdrawal section inside your Fantzo account for the current status and available methods. If a transaction is pending, keep the transaction/reference ID ready for support.",
+            "💸 <b>Withdrawal</b>\n\nPlease check the withdrawal section inside your IBETIN account for the current status and available methods. If a transaction is pending, keep the transaction/reference ID ready for support.",
             _account_keyboard(),
         )
 
     if _contains(t, ["login", "password", "otp", "account", "register", "registration", "signup", "sign up"]):
         return (
             "account",
-            "👤 <b>Account Help</b>\n\nTap <b>JOIN FANTZO NOW</b> below to open Fantzo. If you have a login or OTP problem, use the recovery/help option shown on the Fantzo account screen.\n\n🔐 Never share your password or OTP in this chat.",
+            "👤 <b>Account Help</b>\n\nTap <b>JOIN IBETIN NOW</b> below to open IBETIN. If you have a login or OTP problem, use the recovery/help option shown on the IBETIN account screen.\n\n🔐 Never share your password or OTP in this chat.",
             _account_keyboard(),
         )
 
     if _contains(t, ["bonus", "offer", "promo", "promotion", "cashback"]):
         return (
             "offers",
-            "🎁 <b>Offers & Promotions</b>\n\nAny currently available offer should be checked directly inside Fantzo, together with its eligibility and terms. I won't invent or promise an offer that isn't shown there.",
+            "🎁 <b>Offers & Promotions</b>\n\nAny currently available offer should be checked directly inside IBETIN, together with its eligibility and terms. I won't invent or promise an offer that isn't shown there.",
             _account_keyboard(),
         )
 
     if _contains(t, ["support", "help", "problem", "issue", "complaint", "failed", "pending"]):
         return (
             "support",
-            "🛟 <b>Fantzo Help</b>\n\nPlease send a short description of the issue and, if it involves a transaction, include only the transaction/reference ID. Do not send passwords, OTPs or full card/bank credentials here.\n\nYou can also open Fantzo and use its official support/help option.",
+            "🛟 <b>IBETIN Help</b>\n\nPlease send a short description of the issue and, if it involves a transaction, include only the transaction/reference ID. Do not send passwords, OTPs or full card/bank credentials here.\n\nYou can also open IBETIN and use its official support/help option.",
             _support_keyboard(),
         )
 
     if _contains(t, ["thanks", "thank", "thx"]):
         return (
             "thanks",
-            "🙏 You're welcome. Tap <b>⚡ Fantzo Menu</b> anytime for sports and Fantzo options.",
+            "🙏 You're welcome. Tap <b>⚡ IBETIN Menu</b> anytime for sports and IBETIN options.",
             _support_keyboard(),
         )
 
     return (
         "fallback",
-        "🤖 <b>Fantzo Assistant</b>\n\nI didn't fully understand that yet. You can ask me about:\n"
+        "🤖 <b>IBETIN Assistant</b>\n\nI didn't fully understand that yet. You can ask me about:\n"
         "• 🏏 Cricket / ⚽ Football\n"
         "• 🔴 Live matches\n"
         "• 💳 Deposit / 💸 Withdrawal\n"
         "• 👤 Login / Registration\n"
         "• 🛟 Support\n\n"
-        "Or tap the Fantzo Menu below.",
+        "Or tap the IBETIN Menu below.",
         _support_keyboard(),
     )
 
@@ -170,7 +170,7 @@ async def auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     try:
         core.track(user.id, f"autoreply:{category}")
     except Exception:
-        logger.exception("Could not track Fantzo auto reply")
+        logger.exception("Could not track IBETIN auto reply")
 
     await message.reply_text(
         reply,
@@ -192,13 +192,13 @@ async def autoreply_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     arg = (context.args[0].lower() if context.args else "status")
     if arg in {"on", "enable", "1"}:
         set_enabled(True)
-        await message.reply_text("✅ Fantzo auto reply is ON.")
+        await message.reply_text("✅ IBETIN auto reply is ON.")
     elif arg in {"off", "disable", "0"}:
         set_enabled(False)
-        await message.reply_text("⏸ Fantzo auto reply is OFF.")
+        await message.reply_text("⏸ IBETIN auto reply is OFF.")
     else:
         await message.reply_text(
-            f"🤖 Fantzo auto reply is currently <b>{'ON' if is_enabled() else 'OFF'}</b>.\n\n"
+            f"🤖 IBETIN auto reply is currently <b>{'ON' if is_enabled() else 'OFF'}</b>.\n\n"
             "Use <code>/autoreply on</code> or <code>/autoreply off</code>.",
             parse_mode="HTML",
         )

@@ -14,6 +14,7 @@ import fantzo_reminder_report as reminder_report
 import fantzo_growth as growth
 import fantzo_growth_integration as growth_integration
 import fantzo_business
+import fantzo_ops
 
 logger = logging.getLogger(__name__)
 
@@ -40,8 +41,9 @@ async def configure_telegram_ui_with_restored_features(application) -> None:
     application.create_task(banner_preview.send_once(application))
     reminder_report.start(application)
     growth.start(application)
+    fantzo_ops.install(application)
     logger.info(
-        "Fantzo restored test features installed: Business welcome, banner queue, reminder report, favourites and growth reporting"
+        "Fantzo restored test features installed: Business welcome, banner queue, reminder report, favourites, growth reporting and ops safety"
     )
 
 

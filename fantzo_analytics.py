@@ -16,6 +16,12 @@ TRACKING_BASE_URL = os.getenv("TRACKING_BASE_URL", "").strip().rstrip("/")
 FANTZO_BASE_URL = os.getenv("FANTZO_MINI_APP_URL", "https://www.fantzo.com").strip().rstrip("/") + "/"
 _server_started = False
 
+DESTINATION_PATHS = {
+    "home": "",
+    "live": "en/live",
+    "register": "en/registration",
+}
+
 SOURCE_LABELS = {
     "home_join_cta": "Home Join CTA",
     "join_screen_cta": "Join Screen CTA",
@@ -23,6 +29,8 @@ SOURCE_LABELS = {
     "explore_home": "Explore Fantzo",
     "explore_join": "Explore Join CTA",
     "telegram_native_menu": "Telegram Menu",
+    "home_open_fantzo": "Home Open Fantzo",
+    "business_play_fantzo": "Business Play Fantzo",
 }
 
 ACTION_LABELS = {
@@ -68,9 +76,17 @@ def _clean_source(source: str) -> str:
     return cleaned or "unknown"
 
 
-def destination_url(source: str) -> str:
+def _clean_destination(destination: str) -> str:
+    value = str(destination or "home").strip().lower()
+    return value if value in DESTINATION_PATHS else "home"
+
+
+def destination_url(source: str, destination: str = "home") -> str:
     source = _clean_source(source)
-    return FANTZO_BASE_URL + "?" + urlencode(
+    destination = _clean_destination(destination)
+    path = DESTINATION_PATHS[destination]
+    base = FANTZO_BASE_URL if not path else FANTZO_BASE_URL + path
+    return base + "?" + urlencode(
         {
             "utm_source": "telegram",
             "utm_medium": "bot",
@@ -80,11 +96,15 @@ def destination_url(source: str) -> str:
     )
 
 
-def tracking_url(source: str) -> str:
+def tracking_url(source: str, destination: str = "home") -> str:
     source = _clean_source(source)
+    destination = _clean_destination(destination)
     if not TRACKING_BASE_URL:
-        return destination_url(source)
-    return f"{TRACKING_BASE_URL}/go?{urlencode({'source': source})}"
+        return destination_url(source, destination)
+    query = {"source": source}
+    if destination != "home":
+        query["dest"] = destination
+    return f"{TRACKING_BASE_URL}/go?{urlencode(query)}"
 
 
 def record_open(source: str) -> None:
@@ -115,15 +135,16 @@ class TrackingHandler(BaseHTTPRequestHandler):
             self.end_headers()
             return
 
-        source = parse_qs(parsed.query).get("source", ["unknown"])[0]
-        source = _clean_source(source)
+        params = parse_qs(parsed.query)
+        source = _clean_source(params.get("source", ["unknown"])[0])
+        destination = _clean_destination(params.get("dest", ["home"])[0])
         try:
             record_open(source)
         except Exception as exc:
             logger.exception("Could not record Fantzo open: %s", exc)
 
         self.send_response(302)
-        self.send_header("Location", destination_url(source))
+        self.send_header("Location", destination_url(source, destination))
         self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
         self.end_headers()
 

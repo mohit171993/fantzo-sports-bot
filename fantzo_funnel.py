@@ -8,9 +8,17 @@ logger = logging.getLogger(__name__)
 _installed = False
 
 
+def _styled_button(*args, style: str | None = None, **kwargs) -> InlineKeyboardButton:
+    """Use Bot API button styles while staying compatible with PTB 21.6."""
+    if style:
+        kwargs["api_kwargs"] = {"style": style}
+    return InlineKeyboardButton(*args, **kwargs)
+
+
 def _fantzo_button(label: str, source: str, destination: str = "home") -> InlineKeyboardButton:
-    return InlineKeyboardButton(
+    return _styled_button(
         label,
+        style="success",
         web_app=WebAppInfo(url=tracked.analytics.tracking_url(source, destination)),
     )
 
@@ -28,14 +36,18 @@ def funnel_main_keyboard() -> InlineKeyboardMarkup:
 
     if tracked.LIVE_TV_MODE == "public" and tracked.sky_admin_url():
         rows.append([
-            tracked.public_live_tv_button("📺 WATCH LIVE TV")
+            _styled_button(
+                "📺 WATCH LIVE TV",
+                style="primary",
+                callback_data="live_tv_status",
+            )
         ])
 
     rows.extend([
-        [InlineKeyboardButton("🔴 LIVE SCORES", callback_data="live_now")],
+        [_styled_button("🔴 LIVE SCORES", style="primary", callback_data="live_now")],
         [
-            InlineKeyboardButton("🏏 CRICKET", callback_data="cricket"),
-            InlineKeyboardButton("⚽ FOOTBALL", callback_data="football"),
+            _styled_button("🏏 CRICKET", style="primary", callback_data="cricket"),
+            _styled_button("⚽ FOOTBALL", style="primary", callback_data="football"),
         ],
         [
             InlineKeyboardButton("📅 FIXTURES", callback_data="upcoming"),
@@ -63,7 +75,7 @@ def funnel_back_keyboard(extra=None) -> InlineKeyboardMarkup:
 def funnel_score_keyboard(action: str) -> InlineKeyboardMarkup:
     destination = _destination_for_action(action)
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔄 REFRESH", callback_data=action)],
+        [_styled_button("🔄 REFRESH", style="primary", callback_data=action)],
         [_fantzo_button(
             "✨ CONTINUE ON FANTZO",
             f"{action}_continue_fantzo",
@@ -80,7 +92,7 @@ def funnel_empty_keyboard(action: str) -> InlineKeyboardMarkup:
     destination = _destination_for_action(action)
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("🔄 CHECK AGAIN", callback_data=action),
+            _styled_button("🔄 CHECK AGAIN", style="primary", callback_data=action),
             InlineKeyboardButton("📅 FIXTURES", callback_data="upcoming"),
         ],
         [_fantzo_button(

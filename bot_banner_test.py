@@ -4,6 +4,7 @@ import logging
 import bot_tracked as tracked
 import fantzo_banner_queue as banner_queue
 import fantzo_banner_preview as banner_preview
+import fantzo_reminder_report as reminder_report
 
 logger = logging.getLogger(__name__)
 _original_configure_telegram_ui = tracked.configure_telegram_ui
@@ -13,7 +14,8 @@ async def configure_telegram_ui_with_banners(application) -> None:
     await _original_configure_telegram_ui(application)
     banner_queue.install(application)
     application.create_task(banner_preview.send_once(application))
-    logger.info("Fantzo Live TV banner queue installed; private preview scheduled")
+    reminder_report.start(application)
+    logger.info("Fantzo Live TV banner queue installed; private preview and two-hour reminder report scheduled")
 
 
 tracked.app.configure_telegram_ui = configure_telegram_ui_with_banners

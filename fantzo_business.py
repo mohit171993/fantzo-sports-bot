@@ -1,9 +1,7 @@
 import asyncio
-import hashlib
-import hmac
 import logging
 import os
-import time
+from urllib.parse import quote
 
 from telegram import InlineKeyboardButton as TelegramInlineKeyboardButton
 from telegram import InlineKeyboardMarkup, Update
@@ -15,72 +13,35 @@ import fantzo_autoreply
 
 logger = logging.getLogger(__name__)
 
-BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
-BUSINESS_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60
-
-
-def _public_base_url() -> str:
-    value = (
-        os.getenv("TRACKING_BASE_URL", "").strip()
-        or os.getenv("RAILWAY_STATIC_URL", "").strip()
-        or os.getenv("RAILWAY_PUBLIC_DOMAIN", "").strip()
-        or "https://ibetin-app-production.up.railway.app"
-    )
-    if not value.startswith(("http://", "https://")):
-        value = "https://" + value
-    return value.rstrip("/")
-
-
-def _business_alert_token(user_id: int) -> str:
-    if not BOT_TOKEN or user_id <= 0:
-        return ""
-    expires_at = int(time.time()) + BUSINESS_TOKEN_TTL_SECONDS
-    payload = f"{int(user_id)}.{expires_at}"
-    signature = hmac.new(
-        BOT_TOKEN.encode("utf-8"),
-        f"ibetin-business-alerts:{payload}".encode("utf-8"),
-        hashlib.sha256,
-    ).hexdigest()
-    return f"{payload}.{signature}"
-
-
-def _business_url(section: str = "home", customer_id: int = 0) -> str:
-    """Build deterministic IBETIN section URLs for Telegram Business buttons.
-
-    Telegram Business replies cannot use ``web_app`` buttons. URL buttons are
-    therefore sent directly to the required IBETIN route instead of reopening
-    @Ibtnofficialbot's Main Mini App for every shortcut.
-    """
-    section = (section or "home").strip().lower()
-    base = _public_base_url()
-    if section == "news":
-        return f"{base}/news?category=latest&source=business_dm"
-    if section not in {"home", "live", "alerts", "support"}:
-        section = "home"
-
-    url = f"{base}/hub?section={section}&source=business_dm"
-    if section == "alerts" and customer_id > 0:
-        token = _business_alert_token(customer_id)
-        if token:
-            url += f"&bdm={token}"
-    return url
+BOT_USERNAME = os.getenv("IBETIN_BOT_USERNAME", "Ibtnofficialbot").strip().lstrip("@") or "Ibtnofficialbot"
 
 
 def telegram_mini_app_url(section: str = "home") -> str:
-    """Compatibility helper used by older reminder code.
+    """Open IBETIN's configured Main Mini App through Telegram itself.
 
-    Business reminders must also stay on the explicit IBETIN web route rather
-    than reopening the bot's Main Mini App.
+    Telegram does not support ``web_app`` inline buttons on messages sent on
+    behalf of a Business account. A Telegram Main Mini App deep link is the
+    supported way to keep Business-reply navigation inside Telegram instead of
+    opening our Railway URL in Telegram's normal in-app browser.
     """
-    return _business_url(section)
+    section = (section or "home").strip().lower()
+    if section not in {"home", "live", "news", "alerts", "support"}:
+        section = "home"
+    return f"https://t.me/{BOT_USERNAME}?startapp={quote(section, safe='')}"
+
+
+def _business_url(section: str = "home", customer_id: int = 0) -> str:
+    # customer_id is intentionally unused now: the real Main Mini App receives
+    # Telegram initData for the person who opened it, including Alerts.
+    return telegram_mini_app_url(section)
 
 
 def business_reply_text() -> str:
     return (
         "👋 <b>Welcome to IBETIN</b>\n\n"
-        "Choose where you want to go. Each button opens the matching IBETIN "
-        "section directly.\n\n"
-        "⚡ Fast access • direct section routing"
+        "Choose where you want to go. Every button below opens the IBETIN "
+        "Mini App inside Telegram.\n\n"
+        "⚡ Fast access • no external Railway page"
     )
 
 

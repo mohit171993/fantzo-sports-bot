@@ -1,7 +1,9 @@
 import asyncio
 import logging
+import os
 
-from telegram import Update
+from telegram import InlineKeyboardButton as TelegramInlineKeyboardButton
+from telegram import InlineKeyboardMarkup, Update
 from telegram.error import BadRequest, RetryAfter
 from telegram.ext import ContextTypes
 
@@ -9,6 +11,34 @@ import bot as core
 import fantzo_autoreply
 
 logger = logging.getLogger(__name__)
+
+IBETIN_BOT_USERNAME = os.getenv("IBETIN_BOT_USERNAME", "ibtnofficialbot").strip().lstrip("@")
+
+
+def _mini_app_deep_link(section: str = "home") -> str:
+    section = (section or "home").strip().lower()
+    return f"https://t.me/{IBETIN_BOT_USERNAME}?startapp={section}"
+
+
+def business_keyboard() -> InlineKeyboardMarkup:
+    """Telegram Business messages cannot use web_app buttons.
+
+    Regular URL buttons pointing to the bot's Main Mini App deep link are
+    supported by Telegram Business and still open the Mini App inside Telegram.
+    """
+    return InlineKeyboardMarkup(
+        [
+            [TelegramInlineKeyboardButton("⚡ OPEN IBETIN", url=_mini_app_deep_link("home"))],
+            [
+                TelegramInlineKeyboardButton("🔴 LIVE NOW", url=_mini_app_deep_link("live")),
+                TelegramInlineKeyboardButton("📰 NEWS", url=_mini_app_deep_link("news")),
+            ],
+            [
+                TelegramInlineKeyboardButton("🔔 MATCH ALERTS", url=_mini_app_deep_link("alerts")),
+                TelegramInlineKeyboardButton("🛟 SUPPORT", url=_mini_app_deep_link("support")),
+            ],
+        ]
+    )
 
 
 def ensure_tables() -> None:
@@ -89,7 +119,7 @@ def _retry_seconds(exc: RetryAfter) -> float:
 async def _reply_with_retry(message) -> None:
     kwargs = {
         "parse_mode": "HTML",
-        "reply_markup": fantzo_autoreply.standard_keyboard(),
+        "reply_markup": business_keyboard(),
         "disable_web_page_preview": True,
     }
 

@@ -62,17 +62,16 @@ def _install_ibetin_hub_copy() -> None:
     en.update(
         {
             "welcome": (
-                "⚡ <b>IBETIN HUB</b>\n"
+                "⚡ <b>IBETIN</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
-                "Everything below opens inside Telegram as a Mini App.\n\n"
-                "🏆 Sports & pre-match\n"
-                "🔴 Live events\n"
-                "📰 Fresh sports news\n"
-                "🎰 Live Casino\n"
-                "🎮 Games\n"
-                "📊 Results\n"
-                "💳 Payment information\n\n"
-                "Choose a section 👇\n\n"
+                "Quick access without a crowded menu.\n\n"
+                "🚀 Join IBETIN Mini App\n"
+                "🔴 Live now\n"
+                "🏆 Sports\n"
+                "📰 Sports News\n"
+                "🔔 Match Alerts\n"
+                "🛟 Support\n\n"
+                "More sections are available inside the Mini App.\n\n"
                 "🔞 18+ • Play responsibly • T&Cs apply"
             ),
             "explore": (
@@ -99,17 +98,16 @@ def _install_ibetin_hub_copy() -> None:
     hi.update(
         {
             "welcome": (
-                "⚡ <b>IBETIN HUB</b>\n"
+                "⚡ <b>IBETIN</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
-                "नीचे दिए गए सभी विकल्प Telegram के अंदर Mini App में खुलेंगे।\n\n"
-                "🏆 Sports\n"
+                "कम विकल्प, तेज़ access.\n\n"
+                "🚀 IBETIN Mini App\n"
                 "🔴 Live\n"
+                "🏆 Sports\n"
                 "📰 Sports News\n"
-                "🎰 Live Casino\n"
-                "🎮 Games\n"
-                "📊 Results\n"
-                "💳 Payments\n\n"
-                "अपना विकल्प चुनें 👇\n\n"
+                "🔔 Match Alerts\n"
+                "🛟 Support\n\n"
+                "बाकी सभी sections Mini App के अंदर उपलब्ध हैं।\n\n"
                 "🔞 18+ • जिम्मेदारी से खेलें • T&Cs लागू"
             ),
             "explore": (
@@ -129,6 +127,59 @@ def _install_ibetin_hub_copy() -> None:
 
 
 _install_ibetin_hub_copy()
+
+
+# =========================================================
+# TELEGRAM BUTTON STYLES
+# =========================================================
+
+# Telegram supports three native button colors: primary (blue), success
+# (green), and danger (red). PTB 21.6 predates the explicit `style` argument,
+# so inject the current Bot API field when serializing buttons. This applies
+# consistently to all InlineKeyboardButton/KeyboardButton instances used by
+# the IBETIN runtime, including Business DM menus, reminders, alerts and news.
+def _button_style(text: str) -> str:
+    value = (text or "").casefold()
+    if any(token in value for token in ("live", "stop", "delete", "remove", "off")):
+        return "danger"
+    if any(
+        token in value
+        for token in (
+            "join ibetin",
+            "open ibetin",
+            "ibetin mini app",
+            "mini app home",
+        )
+    ):
+        return "success"
+    return "primary"
+
+
+def _install_native_button_styles() -> None:
+    if getattr(InlineKeyboardButton, "_ibetin_styles_installed", False):
+        return
+
+    original_inline_to_dict = InlineKeyboardButton.to_dict
+    original_keyboard_to_dict = KeyboardButton.to_dict
+
+    def inline_to_dict(self, *args, **kwargs):
+        data = original_inline_to_dict(self, *args, **kwargs)
+        data.setdefault("style", _button_style(getattr(self, "text", "")))
+        return data
+
+    def keyboard_to_dict(self, *args, **kwargs):
+        data = original_keyboard_to_dict(self, *args, **kwargs)
+        data.setdefault("style", _button_style(getattr(self, "text", "")))
+        return data
+
+    InlineKeyboardButton.to_dict = inline_to_dict
+    KeyboardButton.to_dict = keyboard_to_dict
+    InlineKeyboardButton._ibetin_styles_installed = True
+    KeyboardButton._ibetin_styles_installed = True
+    logger.info("IBETIN native Telegram button colors installed")
+
+
+_install_native_button_styles()
 
 
 # =========================================================
@@ -197,44 +248,28 @@ reminders.InlineKeyboardButton = _mini_only_button
 
 
 # =========================================================
-# MAIN IBETIN HUB — ALL BUTTONS ARE WEB APPS
+# MAIN IBETIN HUB — COMPACT SIX-ACTION MENU
 # =========================================================
 
 def premium_main_keyboard() -> InlineKeyboardMarkup:
     rows = [
-        [hub_button("🌐 OPEN IBETIN MINI APP", "home")],
+        [hub_button("🚀 JOIN IBETIN", "home")],
         [
+            site_button("🔴 LIVE NOW", IBETIN_LIVE_URL),
             site_button("🏆 SPORTS", IBETIN_SPORTS_URL),
-            site_button("🔴 LIVE", IBETIN_LIVE_URL),
         ],
         [
-            site_button("🎰 LIVE CASINO", IBETIN_CASINO_URL),
-            site_button("🎮 GAMES", IBETIN_GAMES_URL),
+            news.news_webapp_button("📰 NEWS"),
+            hub_button("🔔 MATCH ALERTS", "alerts"),
         ],
-        [
-            site_button("📊 RESULTS", IBETIN_RESULTS_URL),
-            site_button("💳 PAYMENTS", IBETIN_PAYMENT_URL),
-        ],
-        [news.news_webapp_button("📰 SPORTS NEWS")],
-        [
-            site_button("🏏 Cricket Scores", IBETIN_LIVE_RESULTS_URL),
-            site_button("⚽ Football Scores", IBETIN_LIVE_RESULTS_URL),
-        ],
-        [
-            site_button("🔎 Find Team", IBETIN_SPORTS_URL),
-            hub_button("🔔 Match Alerts", "alerts"),
-        ],
-        [
-            site_button("🛟 SUPPORT", IBETIN_SUPPORT_URL),
-            hub_button("⚙️ Settings", "settings"),
-        ],
+        [site_button("🛟 SUPPORT", IBETIN_SUPPORT_URL)],
     ]
 
     if LIVE_TV_MODE == "public":
         url = sky_admin_url()
         if url:
             rows.insert(
-                4,
+                3,
                 [InlineKeyboardButton("📺 WATCH LIVE TV", web_app=WebAppInfo(url=url))],
             )
 

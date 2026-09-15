@@ -40,7 +40,6 @@ def _is_telegram_mini_app_link(url: str) -> bool:
 
 
 def _mini_app_link_kind(url: str) -> str:
-    """Return main/direct for a valid Telegram Mini App link."""
     parsed = urlparse(url)
     if parsed.scheme in {"http", "https"}:
         parts = [part for part in parsed.path.split("/") if part]
@@ -76,16 +75,10 @@ def _expect_business_launcher(name: str, markup, errors: list[str]) -> int:
 
 
 def run_navigation_self_test() -> None:
-    """Fail startup if IBETIN navigation regresses to external web links."""
+    """Fail startup for code regressions in IBETIN navigation."""
     errors: list[str] = []
 
-    direct_count = _expect_webapps(
-        "direct-home", hub.clean_main_keyboard(), errors
-    )
-
-    # This module has already been patched by bot_tracked during ibetin_entry
-    # import. Testing it here validates the real runtime keyboard, not source
-    # code in isolation.
+    direct_count = _expect_webapps("direct-home", hub.clean_main_keyboard(), errors)
     auto_count = _expect_webapps(
         "direct-autoreply",
         ibetin_entry.runtime.app.fantzo_autoreply.standard_keyboard(),
@@ -102,17 +95,11 @@ def run_navigation_self_test() -> None:
     )
 
     _, bot_reminder = reminders._copy_for("general", 1, "bot")
-    bot_reminder_count = _expect_webapps(
-        "direct-reminder", bot_reminder, errors
-    )
+    bot_reminder_count = _expect_webapps("direct-reminder", bot_reminder, errors)
 
     alert_count = 0
-    alert_count += _expect_webapps(
-        "match-alert-live", match_alerts._markup("started"), errors
-    )
-    alert_count += _expect_webapps(
-        "match-alert-final", match_alerts._markup("final"), errors
-    )
+    alert_count += _expect_webapps("match-alert-live", match_alerts._markup("started"), errors)
+    alert_count += _expect_webapps("match-alert-final", match_alerts._markup("final"), errors)
 
     news_buttons = _buttons(news.launcher_keyboard())
     if not news_buttons or news_buttons[0].web_app is None or news_buttons[0].url:
@@ -139,11 +126,12 @@ def run_navigation_self_test() -> None:
     )
 
 
-async def _telegram_capability_self_test() -> None:
-    """Verify Telegram can actually resolve the Business Mini App launcher."""
+async def _telegram_capability_self_test() -> bool:
+    """Report whether Telegram can resolve the configured Business launcher."""
     token = os.getenv("BOT_TOKEN", "").strip()
     if not token:
-        raise RuntimeError("IBETIN Telegram capability test FAILED: BOT_TOKEN missing")
+        logger.error("IBETIN Telegram capability BLOCKED: BOT_TOKEN missing")
+        return False
 
     link = business.telegram_mini_app_url()
     kind = _mini_app_link_kind(link)
@@ -152,24 +140,26 @@ async def _telegram_capability_self_test() -> None:
         async with Bot(token=token) as bot:
             me = await bot.get_me()
     except Exception as exc:
-        # A temporary Telegram/API network problem should not take production
-        # down; structural navigation checks above still run fail-closed.
         logger.warning("IBETIN Telegram capability test could not reach getMe: %s", exc)
-        return
+        return False
 
-    if kind == "main" and not bool(getattr(me, "has_main_web_app", False)):
-        raise RuntimeError(
-            "IBETIN Telegram capability test FAILED: Business launcher uses a Main Mini App link, "
-            "but Telegram reports has_main_web_app=false. Configure the Main Mini App in BotFather "
-            "or set IBETIN_MINI_APP_DEEP_LINK to a valid named Direct Mini App link."
+    has_main = bool(getattr(me, "has_main_web_app", False))
+    if kind == "main" and not has_main:
+        logger.error(
+            "IBETIN Telegram capability BLOCKED: @%s has_main_web_app=false. "
+            "Business launcher is structurally correct but Telegram cannot open it as a Main Mini App "
+            "until the Main Mini App is configured for this bot in BotFather.",
+            me.username or business.IBETIN_BOT_USERNAME,
         )
+        return False
 
     logger.info(
         "IBETIN Telegram capability test PASS: username=@%s mini_app_link=%s has_main_web_app=%s",
         me.username or business.IBETIN_BOT_USERNAME,
         kind,
-        bool(getattr(me, "has_main_web_app", False)),
+        has_main,
     )
+    return True
 
 
 def main() -> None:

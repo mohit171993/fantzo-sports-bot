@@ -256,6 +256,7 @@ def run() -> None:
         MessageHandler(
             filters.UpdateType.BUSINESS_MESSAGE & filters.TEXT,
             fantzo_business.business_auto_reply,
+            block=False,
         )
     )
 

@@ -96,6 +96,7 @@ def receive_upload(handler) -> None:
 def install_on_tracking_handler(analytics_module) -> None:
     handler_cls = analytics_module.TrackingHandler
     original_get = handler_cls.do_GET
+    original_post = getattr(handler_cls, "do_POST", None)
 
     def patched_get(self):
         if urlparse(self.path).path == "/private-upload":
@@ -106,6 +107,9 @@ def install_on_tracking_handler(analytics_module) -> None:
     def patched_post(self):
         if urlparse(self.path).path == "/private-upload-file":
             receive_upload(self)
+            return
+        if original_post:
+            original_post(self)
             return
         send_text(self, 404, "Not found")
 

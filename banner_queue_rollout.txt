@@ -1,0 +1,2 @@
+Railway start command: python bot_banner_test.py
+Pre-deploy smoke command should include: python banner_smoke.py

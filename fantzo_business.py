@@ -37,12 +37,6 @@ WELCOME_REPLY = (
 
 
 def telegram_mini_app_url(section: str = "home") -> str:
-    """Open IBETIN's configured Main Mini App through Telegram itself.
-
-    Telegram Business replies cannot use ``web_app`` inline buttons directly.
-    Main Mini App deep links keep the handoff inside Telegram and carry the
-    requested section through ``startapp``.
-    """
     section = (section or "home").strip().lower()
     if section not in ALLOWED_MINI_APP_SECTIONS:
         section = "home"
@@ -50,8 +44,6 @@ def telegram_mini_app_url(section: str = "home") -> str:
 
 
 def _business_url(section: str = "home", customer_id: int = 0) -> str:
-    # customer_id is intentionally unused: the real Main Mini App receives
-    # Telegram initData for the person who opened it.
     return telegram_mini_app_url(section)
 
 
@@ -64,7 +56,6 @@ def business_reply_text() -> str:
 
 
 def business_keyboard(customer_id: int = 0) -> InlineKeyboardMarkup:
-    """Stable five-button welcome menu used by startup verification."""
     return InlineKeyboardMarkup(
         [
             [_button("⚡ OPEN IBETIN", "home")],
@@ -342,8 +333,6 @@ async def business_auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     customer_id = message.from_user.id if message.from_user else 0
 
-    # Fantzo-style first-touch welcome: send one clean welcome even when the
-    # first customer message is a photo, sticker, voice note or document.
     if customer_id and connection_id and not _has_been_welcomed(connection_id, customer_id):
         await _reply_with_retry(message, WELCOME_REPLY, business_keyboard(customer_id))
         _mark_welcomed(connection_id, customer_id)
@@ -358,13 +347,28 @@ async def business_auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
         return
 
-    # After the first welcome, smart routing applies only to text. Non-text
-    # follow-ups are left untouched so customers are not spammed repeatedly.
     if not message.text:
         return
 
     text = message.text.strip()
     if not text or text.startswith("/"):
+        return
+
+    # Test the exact production follow-up renderer in the same Business DM.
+    if " ".join(text.lower().split()) in {"test followup", "followup test", "test reminder"}:
+        import fantzo_reminders as reminders
+
+        followup_text, followup_markup = reminders._copy_for("general", 1, "business_dm")
+        await _reply_with_retry(
+            message,
+            "🧪 <b>IBETIN FOLLOW-UP TEST</b>\n\n" + followup_text,
+            followup_markup,
+        )
+        logger.info(
+            "IBETIN Business DM follow-up test sent: connection=%s customer=%s",
+            connection_id,
+            customer_id or None,
+        )
         return
 
     category, reply, markup = classify_business_dm(text)

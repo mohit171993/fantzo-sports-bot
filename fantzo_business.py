@@ -17,14 +17,18 @@ IBETIN_BOT_USERNAME = os.getenv("IBETIN_BOT_USERNAME", "ibtnofficialbot").strip(
 
 def _mini_app_deep_link(section: str = "home") -> str:
     section = (section or "home").strip().lower()
-    return f"https://t.me/{IBETIN_BOT_USERNAME}?startapp={section}"
+    # Use Telegram's native Main Mini App URI. Business messages cannot use
+    # web_app buttons, but URL buttons may use tg:// links. Passing startapp
+    # here avoids the https://t.me intermediary that can drop start_param on
+    # some Telegram clients.
+    return f"tg://resolve?domain={IBETIN_BOT_USERNAME}&startapp={section}"
 
 
 def business_keyboard() -> InlineKeyboardMarkup:
     """Telegram Business messages cannot use web_app buttons.
 
-    Regular URL buttons pointing to the bot's Main Mini App deep link are
-    supported by Telegram Business and still open the Mini App inside Telegram.
+    Use Telegram-native Main Mini App deep links as URL buttons so each
+    Business-DM shortcut opens inside Telegram with its own start parameter.
     """
     return InlineKeyboardMarkup(
         [

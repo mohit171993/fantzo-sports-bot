@@ -1,7 +1,8 @@
-"""Fantzo 15 Sep restored feature test launcher.
+"""Fantzo restored production launcher with Fantzo-first funnel UX.
 
-This launcher keeps the current Live TV reliability layer and restored
-production features while layering user personalization on top.
+Keeps the current Live TV reliability layer, restored production features,
+Business DM safety and ops protections while making Fantzo.com the dominant
+user destination.
 """
 import logging
 
@@ -14,7 +15,7 @@ import fantzo_growth as growth
 import fantzo_growth_integration as growth_integration
 import fantzo_business
 import fantzo_ops
-import fantzo_personalization
+import fantzo_funnel
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,7 @@ async def nonblocking_business_auto_reply(update, context):
 fantzo_business.business_auto_reply = nonblocking_business_auto_reply
 
 growth_integration.install()
-fantzo_personalization.install()
+fantzo_funnel.install()
 _original_configure_telegram_ui = tracked.configure_telegram_ui
 
 
@@ -44,7 +45,7 @@ async def configure_telegram_ui_with_restored_features(application) -> None:
     growth.start(application)
     fantzo_ops.install(application)
     logger.info(
-        "Fantzo production features installed: Business welcome, banner queue, reminder report, favourites, growth reporting, ops safety and My Fantzo personalization"
+        "Fantzo production features installed: Business funnel, banner queue, reminder report, favourites tracking, growth reporting, ops safety and Fantzo-first main UX"
     )
 
 
@@ -56,5 +57,5 @@ if __name__ == "__main__":
     tracked.trial_live_tv.install_on_tracking_handler(tracked.analytics)
     tracked.fantzo_live_tv.install_on_tracking_handler(tracked.analytics)
     tracked.analytics.start_tracking_server()
-    logger.info("Starting Fantzo with restored features and My Fantzo personalization")
+    logger.info("Starting Fantzo with Fantzo-first user funnel")
     tracked.app.run()

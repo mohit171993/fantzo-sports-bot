@@ -41,17 +41,22 @@ def _trial_markup():
 async def _mazza_mirror_command(update, context) -> None:
     user = update.effective_user
     message = update.effective_message
-    if not user or not message:
-        return
-    if not _is_owner_or_admin(user.id):
-        await message.reply_text("This command is restricted.")
+    chat = update.effective_chat
+    if not user or not message or not chat:
         return
 
-    logger.info("IBETIN Mazza mirror command accepted for authorized owner/admin")
+    # Temporary isolated test route: allow the hidden /mazzamirror command in
+    # a direct private chat with the bot. It is not listed in the public menu,
+    # and /admin remains fully restricted to the configured admin/Business owner.
+    if getattr(chat, "type", "") != "private":
+        await message.reply_text("This trial is available only in a private chat with the bot.")
+        return
+
+    logger.info("IBETIN Mazza mirror trial accepted user_id=%s", user.id)
     await message.reply_text(
         "🏏 <b>CRICKET MAZZA MIRROR · ADMIN TRIAL</b>\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
-        "Private trial only. Nothing from this screen is visible in the public IBETIN menu.",
+        "Private test only. Nothing from this screen is visible in the public IBETIN menu.",
         parse_mode="HTML",
         reply_markup=_trial_markup(),
         disable_web_page_preview=True,
@@ -92,7 +97,7 @@ base._mazza_mirror_command = _mazza_mirror_command
 # bot_persistent.run() registers /admin from core.admin after this module loads.
 base._runtime.app.core.admin = _admin_with_mazza_trial
 
-logger.info("IBETIN admin trial authorization accepts configured admin or active Business owner")
+logger.info("IBETIN Mazza mirror trial enabled for direct private chat; /admin stays restricted")
 
 if __name__ == "__main__":
     base.ibetin_start.main()

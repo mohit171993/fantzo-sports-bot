@@ -251,12 +251,13 @@ def run() -> None:
     )
 
     # Telegram Business integration: connection updates + incoming customer DMs.
+    # Do not restrict this handler to TEXT: the first DM may be a sticker, photo,
+    # voice note, video, document, or other Telegram message type.
     app.add_handler(BusinessConnectionHandler(fantzo_business.business_connection_update))
     app.add_handler(
         MessageHandler(
-            filters.UpdateType.BUSINESS_MESSAGE & filters.TEXT,
+            filters.UpdateType.BUSINESS_MESSAGE,
             fantzo_business.business_auto_reply,
-            block=False,
         )
     )
 

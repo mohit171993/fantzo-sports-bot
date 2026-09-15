@@ -1,21 +1,19 @@
-"""Fantzo feature launcher for Live TV banner queue testing.
-
-Keeps bot_tracked.py unchanged until the feature is verified.
-"""
+"""Fantzo feature launcher for Live TV banner queue testing."""
 import logging
 
 import bot_tracked as tracked
 import fantzo_banner_queue as banner_queue
+import fantzo_banner_preview as banner_preview
 
 logger = logging.getLogger(__name__)
-
 _original_configure_telegram_ui = tracked.configure_telegram_ui
 
 
 async def configure_telegram_ui_with_banners(application) -> None:
     await _original_configure_telegram_ui(application)
     banner_queue.install(application)
-    logger.info("Fantzo Live TV banner queue installed")
+    application.create_task(banner_preview.send_once(application))
+    logger.info("Fantzo Live TV banner queue installed; private preview scheduled")
 
 
 tracked.app.configure_telegram_ui = configure_telegram_ui_with_banners

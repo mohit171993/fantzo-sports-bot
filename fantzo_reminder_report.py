@@ -27,7 +27,6 @@ def _report_stats():
         statuses = {str(r["status"]): int(r["c"]) for r in status_rows}
         today = now.date().isoformat()
         sent_today = int(conn.execute("SELECT COUNT(*) AS c FROM reminder_sends WHERE status='sent' AND substr(sent_at,1,10)=?", (today,)).fetchone()["c"])
-        sent_last_2h = int(conn.execute("SELECT COUNT(*) AS c FROM reminder_sends WHERE status='sent' AND sent_at >= ?", ((now.timestamp() - REPORT_INTERVAL_SECONDS),)).fetchone()["c"] if False else 0)
 
     return {
         "active": total_active,
@@ -58,14 +57,18 @@ async def send_report(application):
 
 
 async def report_loop(application):
-    # Wait two hours before the first report so deployment does not create an immediate extra DM.
-    await asyncio.sleep(REPORT_INTERVAL_SECONDS)
+    # One immediate report after startup for verification, then continue every two hours.
+    await asyncio.sleep(15)
+    try:
+        await send_report(application)
+    except Exception:
+        logger.exception("Fantzo immediate reminder report failed")
     while True:
+        await asyncio.sleep(REPORT_INTERVAL_SECONDS)
         try:
             await send_report(application)
         except Exception:
             logger.exception("Fantzo reminder report failed")
-        await asyncio.sleep(REPORT_INTERVAL_SECONDS)
 
 
 def start(application):

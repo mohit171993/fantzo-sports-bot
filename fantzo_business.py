@@ -12,34 +12,46 @@ import fantzo_autoreply
 
 logger = logging.getLogger(__name__)
 
-IBETIN_BOT_USERNAME = os.getenv("IBETIN_BOT_USERNAME", "ibtnofficialbot").strip().lstrip("@")
+
+def _public_base_url() -> str:
+    value = (
+        os.getenv("TRACKING_BASE_URL", "").strip()
+        or os.getenv("RAILWAY_STATIC_URL", "").strip()
+        or os.getenv("RAILWAY_PUBLIC_DOMAIN", "").strip()
+        or "https://ibetin-app-production.up.railway.app"
+    )
+    if not value.startswith(("http://", "https://")):
+        value = "https://" + value
+    return value.rstrip("/")
 
 
-def _mini_app_deep_link(section: str = "home") -> str:
+def _business_url(section: str = "home") -> str:
+    """Build deterministic IBETIN URLs for Telegram Business buttons.
+
+    Telegram Business messages cannot use web_app buttons, and startapp
+    parameters have proven unreliable on some Telegram clients. Carrying the
+    destination in our own URL makes each shortcut deterministic.
+    """
     section = (section or "home").strip().lower()
-    # Use Telegram's native Main Mini App URI. Business messages cannot use
-    # web_app buttons, but URL buttons may use tg:// links. Passing startapp
-    # here avoids the https://t.me intermediary that can drop start_param on
-    # some Telegram clients.
-    return f"tg://resolve?domain={IBETIN_BOT_USERNAME}&startapp={section}"
+    base = _public_base_url()
+    if section == "news":
+        return f"{base}/news?category=latest&source=business_dm"
+    if section not in {"home", "live", "alerts", "support"}:
+        section = "home"
+    return f"{base}/hub?section={section}&source=business_dm"
 
 
 def business_keyboard() -> InlineKeyboardMarkup:
-    """Telegram Business messages cannot use web_app buttons.
-
-    Use Telegram-native Main Mini App deep links as URL buttons so each
-    Business-DM shortcut opens inside Telegram with its own start parameter.
-    """
     return InlineKeyboardMarkup(
         [
-            [TelegramInlineKeyboardButton("⚡ OPEN IBETIN", url=_mini_app_deep_link("home"))],
+            [TelegramInlineKeyboardButton("⚡ OPEN IBETIN", url=_business_url("home"))],
             [
-                TelegramInlineKeyboardButton("🔴 LIVE NOW", url=_mini_app_deep_link("live")),
-                TelegramInlineKeyboardButton("📰 NEWS", url=_mini_app_deep_link("news")),
+                TelegramInlineKeyboardButton("🔴 LIVE NOW", url=_business_url("live")),
+                TelegramInlineKeyboardButton("📰 NEWS", url=_business_url("news")),
             ],
             [
-                TelegramInlineKeyboardButton("🔔 MATCH ALERTS", url=_mini_app_deep_link("alerts")),
-                TelegramInlineKeyboardButton("🛟 SUPPORT", url=_mini_app_deep_link("support")),
+                TelegramInlineKeyboardButton("🔔 MATCH ALERTS", url=_business_url("alerts")),
+                TelegramInlineKeyboardButton("🛟 SUPPORT", url=_business_url("support")),
             ],
         ]
     )

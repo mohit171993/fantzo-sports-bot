@@ -1,6 +1,9 @@
 import asyncio
+import hashlib
+import hmac
 import logging
 import os
+import time
 
 from telegram import InlineKeyboardButton as TelegramInlineKeyboardButton
 from telegram import InlineKeyboardMarkup, Update
@@ -11,6 +14,9 @@ import bot as core
 import fantzo_autoreply
 
 logger = logging.getLogger(__name__)
+
+BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
+BUSINESS_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60
 
 
 def _public_base_url() -> str:
@@ -25,7 +31,20 @@ def _public_base_url() -> str:
     return value.rstrip("/")
 
 
-def _business_url(section: str = "home") -> str:
+def _business_alert_token(user_id: int) -> str:
+    if not BOT_TOKEN or user_id <= 0:
+        return ""
+    expires_at = int(time.time()) + BUSINESS_TOKEN_TTL_SECONDS
+    payload = f"{int(user_id)}.{expires_at}"
+    signature = hmac.new(
+        BOT_TOKEN.encode("utf-8"),
+        f"ibetin-business-alerts:{payload}".encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    return f"{payload}.{signature}"
+
+
+def _business_url(section: str = "home", customer_id: int = 0) -> str:
     """Build deterministic IBETIN URLs for Telegram Business buttons.
 
     Telegram Business messages cannot use web_app buttons, and startapp
@@ -38,20 +57,26 @@ def _business_url(section: str = "home") -> str:
         return f"{base}/news?category=latest&source=business_dm"
     if section not in {"home", "live", "alerts", "support"}:
         section = "home"
-    return f"{base}/hub?section={section}&source=business_dm"
+
+    url = f"{base}/hub?section={section}&source=business_dm"
+    if section == "alerts" and customer_id > 0:
+        token = _business_alert_token(customer_id)
+        if token:
+            url += f"&bdm={token}"
+    return url
 
 
-def business_keyboard() -> InlineKeyboardMarkup:
+def business_keyboard(customer_id: int = 0) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
-            [TelegramInlineKeyboardButton("⚡ OPEN IBETIN", url=_business_url("home"))],
+            [TelegramInlineKeyboardButton("⚡ OPEN IBETIN", url=_business_url("home", customer_id))],
             [
-                TelegramInlineKeyboardButton("🔴 LIVE NOW", url=_business_url("live")),
-                TelegramInlineKeyboardButton("📰 NEWS", url=_business_url("news")),
+                TelegramInlineKeyboardButton("🔴 LIVE NOW", url=_business_url("live", customer_id)),
+                TelegramInlineKeyboardButton("📰 NEWS", url=_business_url("news", customer_id)),
             ],
             [
-                TelegramInlineKeyboardButton("🔔 MATCH ALERTS", url=_business_url("alerts")),
-                TelegramInlineKeyboardButton("🛟 SUPPORT", url=_business_url("support")),
+                TelegramInlineKeyboardButton("🔔 MATCH ALERTS", url=_business_url("alerts", customer_id)),
+                TelegramInlineKeyboardButton("🛟 SUPPORT", url=_business_url("support", customer_id)),
             ],
         ]
     )
@@ -133,9 +158,10 @@ def _retry_seconds(exc: RetryAfter) -> float:
 
 
 async def _reply_with_retry(message) -> None:
+    customer_id = message.from_user.id if message.from_user else 0
     kwargs = {
         "parse_mode": "HTML",
-        "reply_markup": business_keyboard(),
+        "reply_markup": business_keyboard(customer_id),
         "disable_web_page_preview": True,
     }
 

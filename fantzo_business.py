@@ -1,7 +1,9 @@
 import asyncio
+import hashlib
+import hmac
 import logging
 import os
-from urllib.parse import parse_qs, parse_qsl, quote, urlencode, urlparse, urlunparse
+import time
 
 from telegram import InlineKeyboardButton as TelegramInlineKeyboardButton
 from telegram import InlineKeyboardMarkup, Update
@@ -13,88 +15,86 @@ import fantzo_autoreply
 
 logger = logging.getLogger(__name__)
 
-IBETIN_BOT_USERNAME = os.getenv("IBETIN_BOT_USERNAME", "ibtnofficialbot").strip().lstrip("@")
-IBETIN_MINI_APP_DEEP_LINK = os.getenv("IBETIN_MINI_APP_DEEP_LINK", "").strip()
-BUSINESS_SECTIONS = {"home", "live", "news", "alerts", "support"}
+BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
+BUSINESS_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60
 
 
-def _is_telegram_mini_app_base(url: str) -> bool:
-    if not url:
-        return False
-    try:
-        parsed = urlparse(url)
-        query = parse_qs(parsed.query, keep_blank_values=True)
-        has_startapp = "startapp" in query
-        if parsed.scheme in {"http", "https"}:
-            return (
-                parsed.netloc.lower()
-                in {"t.me", "www.t.me", "telegram.me", "www.telegram.me"}
-                and has_startapp
-            )
-        return parsed.scheme == "tg" and parsed.netloc.lower() == "resolve" and has_startapp
-    except Exception:
-        return False
+def _public_base_url() -> str:
+    value = (
+        os.getenv("TRACKING_BASE_URL", "").strip()
+        or os.getenv("RAILWAY_STATIC_URL", "").strip()
+        or os.getenv("RAILWAY_PUBLIC_DOMAIN", "").strip()
+        or "https://ibetin-app-production.up.railway.app"
+    )
+    if not value.startswith(("http://", "https://")):
+        value = "https://" + value
+    return value.rstrip("/")
+
+
+def _business_alert_token(user_id: int) -> str:
+    if not BOT_TOKEN or user_id <= 0:
+        return ""
+    expires_at = int(time.time()) + BUSINESS_TOKEN_TTL_SECONDS
+    payload = f"{int(user_id)}.{expires_at}"
+    signature = hmac.new(
+        BOT_TOKEN.encode("utf-8"),
+        f"ibetin-business-alerts:{payload}".encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    return f"{payload}.{signature}"
+
+
+def _business_url(section: str = "home", customer_id: int = 0) -> str:
+    """Build deterministic IBETIN section URLs for Telegram Business buttons.
+
+    Telegram Business replies cannot use ``web_app`` buttons. URL buttons are
+    therefore sent directly to the required IBETIN route instead of reopening
+    @Ibtnofficialbot's Main Mini App for every shortcut.
+    """
+    section = (section or "home").strip().lower()
+    base = _public_base_url()
+    if section == "news":
+        return f"{base}/news?category=latest&source=business_dm"
+    if section not in {"home", "live", "alerts", "support"}:
+        section = "home"
+
+    url = f"{base}/hub?section={section}&source=business_dm"
+    if section == "alerts" and customer_id > 0:
+        token = _business_alert_token(customer_id)
+        if token:
+            url += f"&bdm={token}"
+    return url
 
 
 def telegram_mini_app_url(section: str = "home") -> str:
-    """Return a Telegram Main Mini App deep link for one IBETIN section.
+    """Compatibility helper used by older reminder code.
 
-    Telegram Business messages cannot contain ``web_app`` buttons, but they can
-    contain Telegram URL buttons. Since @ibtnofficialbot now has a Main Mini App,
-    ``startapp=<section>`` launches that app and passes the section to our router.
+    Business reminders must also stay on the explicit IBETIN web route rather
+    than reopening the bot's Main Mini App.
     """
-    section = (section or "home").strip().lower()
-    if section not in BUSINESS_SECTIONS:
-        section = "home"
-
-    configured = IBETIN_MINI_APP_DEEP_LINK
-    if configured and _is_telegram_mini_app_base(configured):
-        try:
-            parsed = urlparse(configured)
-            items = [(k, v) for k, v in parse_qsl(parsed.query, keep_blank_values=True) if k != "startapp"]
-            items.append(("startapp", section))
-            return urlunparse(parsed._replace(query=urlencode(items)))
-        except Exception:
-            logger.warning("Could not apply IBETIN section to configured Mini App deep link")
-
-    return f"https://t.me/{IBETIN_BOT_USERNAME}?startapp={quote(section, safe='')}"
+    return _business_url(section)
 
 
 def business_reply_text() -> str:
     return (
         "👋 <b>Welcome to IBETIN</b>\n\n"
         "Choose where you want to go. Each button opens the matching IBETIN "
-        "section inside Telegram.\n\n"
-        "⚡ One Mini App • direct section access"
+        "section directly.\n\n"
+        "⚡ Fast access • direct section routing"
     )
 
 
 def business_keyboard(customer_id: int = 0) -> InlineKeyboardMarkup:
-    # customer_id is retained for backward compatibility with the existing caller.
-    # Telegram Business cannot send web_app buttons, therefore these are Telegram
-    # Main Mini App deep-link URL buttons carrying section-specific startapp values.
     return InlineKeyboardMarkup(
         [
+            [TelegramInlineKeyboardButton("⚡ OPEN IBETIN", url=_business_url("home", customer_id))],
             [
-                TelegramInlineKeyboardButton(
-                    "⚡ OPEN IBETIN", url=telegram_mini_app_url("home")
-                )
+                TelegramInlineKeyboardButton("🔴 LIVE NOW", url=_business_url("live", customer_id)),
+                TelegramInlineKeyboardButton("📰 NEWS", url=_business_url("news", customer_id)),
             ],
             [
-                TelegramInlineKeyboardButton(
-                    "🔴 LIVE NOW", url=telegram_mini_app_url("live")
-                ),
-                TelegramInlineKeyboardButton(
-                    "📰 NEWS", url=telegram_mini_app_url("news")
-                ),
-            ],
-            [
-                TelegramInlineKeyboardButton(
-                    "🔔 MATCH ALERTS", url=telegram_mini_app_url("alerts")
-                ),
-                TelegramInlineKeyboardButton(
-                    "🛟 SUPPORT", url=telegram_mini_app_url("support")
-                ),
+                TelegramInlineKeyboardButton("🔔 MATCH ALERTS", url=_business_url("alerts", customer_id)),
+                TelegramInlineKeyboardButton("🛟 SUPPORT", url=_business_url("support", customer_id)),
             ],
         ]
     )

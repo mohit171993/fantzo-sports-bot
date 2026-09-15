@@ -2,9 +2,10 @@ import asyncio
 import logging
 import os
 from datetime import datetime, timezone
+from io import BytesIO
 from zoneinfo import ZoneInfo
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, InputFile, Update
 from telegram.ext import CommandHandler, ContextTypes, MessageHandler, filters
 
 import bot as core
@@ -110,16 +111,23 @@ async def receive_banner(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def send_banner(bot, chat_id, row, caption_prefix=""):
     caption = caption_prefix + (str(row["caption"] or "").strip() or DEFAULT_CAPTION)
     markup = InlineKeyboardMarkup([[InlineKeyboardButton("📺 OPEN FANTZO SPORTS", url="https://t.me/fantzoofficialbot?start=livetv_banner")]])
+    file_id = str(row["file_id"])
     if str(row["media_type"] or "document") == "photo":
-        await bot.send_photo(chat_id=chat_id, photo=str(row["file_id"]), caption=caption, parse_mode="HTML", reply_markup=markup)
-    else:
-        await bot.send_document(chat_id=chat_id, document=str(row["file_id"]), caption=caption, parse_mode="HTML", reply_markup=markup)
+        await bot.send_photo(chat_id=chat_id, photo=file_id, caption=caption, parse_mode="HTML", reply_markup=markup)
+        return
+    # Images originally uploaded as Telegram documents cannot reuse their file_id in send_photo.
+    # Download the original bytes and upload them again as a native photo so the post has no filename/OPEN WITH card.
+    tg_file = await bot.get_file(file_id)
+    data = await tg_file.download_as_bytearray()
+    photo = InputFile(BytesIO(bytes(data)), filename="fantzo-live-tv.png")
+    await bot.send_photo(chat_id=chat_id, photo=photo, caption=caption, parse_mode="HTML", reply_markup=markup)
 
 async def _post_next(bot):
     row = next_banner()
     if not row: return False
     await send_banner(bot, CHANNEL_ID, row)
     mark_posted(int(row["id"]))
+    logger.info("Fantzo Live TV banner %s posted to %s", row["id"], CHANNEL_ID)
     return True
 
 async def post_now(update: Update, context: ContextTypes.DEFAULT_TYPE):

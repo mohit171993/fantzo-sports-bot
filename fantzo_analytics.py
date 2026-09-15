@@ -43,6 +43,10 @@ ACTION_LABELS = {
     "explore": "Explore IBETIN",
     "join_fantzo": "Join IBETIN",
     "back": "Back/Home",
+    "dm:message": "Direct DM Messages",
+    "dm:autoreply_sent": "Direct Auto Replies",
+    "business_dm:message": "Business DM Messages",
+    "business_dm:autoreply_sent": "Business Auto Replies",
 }
 
 
@@ -168,6 +172,14 @@ def _scalar(conn, sql: str, params=()) -> int:
     return int(row[0] if row else 0)
 
 
+def _table_exists(conn, table: str) -> bool:
+    row = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+        (table,),
+    ).fetchone()
+    return bool(row)
+
+
 async def stats_command(update, context) -> None:
     user = update.effective_user
     message = update.effective_message
@@ -195,6 +207,41 @@ async def stats_command(update, context) -> None:
         actions_24h = _scalar(conn, "SELECT COUNT(*) FROM clicks WHERE created_at >= ?", (cutoff_24h,))
         actions_7d = _scalar(conn, "SELECT COUNT(*) FROM clicks WHERE created_at >= ?", (cutoff_7d,))
 
+        dm_messages_all = _scalar(
+            conn,
+            "SELECT COUNT(*) FROM clicks WHERE action IN ('dm:message','business_dm:message')",
+        )
+        dm_messages_24h = _scalar(
+            conn,
+            "SELECT COUNT(*) FROM clicks WHERE action IN ('dm:message','business_dm:message') AND created_at >= ?",
+            (cutoff_24h,),
+        )
+        dm_messages_7d = _scalar(
+            conn,
+            "SELECT COUNT(*) FROM clicks WHERE action IN ('dm:message','business_dm:message') AND created_at >= ?",
+            (cutoff_7d,),
+        )
+        auto_replies_24h = _scalar(
+            conn,
+            "SELECT COUNT(*) FROM clicks WHERE action IN ('dm:autoreply_sent','business_dm:autoreply_sent') AND created_at >= ?",
+            (cutoff_24h,),
+        )
+        auto_replies_7d = _scalar(
+            conn,
+            "SELECT COUNT(*) FROM clicks WHERE action IN ('dm:autoreply_sent','business_dm:autoreply_sent') AND created_at >= ?",
+            (cutoff_7d,),
+        )
+        dm_users_7d = _scalar(
+            conn,
+            "SELECT COUNT(DISTINCT user_id) FROM clicks WHERE action IN ('dm:message','business_dm:message') AND created_at >= ?",
+            (cutoff_7d,),
+        )
+        business_dm_7d = _scalar(
+            conn,
+            "SELECT COUNT(*) FROM clicks WHERE action = 'business_dm:message' AND created_at >= ?",
+            (cutoff_7d,),
+        )
+
         opens_24h = _scalar(
             conn,
             "SELECT COUNT(*) FROM web_events WHERE event = 'fantzo_open' AND created_at >= ?",
@@ -206,6 +253,22 @@ async def stats_command(update, context) -> None:
             (cutoff_7d,),
         )
         opens_all = _scalar(conn, "SELECT COUNT(*) FROM web_events WHERE event = 'fantzo_open'")
+
+        reminders_24h = reminders_7d = reminders_all = reminder_users = 0
+        if _table_exists(conn, "reminder_sends"):
+            reminders_24h = _scalar(
+                conn,
+                "SELECT COUNT(*) FROM reminder_sends WHERE status = 'sent' AND sent_at >= ?",
+                (cutoff_24h,),
+            )
+            reminders_7d = _scalar(
+                conn,
+                "SELECT COUNT(*) FROM reminder_sends WHERE status = 'sent' AND sent_at >= ?",
+                (cutoff_7d,),
+            )
+            reminders_all = _scalar(conn, "SELECT COUNT(*) FROM reminder_sends WHERE status = 'sent'")
+        if _table_exists(conn, "reminder_users"):
+            reminder_users = _scalar(conn, "SELECT COUNT(*) FROM reminder_users WHERE opted_out = 0")
 
         raw_actions = conn.execute(
             "SELECT action, COUNT(*) c FROM clicks WHERE created_at >= ? GROUP BY action ORDER BY c DESC LIMIT 40",
@@ -239,14 +302,21 @@ async def stats_command(update, context) -> None:
         f"New — 24h: <b>{new_24h}</b> | 7d: <b>{new_7d}</b>\n"
         f"Active — 24h: <b>{active_24h}</b> | 7d: <b>{active_7d}</b>\n"
         f"🔔 Alerts ON: <b>{subscribers}</b>\n\n"
+        "💬 <b>DM AUTO-REPLY</b>\n"
+        f"DM users — 7d: <b>{dm_users_7d}</b>\n"
+        f"Messages — 24h: <b>{dm_messages_24h}</b> | 7d: <b>{dm_messages_7d}</b> | All: <b>{dm_messages_all}</b>\n"
+        f"Auto replies — 24h: <b>{auto_replies_24h}</b> | 7d: <b>{auto_replies_7d}</b>\n"
+        f"Business DM messages — 7d: <b>{business_dm_7d}</b>\n\n"
+        "⏰ <b>REMINDERS</b>\n"
+        f"Eligible users: <b>{reminder_users}</b>\n"
+        f"Sent — 24h: <b>{reminders_24h}</b> | 7d: <b>{reminders_7d}</b> | All: <b>{reminders_all}</b>\n\n"
         "🎯 <b>ENGAGEMENT</b>\n"
         f"Bot actions — 24h: <b>{actions_24h}</b> | 7d: <b>{actions_7d}</b>\n"
         f"IBETIN opens — 24h: <b>{opens_24h}</b> | 7d: <b>{opens_7d}</b> | All: <b>{opens_all}</b>\n\n"
-        "🏆 <b>TOP BOT ACTIONS · 7D</b>\n"
+        "🏆 <b>TOP ACTIONS · 7D</b>\n"
         f"{top_action_text}\n\n"
         "🔥 <b>IBETIN OPEN SOURCES · 7D</b>\n"
-        f"{top_source_text}\n\n"
-        "ℹ️ Completed registrations cannot be measured from the bot unless the IBETIN site sends a registration event back.",
+        f"{top_source_text}",
         parse_mode="HTML",
         disable_web_page_preview=True,
     )

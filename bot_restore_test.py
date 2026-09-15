@@ -16,6 +16,7 @@ import fantzo_growth_integration as growth_integration
 import fantzo_business
 import fantzo_ops
 import fantzo_funnel
+import fantzo_business_flow_fix
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,7 @@ fantzo_business.business_auto_reply = nonblocking_business_auto_reply
 
 growth_integration.install()
 fantzo_funnel.install()
+fantzo_business_flow_fix.install()
 _original_configure_telegram_ui = tracked.configure_telegram_ui
 
 

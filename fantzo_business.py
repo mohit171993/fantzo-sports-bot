@@ -17,14 +17,6 @@ SPORTS_BOT_URL = "https://t.me/fantzoofficialbot?start=dm"
 FANTZO_CHANNEL_URL = "https://t.me/fantzoupdates"
 FANTZO_MINI_APP_DEEP_LINK = "https://t.me/fantzoofficialbot?startapp=business_dm"
 
-WELCOME_REPLY = (
-    "👋 <b>Welcome to Fantzo</b>\n\n"
-    "Follow the action, explore Fantzo, or simply message me what you need — I’ll point you in the right direction.\n\n"
-    "🏏 Live scores & fixtures are available through our sports bot.\n"
-    "📢 Subscribe to Fantzo Updates for the latest posts and announcements.\n\n"
-    f"{RESPONSIBLE_NOTE}"
-)
-
 
 def ensure_tables() -> None:
     with core.db() as conn:
@@ -36,16 +28,6 @@ def ensure_tables() -> None:
                 owner_username TEXT,
                 enabled INTEGER NOT NULL DEFAULT 1,
                 updated_at TEXT NOT NULL
-            )
-            """
-        )
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS business_welcomes (
-                connection_id TEXT NOT NULL,
-                customer_id INTEGER NOT NULL,
-                welcomed_at TEXT NOT NULL,
-                PRIMARY KEY (connection_id, customer_id)
             )
             """
         )
@@ -88,40 +70,6 @@ def _owner_user_id(connection_id: str):
     return int(row["owner_user_id"]) if row and row["owner_user_id"] is not None else None
 
 
-def _has_been_welcomed(connection_id: str, customer_id: int) -> bool:
-    if not connection_id or not customer_id:
-        return False
-
-    ensure_tables()
-    with core.db() as conn:
-        row = conn.execute(
-            """
-            SELECT 1
-            FROM business_welcomes
-            WHERE connection_id = ? AND customer_id = ?
-            LIMIT 1
-            """,
-            (connection_id, customer_id),
-        ).fetchone()
-    return bool(row)
-
-
-def _mark_welcomed(connection_id: str, customer_id: int) -> None:
-    if not connection_id or not customer_id:
-        return
-
-    ensure_tables()
-    with core.db() as conn:
-        conn.execute(
-            """
-            INSERT OR IGNORE INTO business_welcomes(
-                connection_id, customer_id, welcomed_at
-            ) VALUES (?, ?, ?)
-            """,
-            (connection_id, customer_id, core.now_iso()),
-        )
-
-
 def _contains(text: str, words) -> bool:
     return any(re.search(rf"\b{re.escape(word)}\b", text) for word in words)
 
@@ -150,7 +98,11 @@ def classify_business_dm(text: str):
     if _contains(t, ["hi", "hello", "hey", "hii", "hola", "namaste"]):
         return (
             "greeting",
-            WELCOME_REPLY,
+            "👋 <b>Welcome to Fantzo</b>\n\n"
+            "Follow the action, explore Fantzo, or simply message me what you need — I’ll point you in the right direction.\n\n"
+            "🏏 Live scores & fixtures are available through our sports bot.\n"
+            "📢 Subscribe to Fantzo Updates for the latest posts and announcements.\n\n"
+            f"{RESPONSIBLE_NOTE}",
             _welcome_buttons(),
         )
 
@@ -291,7 +243,7 @@ async def _reply_with_retry(message, reply: str, markup=None) -> None:
 
 async def business_auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.business_message
-    if not message:
+    if not message or not message.text:
         return
 
     if not fantzo_autoreply.is_enabled():
@@ -306,42 +258,11 @@ async def business_auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE
     if owner_id and message.from_user and message.from_user.id == owner_id:
         return
 
-    customer_id = message.from_user.id if message.from_user else 0
-
-    # Welcome on the customer's first Business DM of any type: text, sticker,
-    # photo, voice, video, document, etc. Mark only after a successful send so
-    # transient Telegram failures can retry on the customer's next message.
-    if customer_id and connection_id and not _has_been_welcomed(connection_id, customer_id):
-        logger.info(
-            "Fantzo first Business DM: connection=%s customer=%s sending welcome",
-            connection_id,
-            customer_id,
-        )
-
-        await _reply_with_retry(message, WELCOME_REPLY, _welcome_buttons())
-        _mark_welcomed(connection_id, customer_id)
-
-        try:
-            core.track(customer_id, "business_dm:welcome")
-        except Exception:
-            logger.exception("Could not track Fantzo Business DM welcome")
-
-        logger.info(
-            "Fantzo Business DM welcome sent: connection=%s customer=%s",
-            connection_id,
-            customer_id,
-        )
-        return
-
-    # After the one-time welcome, only text messages go through the smart
-    # category reply engine. Non-text follow-ups are left untouched.
-    if not message.text:
-        return
-
     text = message.text.strip()
     if not text or text.startswith("/"):
         return
 
+    customer_id = message.from_user.id if message.from_user else 0
     category, reply, markup = classify_business_dm(text)
 
     try:

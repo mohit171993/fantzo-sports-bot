@@ -1,5 +1,9 @@
+import asyncio
 import logging
+import os
 from urllib.parse import parse_qs, urlparse
+
+from telegram import Bot
 
 import ibetin_entry
 import fantzo_business as business
@@ -33,6 +37,16 @@ def _is_telegram_mini_app_link(url: str) -> bool:
         return parsed.scheme == "tg" and parsed.netloc.lower() == "resolve"
     except Exception:
         return False
+
+
+def _mini_app_link_kind(url: str) -> str:
+    """Return main/direct for a valid Telegram Mini App link."""
+    parsed = urlparse(url)
+    if parsed.scheme in {"http", "https"}:
+        parts = [part for part in parsed.path.split("/") if part]
+        return "direct" if len(parts) >= 2 else "main"
+    query = parse_qs(parsed.query, keep_blank_values=True)
+    return "direct" if (query.get("appname") or [""])[0] else "main"
 
 
 def _expect_webapps(name: str, markup, errors: list[str]) -> int:
@@ -125,8 +139,42 @@ def run_navigation_self_test() -> None:
     )
 
 
+async def _telegram_capability_self_test() -> None:
+    """Verify Telegram can actually resolve the Business Mini App launcher."""
+    token = os.getenv("BOT_TOKEN", "").strip()
+    if not token:
+        raise RuntimeError("IBETIN Telegram capability test FAILED: BOT_TOKEN missing")
+
+    link = business.telegram_mini_app_url()
+    kind = _mini_app_link_kind(link)
+
+    try:
+        async with Bot(token=token) as bot:
+            me = await bot.get_me()
+    except Exception as exc:
+        # A temporary Telegram/API network problem should not take production
+        # down; structural navigation checks above still run fail-closed.
+        logger.warning("IBETIN Telegram capability test could not reach getMe: %s", exc)
+        return
+
+    if kind == "main" and not bool(getattr(me, "has_main_web_app", False)):
+        raise RuntimeError(
+            "IBETIN Telegram capability test FAILED: Business launcher uses a Main Mini App link, "
+            "but Telegram reports has_main_web_app=false. Configure the Main Mini App in BotFather "
+            "or set IBETIN_MINI_APP_DEEP_LINK to a valid named Direct Mini App link."
+        )
+
+    logger.info(
+        "IBETIN Telegram capability test PASS: username=@%s mini_app_link=%s has_main_web_app=%s",
+        me.username or business.IBETIN_BOT_USERNAME,
+        kind,
+        bool(getattr(me, "has_main_web_app", False)),
+    )
+
+
 def main() -> None:
     run_navigation_self_test()
+    asyncio.run(_telegram_capability_self_test())
     ibetin_entry.main()
 
 

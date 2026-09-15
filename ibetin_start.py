@@ -39,6 +39,13 @@ def _is_telegram_mini_app_link(url: str) -> bool:
         return False
 
 
+def _startapp_value(url: str) -> str:
+    try:
+        return (parse_qs(urlparse(url).query, keep_blank_values=True).get("startapp") or [""])[0]
+    except Exception:
+        return ""
+
+
 def _mini_app_link_kind(url: str) -> str:
     parsed = urlparse(url)
     if parsed.scheme in {"http", "https"}:
@@ -61,17 +68,28 @@ def _expect_webapps(name: str, markup, errors: list[str]) -> int:
     return len(buttons)
 
 
-def _expect_business_launcher(name: str, markup, errors: list[str]) -> int:
+def _expect_business_launchers(
+    name: str,
+    markup,
+    errors: list[str],
+    expected_count: int,
+    expected_sections: set[str] | None = None,
+) -> int:
     buttons = _buttons(markup)
-    if len(buttons) != 1:
-        errors.append(f"{name}: expected exactly 1 launcher, got {len(buttons)}")
-        return len(buttons)
-    button = buttons[0]
-    if button.web_app is not None:
-        errors.append(f"{name}: Business launcher must not use web_app")
-    if not _is_telegram_mini_app_link(button.url or ""):
-        errors.append(f"{name}: launcher is not a Telegram Mini App deep link")
-    return 1
+    if len(buttons) != expected_count:
+        errors.append(f"{name}: expected {expected_count} launcher(s), got {len(buttons)}")
+    actual_sections: set[str] = set()
+    for button in buttons:
+        if button.web_app is not None:
+            errors.append(f"{name}/{button.text}: Business launcher must not use web_app")
+        if not _is_telegram_mini_app_link(button.url or ""):
+            errors.append(f"{name}/{button.text}: launcher is not a Telegram Mini App deep link")
+        actual_sections.add(_startapp_value(button.url or ""))
+    if expected_sections is not None and actual_sections != expected_sections:
+        errors.append(
+            f"{name}: startapp sections mismatch; expected {sorted(expected_sections)}, got {sorted(actual_sections)}"
+        )
+    return len(buttons)
 
 
 def run_navigation_self_test() -> None:
@@ -85,13 +103,20 @@ def run_navigation_self_test() -> None:
         errors,
     )
 
-    business_count = _expect_business_launcher(
-        "business-autoreply", business.business_keyboard(123456789), errors
+    business_count = _expect_business_launchers(
+        "business-autoreply",
+        business.business_keyboard(123456789),
+        errors,
+        expected_count=5,
+        expected_sections={"home", "live", "news", "alerts", "support"},
     )
 
     _, business_reminder = reminders._copy_for("general", 1, "business_dm")
-    business_reminder_count = _expect_business_launcher(
-        "business-reminder", business_reminder, errors
+    business_reminder_count = _expect_business_launchers(
+        "business-reminder",
+        business_reminder,
+        errors,
+        expected_count=1,
     )
 
     _, bot_reminder = reminders._copy_for("general", 1, "bot")
@@ -133,7 +158,7 @@ async def _telegram_capability_self_test() -> bool:
         logger.error("IBETIN Telegram capability BLOCKED: BOT_TOKEN missing")
         return False
 
-    link = business.telegram_mini_app_url()
+    link = business.telegram_mini_app_url("home")
     kind = _mini_app_link_kind(link)
 
     try:

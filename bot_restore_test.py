@@ -1,8 +1,7 @@
 """Fantzo 15 Sep restored feature test launcher.
 
-This branch-only launcher restores the 15/09 feature set together while
-keeping the current Live TV reliability layer and preventing Business DM
-retry sleeps from blocking normal bot commands.
+This launcher keeps the current Live TV reliability layer and restored
+production features while layering user personalization on top.
 """
 import logging
 
@@ -15,6 +14,7 @@ import fantzo_growth as growth
 import fantzo_growth_integration as growth_integration
 import fantzo_business
 import fantzo_ops
+import fantzo_personalization
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +32,7 @@ async def nonblocking_business_auto_reply(update, context):
 fantzo_business.business_auto_reply = nonblocking_business_auto_reply
 
 growth_integration.install()
+fantzo_personalization.install()
 _original_configure_telegram_ui = tracked.configure_telegram_ui
 
 
@@ -43,7 +44,7 @@ async def configure_telegram_ui_with_restored_features(application) -> None:
     growth.start(application)
     fantzo_ops.install(application)
     logger.info(
-        "Fantzo restored test features installed: Business welcome, banner queue, reminder report, favourites, growth reporting and ops safety"
+        "Fantzo production features installed: Business welcome, banner queue, reminder report, favourites, growth reporting, ops safety and My Fantzo personalization"
     )
 
 
@@ -55,5 +56,5 @@ if __name__ == "__main__":
     tracked.trial_live_tv.install_on_tracking_handler(tracked.analytics)
     tracked.fantzo_live_tv.install_on_tracking_handler(tracked.analytics)
     tracked.analytics.start_tracking_server()
-    logger.info("Starting Fantzo restored 15 Sep feature test launcher")
+    logger.info("Starting Fantzo with restored features and My Fantzo personalization")
     tracked.app.run()

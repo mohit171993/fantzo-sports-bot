@@ -4,10 +4,11 @@ import os
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import InlineKeyboardButton, InlineKeyboardButton as TelegramInlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import BadRequest, Forbidden, RetryAfter
 
 import bot as core
+import fantzo_business as business
 import ibetin_match_alerts as match_alerts
 
 logger = logging.getLogger(__name__)
@@ -176,11 +177,14 @@ def _copy_for(interest: str, stage: int, source: str):
     )
 
     if source == "business_dm":
+        # Business-account messages cannot use web_app buttons. Use a single
+        # Telegram-native Mini App deep link, not website/section URLs.
         markup = InlineKeyboardMarkup(
-            [[InlineKeyboardButton("🔥 OPEN IBETIN", url=IBETIN_MINI_APP_DEEP_LINK)],
-             [InlineKeyboardButton("🏏 SPORTS BOT", url=SPORTS_BOT_URL)]]
+            [[TelegramInlineKeyboardButton("⚡ OPEN IBETIN MINI APP", url=business.telegram_mini_app_url())]]
         )
     else:
+        # In the normal bot chat these globals are converted to true WebApp
+        # buttons by bot_tracked.py, which Telegram supports in private chats.
         markup = InlineKeyboardMarkup(
             [[InlineKeyboardButton("🔴 LIVE NOW", callback_data="live_now"),
               InlineKeyboardButton("🗓 UPCOMING", callback_data="upcoming")],

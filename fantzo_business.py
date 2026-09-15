@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import re
 from urllib.parse import quote
 
 from telegram import InlineKeyboardButton as TelegramInlineKeyboardButton
@@ -14,51 +15,97 @@ import fantzo_autoreply
 logger = logging.getLogger(__name__)
 
 BOT_USERNAME = os.getenv("IBETIN_BOT_USERNAME", "Ibtnofficialbot").strip().lstrip("@") or "Ibtnofficialbot"
+ALLOWED_MINI_APP_SECTIONS = {
+    "home",
+    "sports",
+    "live",
+    "news",
+    "casino",
+    "games",
+    "results",
+    "payments",
+    "alerts",
+    "support",
+    "settings",
+}
+
+WELCOME_REPLY = (
+    "👋 <b>Welcome to IBETIN</b>\n\n"
+    "I can help with live sports, news, match alerts, payments and support.\n\n"
+    "Choose an option below or simply type what you need."
+)
 
 
 def telegram_mini_app_url(section: str = "home") -> str:
     """Open IBETIN's configured Main Mini App through Telegram itself.
 
-    Telegram does not support ``web_app`` inline buttons on messages sent on
-    behalf of a Business account. A Telegram Main Mini App deep link is the
-    supported way to keep Business-reply navigation inside Telegram instead of
-    opening our Railway URL in Telegram's normal in-app browser.
+    Telegram Business replies cannot use ``web_app`` inline buttons directly.
+    Main Mini App deep links keep the handoff inside Telegram and carry the
+    requested section through ``startapp``.
     """
     section = (section or "home").strip().lower()
-    if section not in {"home", "live", "news", "alerts", "support"}:
+    if section not in ALLOWED_MINI_APP_SECTIONS:
         section = "home"
     return f"https://t.me/{BOT_USERNAME}?startapp={quote(section, safe='')}"
 
 
 def _business_url(section: str = "home", customer_id: int = 0) -> str:
-    # customer_id is intentionally unused now: the real Main Mini App receives
-    # Telegram initData for the person who opened it, including Alerts.
+    # customer_id is intentionally unused: the real Main Mini App receives
+    # Telegram initData for the person who opened it.
     return telegram_mini_app_url(section)
 
 
+def _button(label: str, section: str) -> TelegramInlineKeyboardButton:
+    return TelegramInlineKeyboardButton(label, url=_business_url(section))
+
+
 def business_reply_text() -> str:
-    return (
-        "👋 <b>Welcome to IBETIN</b>\n\n"
-        "Choose where you want to go. Every button below opens the IBETIN "
-        "Mini App inside Telegram.\n\n"
-        "⚡ Fast access • no external Railway page"
-    )
+    return WELCOME_REPLY
 
 
 def business_keyboard(customer_id: int = 0) -> InlineKeyboardMarkup:
+    """Stable five-button welcome menu used by startup verification."""
     return InlineKeyboardMarkup(
         [
-            [TelegramInlineKeyboardButton("⚡ OPEN IBETIN", url=_business_url("home", customer_id))],
+            [_button("⚡ OPEN IBETIN", "home")],
             [
-                TelegramInlineKeyboardButton("🔴 LIVE NOW", url=_business_url("live", customer_id)),
-                TelegramInlineKeyboardButton("📰 NEWS", url=_business_url("news", customer_id)),
+                _button("🔴 LIVE NOW", "live"),
+                _button("📰 NEWS", "news"),
             ],
             [
-                TelegramInlineKeyboardButton("🔔 MATCH ALERTS", url=_business_url("alerts", customer_id)),
-                TelegramInlineKeyboardButton("🛟 SUPPORT", url=_business_url("support", customer_id)),
+                _button("🔔 MATCH ALERTS", "alerts"),
+                _button("🛟 SUPPORT", "support"),
             ],
         ]
     )
+
+
+def _sports_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [_button("🏆 SPORTS", "sports"), _button("🔴 LIVE NOW", "live")],
+            [_button("📊 RESULTS", "results"), _button("📰 NEWS", "news")],
+        ]
+    )
+
+
+def _payments_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [_button("💳 PAYMENTS", "payments")],
+            [_button("🛟 SUPPORT", "support"), _button("⚡ IBETIN HOME", "home")],
+        ]
+    )
+
+
+def _support_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [[_button("🛟 OPEN SUPPORT", "support")], [_button("⚡ IBETIN HOME", "home")]]
+    )
+
+
+def _single_keyboard(label: str, section: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([[_button(label, section)]])
 
 
 def ensure_tables() -> None:
@@ -71,6 +118,16 @@ def ensure_tables() -> None:
                 owner_username TEXT,
                 enabled INTEGER NOT NULL DEFAULT 1,
                 updated_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS business_welcomes (
+                connection_id TEXT NOT NULL,
+                customer_id INTEGER NOT NULL,
+                welcomed_at TEXT NOT NULL,
+                PRIMARY KEY (connection_id, customer_id)
             )
             """
         )
@@ -113,6 +170,109 @@ def _owner_user_id(connection_id: str):
     return int(row["owner_user_id"]) if row and row["owner_user_id"] is not None else None
 
 
+def _has_been_welcomed(connection_id: str, customer_id: int) -> bool:
+    if not connection_id or not customer_id:
+        return False
+    ensure_tables()
+    with core.db() as conn:
+        row = conn.execute(
+            """
+            SELECT 1 FROM business_welcomes
+            WHERE connection_id = ? AND customer_id = ?
+            LIMIT 1
+            """,
+            (connection_id, customer_id),
+        ).fetchone()
+    return bool(row)
+
+
+def _mark_welcomed(connection_id: str, customer_id: int) -> None:
+    if not connection_id or not customer_id:
+        return
+    ensure_tables()
+    with core.db() as conn:
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO business_welcomes(connection_id, customer_id, welcomed_at)
+            VALUES (?, ?, ?)
+            """,
+            (connection_id, customer_id, core.now_iso()),
+        )
+
+
+def _contains(text: str, words) -> bool:
+    return any(re.search(rf"\b{re.escape(word)}\b", text) for word in words)
+
+
+def classify_business_dm(text: str):
+    t = " ".join((text or "").lower().strip().split())
+
+    if _contains(t, ["hi", "hello", "hey", "hii", "hola", "namaste"]):
+        return "greeting", WELCOME_REPLY, business_keyboard()
+
+    if _contains(t, ["cricket", "ipl", "t20", "odi", "test", "wicket", "football", "soccer", "goal", "match", "score", "sports"]):
+        return (
+            "sports",
+            "🏆 <b>Sports & live action</b>\n\nOpen sports, live matches, results or the latest news below.",
+            _sports_keyboard(),
+        )
+
+    if "live tv" in t or "watch live" in t or "live stream" in t or _contains(t, ["live"]):
+        return (
+            "live",
+            "🔴 <b>Live now</b>\n\nOpen the IBETIN live section inside Telegram.",
+            _single_keyboard("🔴 OPEN LIVE", "live"),
+        )
+
+    if _contains(t, ["news", "update", "updates", "headline", "headlines"]):
+        return (
+            "news",
+            "📰 <b>Sports News</b>\n\nOpen the latest IBETIN sports updates below.",
+            _single_keyboard("📰 OPEN SPORTS NEWS", "news"),
+        )
+
+    if _contains(t, ["alert", "alerts", "notification", "notifications", "notify", "reminder", "reminders"]):
+        return (
+            "alerts",
+            "🔔 <b>Match Alerts</b>\n\nManage your Telegram sports notifications inside IBETIN.",
+            _single_keyboard("🔔 MANAGE ALERTS", "alerts"),
+        )
+
+    if _contains(t, ["deposit", "add money", "payment", "pay", "upi", "recharge", "withdraw", "withdrawal", "payout", "cashout", "cash out"]):
+        return (
+            "payments",
+            "💳 <b>Payments</b>\n\nOpen IBETIN payment information or official support. Never share passwords or OTPs in chat.",
+            _payments_keyboard(),
+        )
+
+    if _contains(t, ["login", "password", "otp", "account", "register", "registration", "signup", "sign up", "bonus", "offer", "promo", "promotion"]):
+        return (
+            "account",
+            "👤 <b>Account Help</b>\n\nOpen IBETIN to continue. For account problems, use official support and never send passwords or OTPs here.",
+            _payments_keyboard(),
+        )
+
+    if _contains(t, ["support", "help", "problem", "issue", "complaint", "failed", "pending", "stuck"]):
+        return (
+            "support",
+            "🛟 <b>IBETIN Support</b>\n\nOpen official support below. If the issue involves a transaction, keep the reference ID ready but do not send passwords, OTPs or full banking credentials.",
+            _support_keyboard(),
+        )
+
+    if _contains(t, ["thanks", "thank", "thx", "ok", "okay"]):
+        return (
+            "thanks",
+            "🙏 You're welcome. Open IBETIN anytime below.",
+            _single_keyboard("⚡ OPEN IBETIN", "home"),
+        )
+
+    return (
+        "general",
+        "🤖 <b>IBETIN Assistant</b>\n\nYou can ask about live sports, cricket, football, news, match alerts, payments or support.",
+        business_keyboard(),
+    )
+
+
 async def business_connection_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     connection = update.business_connection
     if not connection:
@@ -136,17 +296,16 @@ def _retry_seconds(exc: RetryAfter) -> float:
         return 1.0
 
 
-async def _reply_with_retry(message) -> None:
-    customer_id = message.from_user.id if message.from_user else 0
+async def _reply_with_retry(message, reply: str, markup=None) -> None:
     kwargs = {
         "parse_mode": "HTML",
-        "reply_markup": business_keyboard(customer_id),
+        "reply_markup": markup,
         "disable_web_page_preview": True,
     }
 
     for attempt in range(3):
         try:
-            await message.reply_text(business_reply_text(), **kwargs)
+            await message.reply_text(reply, **kwargs)
             return
         except BadRequest as exc:
             if kwargs.get("reply_markup") is not None:
@@ -171,41 +330,56 @@ async def business_auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE
     message = update.business_message
     if not message:
         return
-
     if not fantzo_autoreply.is_enabled():
         return
-
     if message.sender_business_bot:
         return
 
     connection_id = message.business_connection_id or ""
     owner_id = _owner_user_id(connection_id)
-
     if owner_id and message.from_user and message.from_user.id == owner_id:
-        return
-
-    text = (message.text or message.caption or "").strip()
-    if text.startswith("/"):
         return
 
     customer_id = message.from_user.id if message.from_user else 0
 
+    # Fantzo-style first-touch welcome: send one clean welcome even when the
+    # first customer message is a photo, sticker, voice note or document.
+    if customer_id and connection_id and not _has_been_welcomed(connection_id, customer_id):
+        await _reply_with_retry(message, WELCOME_REPLY, business_keyboard(customer_id))
+        _mark_welcomed(connection_id, customer_id)
+        try:
+            core.track(customer_id, "business_dm:welcome")
+        except Exception:
+            logger.exception("Could not track IBETIN Business DM welcome")
+        logger.info(
+            "IBETIN Business DM welcome sent: connection=%s customer=%s",
+            connection_id,
+            customer_id,
+        )
+        return
+
+    # After the first welcome, smart routing applies only to text. Non-text
+    # follow-ups are left untouched so customers are not spammed repeatedly.
+    if not message.text:
+        return
+
+    text = message.text.strip()
+    if not text or text.startswith("/"):
+        return
+
+    category, reply, markup = classify_business_dm(text)
+
     try:
         if customer_id:
-            core.track(customer_id, "business_dm:message")
+            core.track(customer_id, f"business_dm:{category}")
     except Exception:
-        logger.exception("Could not track IBETIN incoming Business DM")
+        logger.exception("Could not track IBETIN business DM")
 
     logger.info(
-        "IBETIN business DM received: connection=%s customer=%s",
+        "IBETIN business DM received: connection=%s customer=%s category=%s",
         connection_id,
         customer_id or None,
+        category,
     )
 
-    await _reply_with_retry(message)
-
-    try:
-        if customer_id:
-            core.track(customer_id, "business_dm:autoreply_sent")
-    except Exception:
-        logger.exception("Could not track IBETIN Business DM auto reply send")
+    await _reply_with_retry(message, reply, markup)

@@ -4,11 +4,17 @@ import os
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from telegram import InlineKeyboardButton, InlineKeyboardButton as TelegramInlineKeyboardButton, InlineKeyboardMarkup
+from telegram import (
+    InlineKeyboardButton,
+    InlineKeyboardButton as TelegramInlineKeyboardButton,
+    InlineKeyboardMarkup,
+    WebAppInfo,
+)
 from telegram.error import BadRequest, Forbidden, RetryAfter
 
 import bot as core
 import fantzo_business as business
+import ibetin_hub as hub
 import ibetin_match_alerts as match_alerts
 
 logger = logging.getLogger(__name__)
@@ -20,6 +26,7 @@ MAX_SENDS_PER_RUN = 20
 
 IBETIN_HOME_URL = os.getenv("IBETIN_HOME_URL", "https://ibetin.com").strip()
 IBETIN_MINI_APP_DEEP_LINK = os.getenv("IBETIN_MINI_APP_DEEP_LINK", IBETIN_HOME_URL).strip()
+IBETIN_CHANNEL_URL = "https://t.me/ibetinoffcial"
 SPORTS_BOT_URL = os.getenv("IBETIN_SPORTS_BOT_URL", IBETIN_HOME_URL).strip()
 
 
@@ -177,18 +184,46 @@ def _copy_for(interest: str, stage: int, source: str):
     )
 
     if source == "business_dm":
-        # Business-account messages cannot use web_app buttons. Use a single
-        # Telegram-native Mini App deep link, not website/section URLs.
+        # Telegram Business messages cannot use web_app buttons directly.
+        # JOIN IBETIN therefore uses the Telegram Main Mini App deep link.
         markup = InlineKeyboardMarkup(
-            [[TelegramInlineKeyboardButton("⚡ OPEN IBETIN MINI APP", url=business.telegram_mini_app_url())]]
+            [
+                [
+                    TelegramInlineKeyboardButton(
+                        "🚀 JOIN IBETIN",
+                        url=business.telegram_mini_app_url("home"),
+                    )
+                ],
+                [
+                    TelegramInlineKeyboardButton(
+                        "📢 JOIN CHANNEL",
+                        url=IBETIN_CHANNEL_URL,
+                    )
+                ],
+            ]
         )
     else:
-        # In the normal bot chat these globals are converted to true WebApp
-        # buttons by bot_tracked.py, which Telegram supports in private chats.
+        # Normal private-bot follow-ups can use a real WebApp button, so
+        # JOIN IBETIN opens the Mini App directly without an external browser.
         markup = InlineKeyboardMarkup(
-            [[InlineKeyboardButton("🔴 LIVE NOW", callback_data="live_now"),
-              InlineKeyboardButton("🗓 UPCOMING", callback_data="upcoming")],
-             [InlineKeyboardButton("✨ OPEN IBETIN", url=IBETIN_MINI_APP_DEEP_LINK)]]
+            [
+                [
+                    InlineKeyboardButton("🔴 LIVE NOW", callback_data="live_now"),
+                    InlineKeyboardButton("🗓 UPCOMING", callback_data="upcoming"),
+                ],
+                [
+                    TelegramInlineKeyboardButton(
+                        "🚀 JOIN IBETIN",
+                        web_app=WebAppInfo(url=hub.hub_url("home")),
+                    )
+                ],
+                [
+                    TelegramInlineKeyboardButton(
+                        "📢 JOIN CHANNEL",
+                        url=IBETIN_CHANNEL_URL,
+                    )
+                ],
+            ]
         )
     return text, markup
 

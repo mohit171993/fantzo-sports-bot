@@ -89,10 +89,7 @@ def next_banner():
 
 def mark_posted(banner_id):
     with core.db() as conn:
-        conn.execute(
-            "UPDATE live_tv_banners SET status='posted', posted_at=? WHERE id=?",
-            (_now_iso(), banner_id),
-        )
+        conn.execute("UPDATE live_tv_banners SET status='posted', posted_at=? WHERE id=?", (_now_iso(), banner_id))
 
 
 def clear_queue():
@@ -114,29 +111,31 @@ async def banner_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     paused = _setting("paused", "0") == "1"
     await update.effective_message.reply_text(
-        "📺 <b>LIVE TV BANNER QUEUE</b>\n"
-        "━━━━━━━━━━━━━━━━━━\n\n"
-        f"Queued: <b>{queue_count()}</b>\n"
-        f"Status: <b>{'PAUSED' if paused else 'ACTIVE'}</b>\n"
+        "📺 <b>LIVE TV BANNER QUEUE</b>\n━━━━━━━━━━━━━━━━━━\n\n"
+        f"Queued: <b>{queue_count()}</b>\nStatus: <b>{'PAUSED' if paused else 'ACTIVE'}</b>\n"
         f"Auto post: <b>{POST_HOUR_DUBAI:02d}:{POST_MINUTE_DUBAI:02d} Dubai / 19:00 IST</b>\n\n"
-        "Bulk upload: send multiple banner photos to this bot. Each photo is added to the queue automatically.\n\n"
-        "Commands:\n"
-        "/bannerpostnow - post next banner now\n"
-        "/bannerpause - pause automatic posting\n"
-        "/bannerresume - resume automatic posting\n"
-        "/bannerclear - clear unposted queue",
-        parse_mode="HTML",
-        reply_markup=admin_keyboard(),
-    )
+        "Bulk upload: send multiple banner images to this bot as photos OR PNG/JPG/WebP files. Each image is added automatically.\n\n"
+        "Commands:\n/bannerpostnow - post next banner now\n/bannerpause - pause automatic posting\n"
+        "/bannerresume - resume automatic posting\n/bannerclear - clear unposted queue",
+        parse_mode="HTML", reply_markup=admin_keyboard())
 
 
 async def receive_banner(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.effective_user or update.effective_user.id != core.ADMIN_USER_ID:
         return
     message = update.effective_message
-    if not message or not message.photo:
+    if not message:
         return
-    file_id = message.photo[-1].file_id
+    file_id = None
+    if message.photo:
+        file_id = message.photo[-1].file_id
+    elif message.document:
+        mime = (message.document.mime_type or "").lower()
+        name = (message.document.file_name or "").lower()
+        if mime.startswith("image/") or name.endswith((".png", ".jpg", ".jpeg", ".webp")):
+            file_id = message.document.file_id
+    if not file_id:
+        return
     caption = (message.caption or "").strip()
     add_banner(file_id, caption)
     await message.reply_text(f"✅ Banner added to Live TV queue. Queue: {queue_count()}")
@@ -150,13 +149,8 @@ async def _post_next(bot):
     markup = InlineKeyboardMarkup([[
         InlineKeyboardButton("📺 OPEN FANTZO SPORTS", url="https://t.me/fantzoofficialbot?start=livetv_banner")
     ]])
-    await bot.send_photo(
-        chat_id=CHANNEL_ID,
-        photo=str(row["file_id"]),
-        caption=caption,
-        parse_mode="HTML",
-        reply_markup=markup,
-    )
+    await bot.send_photo(chat_id=CHANNEL_ID, photo=str(row["file_id"]), caption=caption,
+                         parse_mode="HTML", reply_markup=markup)
     mark_posted(int(row["id"]))
     return True
 
@@ -166,9 +160,7 @@ async def post_now(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     try:
         posted = await _post_next(context.bot)
-        await update.effective_message.reply_text(
-            "✅ Next Live TV banner posted." if posted else "ℹ️ Banner queue is empty."
-        )
+        await update.effective_message.reply_text("✅ Next Live TV banner posted." if posted else "ℹ️ Banner queue is empty.")
     except Exception as exc:
         logger.exception("Manual banner post failed")
         await update.effective_message.reply_text(f"⚠️ Banner post failed: {exc}")
@@ -199,14 +191,8 @@ async def scheduler_loop(application):
         try:
             now = datetime.now(APP_TZ)
             today = now.date().isoformat()
-            due = (now.hour > POST_HOUR_DUBAI) or (
-                now.hour == POST_HOUR_DUBAI and now.minute >= POST_MINUTE_DUBAI
-            )
-            if (
-                due
-                and _setting("paused", "0") != "1"
-                and _setting("last_post_date", "") != today
-            ):
+            due = (now.hour > POST_HOUR_DUBAI) or (now.hour == POST_HOUR_DUBAI and now.minute >= POST_MINUTE_DUBAI)
+            if due and _setting("paused", "0") != "1" and _setting("last_post_date", "") != today:
                 if await _post_next(application.bot):
                     _set_setting("last_post_date", today)
         except Exception:
@@ -221,5 +207,6 @@ def install(application):
     application.add_handler(CommandHandler("bannerpause", pause))
     application.add_handler(CommandHandler("bannerresume", resume))
     application.add_handler(CommandHandler("bannerclear", clear))
-    application.add_handler(MessageHandler(filters.PHOTO & filters.User(user_id=core.ADMIN_USER_ID), receive_banner))
+    image_uploads = filters.PHOTO | filters.Document.IMAGE | filters.Document.FileExtension("png") | filters.Document.FileExtension("jpg") | filters.Document.FileExtension("jpeg") | filters.Document.FileExtension("webp")
+    application.add_handler(MessageHandler(image_uploads & filters.User(user_id=core.ADMIN_USER_ID), receive_banner))
     application.create_task(scheduler_loop(application))

@@ -6,7 +6,7 @@ from html import escape
 from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from telegram.error import BadRequest, Forbidden, RetryAfter
 
 import bot as core
@@ -290,12 +290,12 @@ def _event_text(match: dict, sport: str, event_key: str, extra: dict, language: 
 def _markup(event_key: str) -> InlineKeyboardMarkup:
     if event_key == "final":
         return InlineKeyboardMarkup(
-            [[InlineKeyboardButton("📊 VIEW RESULTS", url=_hub_url("results"))],
-             [InlineKeyboardButton("⚡ OPEN IBETIN", url=_hub_url("home"))]]
+            [[InlineKeyboardButton("📊 VIEW RESULTS", web_app=WebAppInfo(url=_hub_url("results")))],
+             [InlineKeyboardButton("⚡ OPEN IBETIN", web_app=WebAppInfo(url=_hub_url("home")))]]
         )
     return InlineKeyboardMarkup(
-        [[InlineKeyboardButton("🔴 OPEN LIVE", url=_hub_url("live"))],
-         [InlineKeyboardButton("🔔 MY ALERTS", url=_hub_url("alerts"))]]
+        [[InlineKeyboardButton("🔴 OPEN LIVE", web_app=WebAppInfo(url=_hub_url("live")))],
+         [InlineKeyboardButton("🔔 MY ALERTS", web_app=WebAppInfo(url=_hub_url("alerts")))]]
     )
 
 

@@ -165,6 +165,9 @@ async def _telegram_capability_self_test() -> bool:
 def main() -> None:
     run_navigation_self_test()
     asyncio.run(_telegram_capability_self_test())
+    # asyncio.run() closes the temporary loop it creates. python-telegram-bot
+    # run_polling() expects a current loop, so provide a fresh one for runtime.
+    asyncio.set_event_loop(asyncio.new_event_loop())
     ibetin_entry.main()
 
 

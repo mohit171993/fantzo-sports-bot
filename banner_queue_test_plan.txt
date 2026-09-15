@@ -1,0 +1,5 @@
+1. Deploy feature launcher.
+2. Run /banners.
+3. Upload one test image.
+4. Run /bannerpostnow.
+5. Verify channel post.

@@ -123,26 +123,39 @@ def _contains(text: str, words) -> bool:
     return any(re.search(rf"\b{re.escape(word)}\b", text) for word in words)
 
 
+def _styled_url_button(label: str, url: str, style: str) -> InlineKeyboardButton:
+    # PTB 21.6 does not expose `style=` yet, but api_kwargs forwards the new
+    # Bot API field without requiring a risky library upgrade.
+    return InlineKeyboardButton(
+        label,
+        url=url,
+        api_kwargs={"style": style},
+    )
+
+
 def _funnel_buttons(source: str, destination: str = "home") -> InlineKeyboardMarkup:
     """Keep every Business reply focused on the same three user actions."""
     return InlineKeyboardMarkup(
         [
             [
-                InlineKeyboardButton(
+                _styled_url_button(
                     "🎮 PLAY FANTZO",
-                    url=analytics.tracking_url(f"{source}_play", destination),
+                    analytics.tracking_url(f"{source}_play", destination),
+                    "success",
                 )
             ],
             [
-                InlineKeyboardButton(
+                _styled_url_button(
                     "📺 WATCH LIVE TV",
-                    url=fantzo_live_tv.minitv_url(),
+                    fantzo_live_tv.minitv_url(),
+                    "primary",
                 )
             ],
             [
-                InlineKeyboardButton(
+                _styled_url_button(
                     "📢 SUBSCRIBE CHANNEL",
-                    url=FANTZO_CHANNEL_URL,
+                    FANTZO_CHANNEL_URL,
+                    "primary",
                 )
             ],
         ]

@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import os
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, parse_qsl, quote, urlencode, urlparse, urlunparse
 
 from telegram import InlineKeyboardButton as TelegramInlineKeyboardButton
 from telegram import InlineKeyboardMarkup, Update
@@ -15,50 +15,88 @@ logger = logging.getLogger(__name__)
 
 IBETIN_BOT_USERNAME = os.getenv("IBETIN_BOT_USERNAME", "ibtnofficialbot").strip().lstrip("@")
 IBETIN_MINI_APP_DEEP_LINK = os.getenv("IBETIN_MINI_APP_DEEP_LINK", "").strip()
+BUSINESS_SECTIONS = {"home", "live", "news", "alerts", "support"}
 
 
-def telegram_mini_app_url() -> str:
-    """Return a Telegram Mini App deep link, never a normal website URL.
+def _is_telegram_mini_app_base(url: str) -> bool:
+    if not url:
+        return False
+    try:
+        parsed = urlparse(url)
+        query = parse_qs(parsed.query, keep_blank_values=True)
+        has_startapp = "startapp" in query
+        if parsed.scheme in {"http", "https"}:
+            return (
+                parsed.netloc.lower()
+                in {"t.me", "www.t.me", "telegram.me", "www.telegram.me"}
+                and has_startapp
+            )
+        return parsed.scheme == "tg" and parsed.netloc.lower() == "resolve" and has_startapp
+    except Exception:
+        return False
 
-    Telegram Business messages cannot contain web_app buttons. They may contain
-    URL buttons, so the Business surface gets one Telegram-native Mini App
-    launcher. Section navigation happens after the user is inside the Mini App.
+
+def telegram_mini_app_url(section: str = "home") -> str:
+    """Return a Telegram Main Mini App deep link for one IBETIN section.
+
+    Telegram Business messages cannot contain ``web_app`` buttons, but they can
+    contain Telegram URL buttons. Since @ibtnofficialbot now has a Main Mini App,
+    ``startapp=<section>`` launches that app and passes the section to our router.
     """
+    section = (section or "home").strip().lower()
+    if section not in BUSINESS_SECTIONS:
+        section = "home"
+
     configured = IBETIN_MINI_APP_DEEP_LINK
-    if configured:
+    if configured and _is_telegram_mini_app_base(configured):
         try:
             parsed = urlparse(configured)
-            query = parse_qs(parsed.query, keep_blank_values=True)
-            has_startapp = "startapp" in query
-            if (
-                parsed.scheme in {"http", "https"}
-                and parsed.netloc.lower() in {"t.me", "www.t.me", "telegram.me", "www.telegram.me"}
-                and has_startapp
-            ):
-                return configured
-            if parsed.scheme == "tg" and parsed.netloc.lower() == "resolve" and has_startapp:
-                return configured
+            items = [(k, v) for k, v in parse_qsl(parsed.query, keep_blank_values=True) if k != "startapp"]
+            items.append(("startapp", section))
+            return urlunparse(parsed._replace(query=urlencode(items)))
         except Exception:
-            logger.warning("Ignoring invalid IBETIN_MINI_APP_DEEP_LINK")
+            logger.warning("Could not apply IBETIN section to configured Mini App deep link")
 
-    return f"https://t.me/{IBETIN_BOT_USERNAME}?startapp"
+    return f"https://t.me/{IBETIN_BOT_USERNAME}?startapp={quote(section, safe='')}"
 
 
 def business_reply_text() -> str:
     return (
         "👋 <b>Welcome to IBETIN</b>\n\n"
-        "Open the IBETIN Mini App below. Live scores, sports news, match alerts "
-        "and support are all available inside the app.\n\n"
-        "⚡ One Mini App • everything inside Telegram"
+        "Choose where you want to go. Each button opens the matching IBETIN "
+        "section inside Telegram.\n\n"
+        "⚡ One Mini App • direct section access"
     )
 
 
 def business_keyboard(customer_id: int = 0) -> InlineKeyboardMarkup:
-    # customer_id is kept for backward compatibility with the existing caller.
-    # Telegram Business does not support web_app buttons on messages sent on
-    # behalf of the Business account, so do not add per-section website URLs.
+    # customer_id is retained for backward compatibility with the existing caller.
+    # Telegram Business cannot send web_app buttons, therefore these are Telegram
+    # Main Mini App deep-link URL buttons carrying section-specific startapp values.
     return InlineKeyboardMarkup(
-        [[TelegramInlineKeyboardButton("⚡ OPEN IBETIN MINI APP", url=telegram_mini_app_url())]]
+        [
+            [
+                TelegramInlineKeyboardButton(
+                    "⚡ OPEN IBETIN", url=telegram_mini_app_url("home")
+                )
+            ],
+            [
+                TelegramInlineKeyboardButton(
+                    "🔴 LIVE NOW", url=telegram_mini_app_url("live")
+                ),
+                TelegramInlineKeyboardButton(
+                    "📰 NEWS", url=telegram_mini_app_url("news")
+                ),
+            ],
+            [
+                TelegramInlineKeyboardButton(
+                    "🔔 MATCH ALERTS", url=telegram_mini_app_url("alerts")
+                ),
+                TelegramInlineKeyboardButton(
+                    "🛟 SUPPORT", url=telegram_mini_app_url("support")
+                ),
+            ],
+        ]
     )
 
 

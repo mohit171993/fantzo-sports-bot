@@ -13,11 +13,9 @@ logger = logging.getLogger(__name__)
 
 
 def _telegram_start_param(parsed) -> str:
-    """Read Telegram Mini App start parameter from every supported launch form."""
+    """Read Telegram Mini App start parameter when Telegram includes it in the request URL."""
     query = parse_qs(parsed.query, keep_blank_values=True)
 
-    # Direct Mini App links such as t.me/<bot>?startapp=alerts are exposed by
-    # Telegram as tgWebAppStartParam and also inside tgWebAppData.start_param.
     for key in ("tgWebAppStartParam", "startapp"):
         value = (query.get(key) or [""])[0].strip().lower()
         if value:
@@ -67,7 +65,7 @@ def install_start_param_router() -> None:
         if parsed.path == hub.HUB_PATH:
             start_param = _telegram_start_param(parsed)
             if start_param:
-                logger.info("IBETIN Mini App launch start_param=%s", start_param)
+                logger.info("IBETIN Mini App server start_param=%s", start_param)
 
                 if start_param == "news":
                     hub._send_html(self, 200, _news_redirect_page())
@@ -77,7 +75,6 @@ def install_start_param_router() -> None:
                     hub._send_html(self, 200, hub._page(start_param))
                     return
 
-            # No Telegram start parameter: preserve normal section routing.
             query = parse_qs(parsed.query)
             section = (query.get("section") or [""])[0].strip().lower()
             if section in hub.ALLOWED_SECTIONS:
@@ -88,20 +85,81 @@ def install_start_param_router() -> None:
 
     handler_cls.do_GET = routed_get
     handler_cls._ibetin_start_param_router = True
-    logger.info("IBETIN Telegram start-parameter router installed")
+    logger.info("IBETIN Telegram server start-parameter router installed")
+
+
+def install_client_start_param_router() -> None:
+    """Route Main Mini App deep links using Telegram's client-side start_param.
+
+    On some Telegram clients the initial HTTP request is simply /hub and the
+    start parameter is exposed only through Telegram.WebApp.initDataUnsafe.
+    Injecting this tiny router into every hub page makes each Business-DM deep
+    link open its intended Mini App section reliably.
+    """
+    if getattr(hub, "_ibetin_client_start_router_installed", False):
+        return
+
+    original_page = hub._page
+    router_script = r"""
+<script>
+(function () {
+  try {
+    const tg = window.Telegram && window.Telegram.WebApp;
+    const query = new URLSearchParams(window.location.search);
+    let start = (query.get('tgWebAppStartParam') || '').trim().toLowerCase();
+
+    if (!start && tg && tg.initDataUnsafe) {
+      start = String(tg.initDataUnsafe.start_param || '').trim().toLowerCase();
+    }
+    if (!start && tg && tg.initData) {
+      start = String(new URLSearchParams(tg.initData).get('start_param') || '').trim().toLowerCase();
+    }
+
+    const allowed = new Set([
+      'home', 'live', 'news', 'alerts', 'support', 'sports',
+      'casino', 'games', 'results', 'payments', 'settings'
+    ]);
+    if (!allowed.has(start)) return;
+
+    if (start === 'news') {
+      if (window.location.pathname !== '/news') {
+        window.location.replace('/news?category=latest');
+      }
+      return;
+    }
+
+    const currentSection = (query.get('section') || 'home').trim().toLowerCase();
+    if (window.location.pathname === '/hub' && currentSection === start) return;
+
+    window.location.replace('/hub?section=' + encodeURIComponent(start));
+  } catch (e) {
+    console.error('IBETIN start-param routing failed', e);
+  }
+})();
+</script>
+"""
+
+    def routed_page(section: str) -> str:
+        html = original_page(section)
+        if "</body>" in html:
+            return html.replace("</body>", router_script + "</body>", 1)
+        return html + router_script
+
+    hub._page = routed_page
+    hub._ibetin_client_start_router_installed = True
+    logger.info("IBETIN Telegram client start-parameter router installed")
 
 
 def main() -> None:
-    # Keep the exact existing IBETIN startup sequence, then add start-param routing
-    # before the HTTP server starts.
     hub.install_on_tracking_handler(analytics)
+    install_client_start_param_router()
     install_start_param_router()
     private_apk_upload.install_on_tracking_handler(analytics)
     trial_live_tv.install_on_tracking_handler(analytics)
     fantzo_live_tv.install_on_tracking_handler(analytics)
     analytics.start_tracking_server()
     logger.info(
-        "Starting IBETIN Mini-App-first bot with Telegram start-param routing; LIVE_TV_MODE=%s",
+        "Starting IBETIN Mini-App-first bot with client/server start-param routing; LIVE_TV_MODE=%s",
         runtime.LIVE_TV_MODE,
     )
     runtime.app.run()

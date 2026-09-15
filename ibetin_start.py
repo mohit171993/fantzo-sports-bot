@@ -19,33 +19,6 @@ def _buttons(markup):
     return [button for row in markup.inline_keyboard for button in row]
 
 
-def _is_telegram_mini_app_link(url: str) -> bool:
-    if not url:
-        return False
-    try:
-        parsed = urlparse(url)
-        query = parse_qs(parsed.query, keep_blank_values=True)
-        if "startapp" not in query:
-            return False
-        if parsed.scheme in {"http", "https"}:
-            return parsed.netloc.lower() in {
-                "t.me",
-                "www.t.me",
-                "telegram.me",
-                "www.telegram.me",
-            }
-        return parsed.scheme == "tg" and parsed.netloc.lower() == "resolve"
-    except Exception:
-        return False
-
-
-def _startapp_value(url: str) -> str:
-    try:
-        return (parse_qs(urlparse(url).query, keep_blank_values=True).get("startapp") or [""])[0]
-    except Exception:
-        return ""
-
-
 def _mini_app_link_kind(url: str) -> str:
     parsed = urlparse(url)
     if parsed.scheme in {"http", "https"}:
@@ -68,7 +41,21 @@ def _expect_webapps(name: str, markup, errors: list[str]) -> int:
     return len(buttons)
 
 
-def _expect_business_launchers(
+def _business_section(url: str) -> tuple[str, str]:
+    try:
+        parsed = urlparse(url or "")
+        query = parse_qs(parsed.query, keep_blank_values=True)
+        source = (query.get("source") or [""])[0].strip().lower()
+        if parsed.path == "/news":
+            return "news", source
+        if parsed.path == "/hub":
+            return (query.get("section") or [""])[0].strip().lower(), source
+    except Exception:
+        pass
+    return "", ""
+
+
+def _expect_business_routes(
     name: str,
     markup,
     errors: list[str],
@@ -78,32 +65,77 @@ def _expect_business_launchers(
     buttons = _buttons(markup)
     if len(buttons) != expected_count:
         errors.append(f"{name}: expected {expected_count} launcher(s), got {len(buttons)}")
+
     actual_sections: set[str] = set()
     for button in buttons:
         if button.web_app is not None:
-            errors.append(f"{name}/{button.text}: Business launcher must not use web_app")
-        if not _is_telegram_mini_app_link(button.url or ""):
-            errors.append(f"{name}/{button.text}: launcher is not a Telegram Mini App deep link")
-        actual_sections.add(_startapp_value(button.url or ""))
+            errors.append(f"{name}/{button.text}: Business launcher must use a URL button")
+        if not button.url:
+            errors.append(f"{name}/{button.text}: missing URL")
+            continue
+
+        parsed = urlparse(button.url)
+        if parsed.scheme != "https":
+            errors.append(f"{name}/{button.text}: Business URL must be HTTPS")
+
+        section, source = _business_section(button.url)
+        if not section:
+            errors.append(f"{name}/{button.text}: not an explicit IBETIN section route")
+            continue
+        if source != "business_dm":
+            errors.append(f"{name}/{button.text}: missing source=business_dm")
+        actual_sections.add(section)
+
+        if section == "alerts":
+            query = parse_qs(parsed.query, keep_blank_values=True)
+            if not (query.get("bdm") or [""])[0]:
+                errors.append(f"{name}/{button.text}: secure Business alert token missing")
+
     if expected_sections is not None and actual_sections != expected_sections:
         errors.append(
-            f"{name}: startapp sections mismatch; expected {sorted(expected_sections)}, got {sorted(actual_sections)}"
+            f"{name}: sections mismatch; expected {sorted(expected_sections)}, got {sorted(actual_sections)}"
         )
     return len(buttons)
+
+
+def _restore_main_bot_runtime() -> None:
+    """Undo the Mini-App dashboard override after the hub routes are installed.
+
+    bot_tracked already defines the intended IBETIN main-bot menu with distinct
+    Sports, Live, Casino, Games, Results, Payments, News, Alerts and Support
+    destinations. ibetin_hub installs the web routes but also replaces that main
+    menu with the generic dashboard. Restore the tracked UI so the main bot and
+    the Business auto-reply remain separate experiences.
+    """
+    runtime = ibetin_entry.runtime
+    app = runtime.app
+
+    app.core.main_keyboard = runtime.premium_main_keyboard
+    app.core.join_keyboard = runtime.premium_join_keyboard
+    app.core.explore_keyboard = runtime.premium_explore_keyboard
+    app.start = runtime.smart_start
+    app.configure_telegram_ui = runtime.configure_telegram_ui
+
+    logger.info("IBETIN main bot runtime restored to section-specific menu")
+
+
+def _install_hub_and_restore_main_ui(analytics_module) -> None:
+    _original_hub_install(analytics_module)
+    _restore_main_bot_runtime()
 
 
 def run_navigation_self_test() -> None:
     """Fail startup for code regressions in IBETIN navigation."""
     errors: list[str] = []
 
-    direct_count = _expect_webapps("direct-home", hub.clean_main_keyboard(), errors)
+    direct_count = _expect_webapps("direct-home", ibetin_entry.runtime.premium_main_keyboard(), errors)
     auto_count = _expect_webapps(
         "direct-autoreply",
         ibetin_entry.runtime.app.fantzo_autoreply.standard_keyboard(),
         errors,
     )
 
-    business_count = _expect_business_launchers(
+    business_count = _expect_business_routes(
         "business-autoreply",
         business.business_keyboard(123456789),
         errors,
@@ -112,12 +144,22 @@ def run_navigation_self_test() -> None:
     )
 
     _, business_reminder = reminders._copy_for("general", 1, "business_dm")
-    business_reminder_count = _expect_business_launchers(
-        "business-reminder",
-        business_reminder,
-        errors,
-        expected_count=1,
-    )
+    business_reminder_buttons = _buttons(business_reminder)
+    business_reminder_count = len(business_reminder_buttons)
+    if business_reminder_count != 1:
+        errors.append(
+            f"business-reminder: expected 1 launcher, got {business_reminder_count}"
+        )
+    elif business_reminder_buttons:
+        button = business_reminder_buttons[0]
+        if button.web_app is not None or not button.url:
+            errors.append("business-reminder: must use one explicit URL button")
+        else:
+            section, source = _business_section(button.url)
+            if section != "home" or source != "business_dm":
+                errors.append(
+                    "business-reminder: expected explicit home route with source=business_dm"
+                )
 
     _, bot_reminder = reminders._copy_for("general", 1, "bot")
     bot_reminder_count = _expect_webapps("direct-reminder", bot_reminder, errors)
@@ -139,7 +181,7 @@ def run_navigation_self_test() -> None:
         raise RuntimeError("IBETIN navigation self-test FAILED: " + " | ".join(errors))
 
     logger.info(
-        "IBETIN navigation self-test PASS: direct_home=%s direct_autoreply=%s "
+        "IBETIN navigation self-test PASS: main_bot=%s direct_autoreply=%s "
         "business=%s business_reminder=%s direct_reminder=%s match_alerts=%s "
         "news_primary=webapp",
         direct_count,
@@ -152,14 +194,11 @@ def run_navigation_self_test() -> None:
 
 
 async def _telegram_capability_self_test() -> bool:
-    """Report whether Telegram can resolve the configured Business launcher."""
+    """Report Telegram Main Mini App capability without coupling Business routing to it."""
     token = os.getenv("BOT_TOKEN", "").strip()
     if not token:
         logger.error("IBETIN Telegram capability BLOCKED: BOT_TOKEN missing")
         return False
-
-    link = business.telegram_mini_app_url("home")
-    kind = _mini_app_link_kind(link)
 
     try:
         async with Bot(token=token) as bot:
@@ -169,22 +208,16 @@ async def _telegram_capability_self_test() -> bool:
         return False
 
     has_main = bool(getattr(me, "has_main_web_app", False))
-    if kind == "main" and not has_main:
-        logger.error(
-            "IBETIN Telegram capability BLOCKED: @%s has_main_web_app=false. "
-            "Business launcher is structurally correct but Telegram cannot open it as a Main Mini App "
-            "until the Main Mini App is configured for this bot in BotFather.",
-            me.username or business.IBETIN_BOT_USERNAME,
-        )
-        return False
-
     logger.info(
-        "IBETIN Telegram capability test PASS: username=@%s mini_app_link=%s has_main_web_app=%s",
-        me.username or business.IBETIN_BOT_USERNAME,
-        kind,
+        "IBETIN Telegram capability test PASS: username=@%s has_main_web_app=%s business_routing=explicit",
+        me.username or "Ibtnofficialbot",
         has_main,
     )
     return True
+
+
+_original_hub_install = hub.install_on_tracking_handler
+hub.install_on_tracking_handler = _install_hub_and_restore_main_ui
 
 
 def main() -> None:

@@ -1,6 +1,8 @@
 import logging
+import os
 import re
 
+import httpx
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 
 import ibetin_ui_start as base
@@ -122,6 +124,69 @@ async def _admin_with_mazza_trial(update, context) -> None:
 
 base._mazza_mirror_command = _mazza_mirror_command
 base._runtime.app.core.admin = _admin_with_mazza_trial
+
+
+# Live Line uses a synchronous HTTP handler. urllib's default Python browser
+# signature is blocked by Highlightly's Cloudflare policy on Railway (403/1010).
+# Use httpx with a normal browser UA, and fall back to Highlightly's documented
+# RapidAPI gateway when the direct host is blocked. The existing API key is tried
+# on both paths without exposing it to the browser.
+def _liveline_highlightly(path: str, params=None, ttl: int = 45):
+    api_key = os.getenv("HIGHLIGHTLY_API_KEY", "").strip()
+    if not api_key:
+        raise RuntimeError("HIGHLIGHTLY_API_KEY is not configured")
+
+    params = params or {}
+    cache_key = "liveline:" + liveline.HIGHLIGHTLY_BASE + path + "?" + str(sorted(params.items()))
+    cached = liveline._cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    common_headers = {
+        "x-rapidapi-key": api_key,
+        "Accept": "application/json",
+        "User-Agent": (
+            "Mozilla/5.0 (Linux; Android 16; SM-S938B) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/151.0.0.0 Mobile Safari/537.36"
+        ),
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+    endpoints = [
+        (
+            "Highlightly",
+            f"https://sports.highlightly.net{path}",
+            common_headers,
+        ),
+        (
+            "RapidAPI",
+            f"https://sport-highlights-api.p.rapidapi.com{path}",
+            {**common_headers, "x-rapidapi-host": "sport-highlights-api.p.rapidapi.com"},
+        ),
+    ]
+
+    failures = []
+    with httpx.Client(timeout=20.0, follow_redirects=True) as client:
+        for label, url, headers in endpoints:
+            try:
+                response = client.get(url, params=params, headers=headers)
+                if 200 <= response.status_code < 300:
+                    payload = response.json()
+                    data = payload.get("data") if isinstance(payload, dict) and "data" in payload else payload
+                    liveline._cache_put(cache_key, data, ttl)
+                    logger.info("IBETIN Live Line feed OK via %s", label)
+                    return data
+                body = response.text[:180].replace("\n", " ")
+                failures.append(f"{label} HTTP {response.status_code}: {body}")
+            except Exception as exc:
+                failures.append(f"{label}: {type(exc).__name__}: {exc}")
+
+    logger.warning("IBETIN Live Line feed failed on both transports: %s", " | ".join(failures))
+    raise RuntimeError("Cricket feed connection failed. Direct and fallback providers were unavailable.")
+
+
+liveline._highlightly = _liveline_highlightly
+logger.info("IBETIN Live Line Highlightly transport patched with Cloudflare-safe fallback")
 
 # Install the new Live Line V1 as a hidden private preview. This adds only
 # /liveline and its signed admin web routes; it does not touch the public menu.

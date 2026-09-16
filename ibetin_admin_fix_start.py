@@ -1,10 +1,13 @@
 import logging
+import re
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 
 import ibetin_ui_start as base
 
 logger = logging.getLogger(__name__)
+
+TRIAL_VERSION = "20260916-0901"
 
 
 def _is_owner_or_admin(user_id: int) -> bool:
@@ -29,33 +32,49 @@ def _is_owner_or_admin(user_id: int) -> bool:
         return False
 
 
+def _versioned_trial_url() -> str:
+    url = base._mazza_admin_url()
+    separator = "&" if "?" in url else "?"
+    return f"{url}{separator}v={TRIAL_VERSION}"
+
+
 def _trial_markup():
     return InlineKeyboardMarkup(
         [[InlineKeyboardButton(
             "🏏 OPEN MIRROR TRIAL",
-            web_app=WebAppInfo(url=base._mazza_admin_url()),
+            web_app=WebAppInfo(url=_versioned_trial_url()),
         )]]
     )
 
 
-# Telegram Android's WebView rejects Android intent:// URLs with
-# net::ERR_UNKNOWN_URL_SCHEME. Keep the mirror test inside Telegram, but make
-# the Cricket Mazza launcher an HTTPS Play Store link so Android can hand it
-# off safely. If the app is installed, the Play Store page offers OPEN.
+# Telegram Android WebView rejects intent:// links. Patch the rendered page
+# defensively so no Android intent URL can survive, even if the base page changes.
 _original_mirror_page = base._mazza_mirror_page
 
 
 def _telegram_safe_mirror_page() -> str:
     html = _original_mirror_page()
-    intent_html = base.escape(base._mazza_launch_intent(), quote=True)
     play_html = base.escape(base.MAZZA_PLAY_URL, quote=True)
-    html = html.replace(
-        f'<a class="btn primary" href="{intent_html}">🏏 OPEN CRICKET MAZZA APP</a>',
+
+    # Replace the Mazza app launcher regardless of the exact intent payload.
+    html = re.sub(
+        r'<a class="btn primary" href="intent://[^"]*">🏏 OPEN CRICKET MAZZA APP</a>',
         f'<a class="btn primary" href="{play_html}" target="_blank" rel="noopener noreferrer">🏏 OPEN CRICKET MAZZA</a>',
+        html,
+        flags=re.IGNORECASE,
+    )
+
+    # Absolute safety net: never send an intent:// scheme to Telegram WebView.
+    html = html.replace("intent://", "https://play.google.com/store/apps/details?id=com.crics.cricket11#blocked-intent-")
+
+    # Make the deployed version visible so an old cached page is obvious.
+    html = html.replace(
+        '<div class="badge">ADMIN ONLY</div>',
+        f'<div class="badge">ADMIN ONLY · SAFE {TRIAL_VERSION}</div>',
     )
     html = html.replace(
         "Suggested test: tap TRY DEVICE SCREEN MIRROR → allow full-screen sharing if Telegram/Android offers it → open Cricket Mazza → return here and check whether the preview kept capturing.",
-        "Suggested test: tap TRY DEVICE SCREEN MIRROR → allow full-screen sharing if Telegram/Android offers it → open Cricket Mazza from the HTTPS launcher or Android recent apps → return here and check whether the preview kept capturing.",
+        "Direct screen capture is not supported by Telegram Android WebView on this device. The HTTPS button below is only for opening the Cricket Mazza Play Store page; the actual mirror will require a remote Android relay/source.",
     )
     return html
 
@@ -123,7 +142,7 @@ base._mazza_mirror_command = _mazza_mirror_command
 base._runtime.app.core.admin = _admin_with_mazza_trial
 
 logger.info("IBETIN Mazza mirror trial enabled for direct private chat; /admin stays restricted")
-logger.info("IBETIN Mazza launcher patched for Telegram Android HTTPS handoff")
+logger.info("IBETIN Mazza launcher hard-patched to HTTPS; trial version=%s", TRIAL_VERSION)
 
 if __name__ == "__main__":
     base.ibetin_start.main()

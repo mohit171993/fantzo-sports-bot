@@ -4,6 +4,7 @@ import re
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 
 import ibetin_ui_start as base
+import ibetin_liveline_trial as liveline
 
 logger = logging.getLogger(__name__)
 
@@ -56,18 +57,13 @@ def _telegram_safe_mirror_page() -> str:
     html = _original_mirror_page()
     play_html = base.escape(base.MAZZA_PLAY_URL, quote=True)
 
-    # Replace the Mazza app launcher regardless of the exact intent payload.
     html = re.sub(
         r'<a class="btn primary" href="intent://[^"]*">🏏 OPEN CRICKET MAZZA APP</a>',
         f'<a class="btn primary" href="{play_html}" target="_blank" rel="noopener noreferrer">🏏 OPEN CRICKET MAZZA</a>',
         html,
         flags=re.IGNORECASE,
     )
-
-    # Absolute safety net: never send an intent:// scheme to Telegram WebView.
     html = html.replace("intent://", "https://play.google.com/store/apps/details?id=com.crics.cricket11#blocked-intent-")
-
-    # Make the deployed version visible so an old cached page is obvious.
     html = html.replace(
         '<div class="badge">ADMIN ONLY</div>',
         f'<div class="badge">ADMIN ONLY · SAFE {TRIAL_VERSION}</div>',
@@ -88,14 +84,9 @@ async def _mazza_mirror_command(update, context) -> None:
     chat = update.effective_chat
     if not user or not message or not chat:
         return
-
-    # Temporary isolated test route: allow the hidden /mazzamirror command in
-    # a direct private chat with the bot. It is not listed in the public menu,
-    # and /admin remains fully restricted to the configured admin/Business owner.
     if getattr(chat, "type", "") != "private":
         await message.reply_text("This trial is available only in a private chat with the bot.")
         return
-
     logger.info("IBETIN Mazza mirror trial accepted user_id=%s", user.id)
     await message.reply_text(
         "🏏 <b>CRICKET MAZZA MIRROR · ADMIN TRIAL</b>\n"
@@ -112,19 +103,14 @@ async def _admin_with_mazza_trial(update, context) -> None:
     message = update.effective_message
     if not user or not message:
         return
-
     if not _is_owner_or_admin(user.id):
         await message.reply_text("This command is restricted.")
         return
-
-    # Preserve the legacy/full admin panel only for the configured numeric admin.
-    # Telegram Business owners are additionally allowed into the isolated mirror trial.
     if int(user.id) == int(base.core.ADMIN_USER_ID):
         try:
             await base._original_admin(update, context)
         except Exception:
             logger.exception("Legacy IBETIN admin panel failed")
-
     logger.info("IBETIN admin mirror trial accepted for authorized owner/admin")
     await message.reply_text(
         "🏏 <b>CRICKET MAZZA MIRROR · TRIAL</b>",
@@ -134,15 +120,16 @@ async def _admin_with_mazza_trial(update, context) -> None:
     )
 
 
-# The post-init wrapper in ibetin_ui_start resolves this global at runtime,
-# so replacing it here fixes /mazzamirror without changing the public bot UI.
 base._mazza_mirror_command = _mazza_mirror_command
-
-# bot_persistent.run() registers /admin from core.admin after this module loads.
 base._runtime.app.core.admin = _admin_with_mazza_trial
+
+# Install the new Live Line V1 as a hidden private preview. This adds only
+# /liveline and its signed admin web routes; it does not touch the public menu.
+liveline.install()
 
 logger.info("IBETIN Mazza mirror trial enabled for direct private chat; /admin stays restricted")
 logger.info("IBETIN Mazza launcher hard-patched to HTTPS; trial version=%s", TRIAL_VERSION)
+logger.info("IBETIN Live Line V1 preview bootstrap installed")
 
 if __name__ == "__main__":
     base.ibetin_start.main()

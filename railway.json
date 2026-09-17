@@ -1,6 +1,6 @@
 {
   "$schema": "https://railway.com/railway.schema.json",
   "deploy": {
-    "startCommand": "python ibetin_liveline_v23_stable_feed.py"
+    "startCommand": "python ibetin_liveline_v30_unified_ui.py"
   }
 }

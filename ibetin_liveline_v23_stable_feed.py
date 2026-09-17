@@ -11,11 +11,100 @@ logger = logging.getLogger(__name__)
 
 liveline.LIVELINE_PATH = "/admin/liveline-ibetinv23"
 liveline.LIVELINE_API_PATH = "/admin/liveline-ibetinv23/api"
+_BASE_NORMALIZE = v20._normalize_roanuz_match
 
 
 def _admin_url() -> str:
     root = os.getenv("TRACKING_BASE_URL", "").strip().rstrip("/") or "https://ibetin-app-production.up.railway.app"
     return f"{root}{liveline.LIVELINE_PATH}?{urlencode({'t': liveline._token(), 'v': '20260917-v23-stable-feed'})}"
+
+
+def _overs_text(value) -> str:
+    if isinstance(value, (list, tuple)) and len(value) >= 2:
+        return f"{value[0]}.{value[1]} ov"
+    if value not in (None, ""):
+        text = str(value)
+        return text if "ov" in text.lower() else f"{text} ov"
+    return ""
+
+
+def _inning_text(row):
+    if not isinstance(row, dict):
+        return "", ""
+    raw = str(row.get("score_str") or "").strip()
+    if raw:
+        score = raw.split(" in ", 1)[0].strip()
+    else:
+        score_obj = row.get("score") if isinstance(row.get("score"), dict) else {}
+        runs = score_obj.get("runs")
+        if runs is None:
+            runs = row.get("runs")
+        wickets = row.get("wickets")
+        if wickets is None:
+            wickets = score_obj.get("wickets")
+        score = "" if runs is None else str(runs)
+        if score and wickets is not None:
+            score += f"/{wickets}"
+    overs = row.get("overs")
+    if overs in (None, "") and isinstance(row.get("score"), dict):
+        overs = row["score"].get("overs")
+    return score, _overs_text(overs)
+
+
+def _apply_play_scores(normalized, node):
+    out = dict(normalized or {})
+    if not isinstance(node, dict):
+        return out
+    play = node.get("play") if isinstance(node.get("play"), dict) else {}
+    innings = play.get("innings") if isinstance(play.get("innings"), dict) else {}
+    order = play.get("innings_order") if isinstance(play.get("innings_order"), list) else []
+
+    def side_score(side: str):
+        indexes = [str(x) for x in order if str(x).startswith(side + "_") and isinstance(innings.get(str(x)), dict)]
+        if not indexes:
+            for idx, row in innings.items():
+                if not str(idx).startswith(side + "_") or not isinstance(row, dict):
+                    continue
+                sc = row.get("score") if isinstance(row.get("score"), dict) else {}
+                runs = sc.get("runs")
+                balls = sc.get("balls")
+                if row.get("is_completed") or (runs not in (None, 0)) or (balls not in (None, 0)):
+                    indexes.append(str(idx))
+        texts = []
+        last_info = ""
+        for idx in indexes:
+            text, info = _inning_text(innings.get(idx))
+            if text:
+                texts.append(text)
+                last_info = info or last_info
+        return " & ".join(texts), last_info
+
+    a_score, a_info = side_score("a")
+    b_score, b_info = side_score("b")
+    if a_score:
+        out["homeScore"] = a_score
+        out["homeInfo"] = a_info
+    if b_score:
+        out["awayScore"] = b_score
+        out["awayInfo"] = b_info
+
+    live = play.get("live") if isinstance(play.get("live"), dict) else {}
+    live_score = live.get("score") if isinstance(live.get("score"), dict) else {}
+    title = str(live_score.get("title") or "").strip()
+    batting = str(live.get("batting_team") or "").strip().lower()
+    if title:
+        side = out.get("home") if batting == "a" else out.get("away") if batting == "b" else {}
+        team_name = side.get("name") if isinstance(side, dict) else ""
+        out["report"] = f"{team_name} {title}".strip()
+    return out
+
+
+def _normalize_with_play(node):
+    return _apply_play_scores(_BASE_NORMALIZE(node), node)
+
+
+# V23 runtime patch: all Roanuz match-detail normalization now understands play.innings.
+v20._normalize_roanuz_match = _normalize_with_play
 
 
 def _fast_matches(mode: str):
@@ -50,19 +139,13 @@ def _fast_matches(mode: str):
 def _score_summary(key: str):
     if not v21._valid_key(key):
         raise ValueError("Invalid match key")
-
     payload = v20.admin._roanuz_get(f"match/{key}/", ttl=15)
     node = v20._find_match_dict(payload, key)
     normalized = v20._normalize_roanuz_match(node)
     if not normalized.get("id"):
         normalized["id"] = key
         normalized["roanuzMatchKey"] = key
-
-    scorecard = v20._list_value(node, ("scorecard", "score_card", "innings")) or v20._list_value(
-        payload, ("scorecard", "score_card", "innings")
-    )
-    detail = {"match": normalized, "statistics": scorecard}
-    return v21._merge_detail_score(normalized, detail)
+    return normalized
 
 
 v21._matches = _fast_matches
@@ -136,6 +219,7 @@ async function hydrateScore(m){
     marker = "document.querySelectorAll('.tab').forEach(b=>b.onclick"
     html = html.replace(marker, hydrate_js + marker, 1)
     html = html.replace("Refreshing '+mode+' cricket…", "Loading '+mode+' cricket…")
+    html = html.replace("setInterval(()=>{if(!document.hidden&&document.getElementById('home').style.display!=='none')load('live')},20000)", "setInterval(()=>{if(!document.hidden&&document.getElementById('home').style.display!=='none')load('live')},30000)")
     return html
 
 
@@ -160,22 +244,29 @@ def _startup_self_test() -> None:
         first = rows[0]
         key = str(first.get("roanuzMatchKey") or first.get("id") or "")
         score = _score_summary(key)
-        logger.info(
-            "IBETIN V23 self-test PASS page_ok=%s source=%s matches=%s key=%s score=%s/%s state=%s",
+        score_ok = bool(score.get("homeScore") or score.get("awayScore"))
+        level = logger.info if page_ok and score_ok else logger.error
+        level(
+            "IBETIN V23 self-test %s page_ok=%s score_ok=%s source=%s matches=%s key=%s score=%s/%s info=%s/%s state=%s report=%s",
+            "PASS" if page_ok and score_ok else "FAILED",
             page_ok,
+            score_ok,
             source,
             len(rows),
             key,
             score.get("homeScore") or "-",
             score.get("awayScore") or "-",
+            score.get("homeInfo") or "-",
+            score.get("awayInfo") or "-",
             score.get("state") or "-",
+            score.get("report") or "-",
         )
     except Exception as exc:
         logger.exception("IBETIN V23 self-test FAILED: %s", exc)
 
 
 _startup_self_test()
-logger.info("IBETIN V23 installed: fast fixtures + background live score hydration + on-demand BHAV")
+logger.info("IBETIN V23 installed: fast fixtures + Roanuz play.innings score mapping + background hydration + on-demand BHAV")
 
 if __name__ == "__main__":
     app.base.ibetin_start.main()

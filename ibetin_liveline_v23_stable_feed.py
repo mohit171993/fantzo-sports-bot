@@ -7,6 +7,7 @@ from urllib.parse import parse_qs, urlencode, urlparse
 import ibetin_liveline_trial as liveline
 import ibetin_liveline_v21_roanuz_clean_ui as v21
 import ibetin_liveline_v20_roanuz_primary_ui as v20
+import ibetin_ui_start as ui_start
 
 logger = logging.getLogger(__name__)
 
@@ -450,6 +451,13 @@ liveline.admin_url = _admin_url
 liveline._page = _page
 liveline._api = _api
 app = v21.app
+
+# Remove the obsolete one-time admin follow-up trial message. It was only a
+# startup test and now targets a Telegram chat that no longer exists, producing
+# a harmless but noisy Chat not found exception on every deploy. The real
+# reminder worker remains enabled through the original background-loop function.
+ui_start.reminders.start_background_loop = ui_start._original_start_background_loop
+logger.info("IBETIN obsolete startup follow-up trial disabled; reminder worker remains active")
 
 
 def _startup_self_test() -> None:

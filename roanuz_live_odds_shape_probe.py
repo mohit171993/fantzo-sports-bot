@@ -39,23 +39,6 @@ def exact_live(text):
     vals = {x.strip().casefold() for x in str(text or "").replace("|", "\n").splitlines() if x.strip()}
     return bool(vals & {"live","inplay","in play","in_progress","in progress","ongoing","started","playing","play","innings break","drinks","lunch","tea","stumps"})
 
-
-def safe_shape(obj, depth=0):
-    if depth > 4:
-        return "..."
-    if isinstance(obj, dict):
-        out = {}
-        for k, v in list(obj.items())[:40]:
-            if str(k).casefold() in {"token", "rs-token", "api_key", "apikey"}:
-                continue
-            out[k] = safe_shape(v, depth+1)
-        return out
-    if isinstance(obj, list):
-        return [safe_shape(v, depth+1) for v in obj[:3]]
-    if isinstance(obj, (str, int, float, bool)) or obj is None:
-        return obj
-    return str(type(obj).__name__)
-
 with httpx.Client(timeout=25.0, follow_redirects=True, headers={"Accept":"application/json"}) as client:
     ar = client.post(f"{BASE}/core/{PROJECT}/auth/", json={"api_key": API_KEY})
     auth = ar.json(); data = auth.get("data") if isinstance(auth, dict) else None
@@ -76,5 +59,9 @@ with httpx.Client(timeout=25.0, follow_redirects=True, headers={"Accept":"applic
     print("MATCH", key, status_of(picked), picked.get("name") or picked.get("title") or "")
     rr = client.get(f"{BASE}/cricket/{PROJECT}/match/{key}/live-match-odds/", headers=headers)
     print("HTTP", rr.status_code)
-    body = rr.json()
-    print("ODDS_SHAPE", json.dumps(safe_shape(body), ensure_ascii=True)[:12000])
+    body = rr.json(); data = unwrap(body)
+    match = data.get("match") if isinstance(data, dict) else {}
+    teams = match.get("teams") if isinstance(match, dict) else {}
+    print("TEAMS", json.dumps(teams, ensure_ascii=True))
+    for field in ("bet_odds", "bet_odds_with_draw", "result_prediction", "result_prediction_with_draw"):
+        print(field.upper(), json.dumps(match.get(field), ensure_ascii=True))

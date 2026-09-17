@@ -20,8 +20,8 @@ def _v18_admin_url() -> str:
     return f"{root}{liveline.LIVELINE_PATH}?{urlencode({'t': liveline._token(), 'v': '20260917-v18-roanuz-bhav'})}"
 
 
-# Roanuz currently grants this project live-match odds only. Use exact status
-# matching so values such as "not_started" are never mistaken for "started".
+# Exact live-status matching so values such as "not_started" are never mistaken
+# for "started".
 _LIVE_STATUS = {
     "live", "inplay", "in play", "in_progress", "in progress",
     "ongoing", "started", "playing", "play", "innings break",
@@ -79,8 +79,49 @@ def _find_live_roanuz_key(match, candidates=None) -> str:
     return ""
 
 
+def _roanuz_session_entries(match_key: str):
+    """Normalize Roanuz V5 session-odds into the existing BHAV entry shape."""
+    try:
+        payload = admin._roanuz_get(f"match/{match_key}/session-odds/", ttl=15)
+    except Exception as exc:
+        logger.warning("IBETIN V18 Roanuz session odds unavailable key=%s: %s", match_key, str(exc)[:160])
+        return []
+
+    data = payload.get("data") if isinstance(payload, dict) and isinstance(payload.get("data"), dict) else payload
+    match = data.get("match") if isinstance(data, dict) and isinstance(data.get("match"), dict) else {}
+    predictions = match.get("session_predictions") if isinstance(match.get("session_predictions"), list) else []
+    innings = match.get("innings")
+    current_state = match.get("current_state") if isinstance(match.get("current_state"), dict) else {}
+
+    entries = []
+    for row in predictions:
+        if not isinstance(row, dict) or row.get("completed") is True:
+            continue
+        score = row.get("score") if isinstance(row.get("score"), dict) else {}
+        low = score.get("min")
+        high = score.get("max")
+        if low in (None, "") or high in (None, ""):
+            continue
+        over = row.get("over")
+        name = str(row.get("name") or (f"{over} OVER SESSION" if over not in (None, "") else "SESSION MARKET")).strip()
+        entries.append({
+            "bookmaker": "Roanuz Session",
+            "bookmakerId": "roanuz-session",
+            "type": "session",
+            "market": name,
+            "over": over,
+            "innings": innings,
+            "currentState": current_state,
+            "values": [
+                {"label": "MIN", "odd": low},
+                {"label": "MAX", "odd": high},
+            ],
+        })
+    return entries[:6]
+
+
 def _roanuz_live_entries(match_key: str):
-    """Normalize Roanuz V5 live-match-odds into the existing V12 BHAV UI shape."""
+    """Normalize Roanuz V5 live match odds + session odds into BHAV UI shape."""
     payload = admin._roanuz_get(f"match/{match_key}/live-match-odds/", ttl=20)
     data = payload.get("data") if isinstance(payload, dict) and isinstance(payload.get("data"), dict) else payload
     match = data.get("match") if isinstance(data, dict) and isinstance(data.get("match"), dict) else {}
@@ -107,17 +148,20 @@ def _roanuz_live_entries(match_key: str):
         if label:
             values.append({"label": label, "odd": odd})
 
-    # Existing BHAV card layout is two-sided. Keep only the two team outcomes;
-    # do not synthesize session/fancy markets or a third outcome.
-    if len(values) < 2:
-        return []
-    return [{
-        "bookmaker": "Roanuz Live",
-        "bookmakerId": "roanuz-live",
-        "type": "live",
-        "market": "Match Winner",
-        "values": values[:2],
-    }]
+    entries = []
+    if len(values) >= 2:
+        entries.append({
+            "bookmaker": "Roanuz Live",
+            "bookmakerId": "roanuz-live",
+            "type": "live",
+            "market": "Match Winner",
+            "values": values[:2],
+        })
+
+    # Session/fancy markets are a separate Roanuz endpoint. Keep them additive so
+    # failure of the session feed never breaks the working match-winner market.
+    entries.extend(_roanuz_session_entries(match_key))
+    return entries
 
 
 def _highlightly_match_stub(match_id: str):
@@ -242,7 +286,7 @@ def _v18_api(handler):
         if requested == "live":
             try:
                 liveline._send_json(handler, 200, _roanuz_primary_snapshot())
-            except Exception as exc:
+            except Exception:
                 logger.exception("IBETIN V18 Roanuz snapshot failed; serving Highlightly fallback")
                 liveline._send_json(handler, 200, v14._snapshot_payload("live"))
             return
@@ -254,7 +298,7 @@ def _v18_api(handler):
         if requested == "live" and match_id.isdigit():
             try:
                 primary = _roanuz_primary_for_match(match_id)
-            except Exception as exc:
+            except Exception:
                 logger.exception("IBETIN V18 Roanuz BHAV primary failed")
                 primary = None
             if primary:
@@ -299,7 +343,7 @@ liveline.admin_url = _v18_admin_url
 liveline._page = _v18_page
 app = v17fix.app
 
-logger.info("IBETIN V18 installed: Roanuz primary live BHAV + Highlightly fallback + exact live status matching")
+logger.info("IBETIN V18 installed: Roanuz live BHAV + real session odds + Highlightly fallback")
 
 if __name__ == "__main__":
     app.base.ibetin_start.main()

@@ -39,6 +39,11 @@ def exact_live(text):
     vals = {x.strip().casefold() for x in str(text or "").replace("|", "\n").splitlines() if x.strip()}
     return bool(vals & {"live","inplay","in play","in_progress","in progress","ongoing","started","playing","play","innings break","drinks","lunch","tea","stumps"})
 
+
+def compact(obj, limit=12000):
+    text = json.dumps(obj, ensure_ascii=True, default=str, separators=(",", ":"))
+    return text[:limit]
+
 with httpx.Client(timeout=25.0, follow_redirects=True, headers={"Accept":"application/json"}) as client:
     ar = client.post(f"{BASE}/core/{PROJECT}/auth/", json={"api_key": API_KEY})
     auth = ar.json(); data = auth.get("data") if isinstance(auth, dict) else None
@@ -57,11 +62,28 @@ with httpx.Client(timeout=25.0, follow_redirects=True, headers={"Accept":"applic
         print("NO_LIVE_MATCH"); raise SystemExit(0)
     key = str(picked.get("key") or picked.get("match_key") or picked.get("matchKey"))
     print("MATCH", key, status_of(picked), picked.get("name") or picked.get("title") or "")
+    print("FEATURED_PICK", compact(picked, 6000))
+
+    mr = client.get(f"{BASE}/cricket/{PROJECT}/match/{key}/", headers=headers)
+    print("MATCH_DETAIL_HTTP", mr.status_code)
+    mp = unwrap(mr.json())
+    print("MATCH_DETAIL_TYPE", type(mp).__name__)
+    if isinstance(mp, dict):
+        print("MATCH_DETAIL_KEYS", sorted(mp.keys()))
+        mm = mp.get("match") if isinstance(mp.get("match"), dict) else mp
+        print("MATCH_NODE_KEYS", sorted(mm.keys()) if isinstance(mm, dict) else [])
+        for field in ("teams","innings","scorecard","score_card","current_innings","play","play_status","status","state","recent_overs","recent_balls","last_ball","now","result"):
+            if isinstance(mm, dict) and field in mm:
+                print("FIELD", field, compact(mm.get(field), 8000))
+        print("MATCH_NODE", compact(mm, 16000))
+    else:
+        print("MATCH_DETAIL", compact(mp, 16000))
+
     rr = client.get(f"{BASE}/cricket/{PROJECT}/match/{key}/live-match-odds/", headers=headers)
-    print("HTTP", rr.status_code)
+    print("ODDS_HTTP", rr.status_code)
     body = rr.json(); data = unwrap(body)
     match = data.get("match") if isinstance(data, dict) else {}
     teams = match.get("teams") if isinstance(match, dict) else {}
-    print("TEAMS", json.dumps(teams, ensure_ascii=True))
+    print("TEAMS", compact(teams, 5000))
     for field in ("bet_odds", "bet_odds_with_draw", "result_prediction", "result_prediction_with_draw"):
-        print(field.upper(), json.dumps(match.get(field), ensure_ascii=True))
+        print(field.upper(), compact(match.get(field), 5000))

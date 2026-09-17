@@ -20,8 +20,6 @@ def _v18_admin_url() -> str:
     return f"{root}{liveline.LIVELINE_PATH}?{urlencode({'t': liveline._token(), 'v': '20260917-v18-roanuz-bhav'})}"
 
 
-# Exact live-status matching so values such as "not_started" are never mistaken
-# for "started".
 _LIVE_STATUS = {
     "live", "inplay", "in play", "in_progress", "in progress",
     "ongoing", "started", "playing", "play", "innings break",
@@ -158,14 +156,11 @@ def _roanuz_live_entries(match_key: str):
             "values": values[:2],
         })
 
-    # Session/fancy markets are a separate Roanuz endpoint. Keep them additive so
-    # failure of the session feed never breaks the working match-winner market.
     entries.extend(_roanuz_session_entries(match_key))
     return entries
 
 
 def _highlightly_match_stub(match_id: str):
-    """Get only team identity for mapping; avoids triggering detailed Roanuz commentary calls."""
     raw = liveline._highlightly(f"/cricket/matches/{match_id}", ttl=45)
     item = raw[0] if isinstance(raw, list) and raw else (raw if isinstance(raw, dict) else {})
     if not isinstance(item, dict):
@@ -200,18 +195,32 @@ def _roanuz_primary_for_match(match_id: str):
         "oddsType": "live",
         "requestedType": "live",
         "market": "Match Winner",
-        "source": "Roanuz Live Odds · primary",
+        "source": "Roanuz Live Odds + Session · primary",
+        "entries": entries,
+    }
+
+
+def _roanuz_direct_for_key(match_key: str):
+    try:
+        entries = _roanuz_live_entries(match_key)
+    except Exception as exc:
+        logger.warning("IBETIN V18 direct Roanuz BHAV unavailable key=%s: %s", match_key, str(exc)[:160])
+        return None
+    if not entries:
+        return None
+    return {
+        "ok": True,
+        "matchId": match_key,
+        "roanuzMatchKey": match_key,
+        "oddsType": "live",
+        "requestedType": "live",
+        "market": "Match Winner",
+        "source": "Roanuz Live Odds + Session · direct",
         "entries": entries,
     }
 
 
 def _roanuz_primary_snapshot():
-    """Roanuz-first home-card snapshot with Highlightly retained per match as fallback.
-
-    Only the first eight currently-live cards are considered because the UI decorates
-    at most that many at once. Roanuz calls are themselves protected by V14 shared
-    single-flight caching (20s floor), keeping provider usage controlled.
-    """
     cache_key = "v18:roanuz-primary-live-snapshot"
     cached = v14._shared_get(cache_key)
     if cached is not None:
@@ -223,7 +232,6 @@ def _roanuz_primary_snapshot():
         if cached is not None:
             return cached
 
-        # V17's fixed Highlightly snapshot is the safe fallback baseline.
         fallback = v14._snapshot_payload("live")
         by_match = dict(fallback.get("byMatch") or {}) if isinstance(fallback, dict) else {}
         primary_count = 0
@@ -258,7 +266,7 @@ def _roanuz_primary_snapshot():
                 "oddsType": "live",
                 "requestedType": "live",
                 "market": "Match Winner",
-                "source": "Roanuz Live Odds · primary",
+                "source": "Roanuz Live Odds + Session · primary",
                 "entries": entries,
             }
             primary_count += 1
@@ -266,7 +274,7 @@ def _roanuz_primary_snapshot():
         payload = {
             "ok": True,
             "oddsType": "live",
-            "source": "Roanuz Live Odds primary · Highlightly fallback",
+            "source": "Roanuz Live Odds + Session primary · Highlightly fallback",
             "primaryCount": primary_count,
             "byMatch": by_match,
         }
@@ -295,16 +303,19 @@ def _v18_api(handler):
     if action == "bhav":
         match_id = (query.get("matchId") or query.get("id") or [""])[0].strip()
         requested = (query.get("oddsType") or ["live"])[0].strip().lower()
-        if requested == "live" and match_id.isdigit():
+        if requested == "live" and match_id:
+            primary = None
             try:
-                primary = _roanuz_primary_for_match(match_id)
+                if match_id.startswith("a-rz--cricket--"):
+                    primary = _roanuz_direct_for_key(match_id)
+                elif match_id.isdigit():
+                    primary = _roanuz_primary_for_match(match_id)
             except Exception:
                 logger.exception("IBETIN V18 Roanuz BHAV primary failed")
                 primary = None
             if primary:
                 liveline._send_json(handler, 200, primary)
                 return
-        # Highlightly remains the fallback and continues to provide prematch data.
         return _previous_api(handler)
 
     return _previous_api(handler)
@@ -343,7 +354,7 @@ liveline.admin_url = _v18_admin_url
 liveline._page = _v18_page
 app = v17fix.app
 
-logger.info("IBETIN V18 installed: Roanuz live BHAV + real session odds + Highlightly fallback")
+logger.info("IBETIN V18 installed: direct Roanuz live BHAV + real session odds + Highlightly fallback")
 
 if __name__ == "__main__":
     app.base.ibetin_start.main()

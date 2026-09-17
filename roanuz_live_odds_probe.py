@@ -64,6 +64,12 @@ def is_live(text):
     return any(w in s for w in LIVE_WORDS)
 
 
+def match_name(node):
+    if not isinstance(node, dict):
+        return ""
+    return str(node.get("name") or node.get("title") or node.get("short_name") or node.get("shortName") or "")
+
+
 with httpx.Client(timeout=25.0, follow_redirects=True, headers={"Accept": "application/json"}) as client:
     r = client.post(f"{BASE}/core/{PROJECT}/auth/", json={"api_key": API_KEY})
     auth = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
@@ -87,7 +93,7 @@ with httpx.Client(timeout=25.0, follow_redirects=True, headers={"Accept": "appli
         if not key:
             continue
         st = status_of(c)
-        # Verify ambiguous candidates via match detail so we don't test odds on an upcoming/completed match.
+        name = match_name(c)
         if not is_live(st):
             dr = client.get(f"{BASE}/cricket/{PROJECT}/match/{key}/", headers=headers)
             if 200 <= dr.status_code < 300:
@@ -95,16 +101,17 @@ with httpx.Client(timeout=25.0, follow_redirects=True, headers={"Accept": "appli
                 data = unwrap(body)
                 if isinstance(data, dict):
                     st = status_of(data)
-        print("MATCH_STATUS", key[-10:], json.dumps(st)[:180])
+                    name = match_name(data) or name
+        print("MATCH_STATUS", key, json.dumps(st)[:180], "NAME", json.dumps(name)[:180])
         if is_live(st):
-            live.append((key, st))
+            live.append((key, st, name))
 
     print("LIVE_MATCHES", len(live))
     if not live:
         print("LIVE_ODDS_RESULT NO_CURRENT_LIVE_MATCH")
         raise SystemExit(0)
 
-    for key, st in live[:5]:
+    for key, st, name in live[:5]:
         url = f"{BASE}/cricket/{PROJECT}/match/{key}/live-match-odds/"
         rr = client.get(url, headers=headers)
         try:
@@ -113,4 +120,4 @@ with httpx.Client(timeout=25.0, follow_redirects=True, headers={"Accept": "appli
             body = {"raw": rr.text[:200]}
         data = unwrap(body)
         present = data not in (None, {}, [])
-        print("LIVE_ODDS_RESULT", key[-10:], "HTTP", rr.status_code, "DATA", present, "ERROR", err(body))
+        print("LIVE_ODDS_RESULT", key, "HTTP", rr.status_code, "DATA", present, "ERROR", err(body), "NAME", json.dumps(name)[:180])

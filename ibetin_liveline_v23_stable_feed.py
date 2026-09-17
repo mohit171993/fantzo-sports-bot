@@ -102,13 +102,13 @@ def _page() -> str:
     html = html.replace("V21 · ROANUZ", "V23 · STABLE")
     html = html.replace("20260917-v21-clean-roanuz", "20260917-v23-stable-feed")
 
-    # Home cards should not make live-odds calls. BHAV remains available inside match detail.
+    # Home list: hydrate live scores only. BHAV stays on-demand inside match detail.
     html = html.replace(
         "if(mode==='live')rows.slice(0,8).forEach(loadCardBhav)",
         "if(mode==='live')rows.slice(0,8).forEach(hydrateScore)",
     )
 
-    # Hide the empty BHAV placeholders on list cards; open a match to see actual live BHAV.
+    # Remove misleading empty BHAV placeholders from list cards.
     html = html.replace("</style></head>", ".bhav{display:none!important}</style></head>")
 
     hydrate_js = r'''
@@ -118,7 +118,7 @@ async function hydrateScore(m){
   try{
     const j=await api({action:'score',matchId:key});
     const s=j.match||{};
-    const box=document.querySelector(`.match[data-key="${CSS.escape(key)}"]`);
+    const box=Array.from(document.querySelectorAll('.match')).find(x=>x.dataset.key===key);
     if(!box)return;
     const scores=box.querySelectorAll('.sc');
     if(scores[0]&&s.homeScore) scores[0].textContent=s.homeScore;
@@ -133,7 +133,8 @@ async function hydrateScore(m){
   }catch(e){console.warn('score hydrate pending',key,e&&e.message)}
 }
 '''
-    html = html.replace("document.querySelectorAll('.tab').forEach", hydrate_js + "document.querySelectorAll('.tab').forEach")
+    marker = "document.querySelectorAll('.tab').forEach(b=>b.onclick"
+    html = html.replace(marker, hydrate_js + marker, 1)
     html = html.replace("Refreshing '+mode+' cricket…", "Loading '+mode+' cricket…")
     return html
 
@@ -143,6 +144,37 @@ liveline._page = _page
 liveline._api = _api
 app = v21.app
 
+
+def _startup_self_test() -> None:
+    try:
+        page = _page()
+        page_ok = (
+            "/admin/liveline-ibetinv23/api" in page
+            and "hydrateScore" in page
+            and "forEach(loadCardBhav)" not in page
+        )
+        rows, source = _fast_matches("live")
+        if not rows:
+            logger.warning("IBETIN V23 self-test: page_ok=%s live feed empty source=%s", page_ok, source)
+            return
+        first = rows[0]
+        key = str(first.get("roanuzMatchKey") or first.get("id") or "")
+        score = _score_summary(key)
+        logger.info(
+            "IBETIN V23 self-test PASS page_ok=%s source=%s matches=%s key=%s score=%s/%s state=%s",
+            page_ok,
+            source,
+            len(rows),
+            key,
+            score.get("homeScore") or "-",
+            score.get("awayScore") or "-",
+            score.get("state") or "-",
+        )
+    except Exception as exc:
+        logger.exception("IBETIN V23 self-test FAILED: %s", exc)
+
+
+_startup_self_test()
 logger.info("IBETIN V23 installed: fast fixtures + background live score hydration + on-demand BHAV")
 
 if __name__ == "__main__":

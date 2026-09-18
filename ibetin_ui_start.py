@@ -43,7 +43,7 @@ ibetin_start.hub._page = _hub_page_without_home_shell
 logger.info("IBETIN JOIN/home passthrough installed: home opens real IBETIN app")
 
 # The production reminder now intentionally has two CTA types:
-# - JOIN IBETIN = Telegram Mini App
+# - OPEN LIVE LINE / JOIN IBETIN = Telegram Mini App launchers
 # - JOIN CHANNEL = normal Telegram channel URL
 # Keep every existing navigation check, but allow only the three legacy
 # self-test complaints caused by this intentional new channel button.
@@ -61,7 +61,7 @@ def _navigation_self_test_with_channel_cta():
             raise
         actual = set(message[len(prefix):].split(" | "))
         allowed = {
-            "business-reminder: expected 1 launcher, got 2",
+            "business-reminder: expected 1 launcher, got 3",
             "direct-reminder/📢 JOIN CHANNEL: not a web_app button",
             "direct-reminder/📢 JOIN CHANNEL: unexpected url button",
         }

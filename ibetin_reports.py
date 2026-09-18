@@ -188,8 +188,6 @@ def _overview_text() -> str:
         active_7d = _count(conn, "SELECT COUNT(*) FROM users WHERE last_seen >= ?", (cutoff_7d,)) if _table_exists(conn, "users") else 0
         subscribers = _count(conn, "SELECT COUNT(*) FROM users WHERE subscribed=1") if _table_exists(conn, "users") else 0
         verified_mobile = _count(conn, "SELECT COUNT(*) FROM liveline_verified_users") if _table_exists(conn, "liveline_verified_users") else 0
-        live_tv_users = _count(conn, "SELECT COUNT(*) FROM live_tv_users")
-        live_tv_opens = _count(conn, "SELECT COALESCE(SUM(open_count),0) FROM live_tv_users")
         dm_users = _count(conn, "SELECT COUNT(DISTINCT customer_id) FROM business_customers") if _table_exists(conn, "business_customers") else 0
         reminder_users = _count(conn, "SELECT COUNT(*) FROM reminder_users") if _table_exists(conn, "reminder_users") else 0
         opted_out = _count(conn, "SELECT COUNT(*) FROM reminder_users WHERE opted_out=1") if _table_exists(conn, "reminder_users") else 0
@@ -206,8 +204,6 @@ def _overview_text() -> str:
         f"📅 Active 7d: <b>{active_7d}</b>\n"
         f"🔔 Subscribers: <b>{subscribers}</b>\n\n"
         f"📱 Verified mobiles / Live Line users: <b>{verified_mobile}</b>\n"
-        f"📺 Live TV users tracked: <b>{live_tv_users}</b>\n"
-        f"▶️ Live TV opens: <b>{live_tv_opens}</b>\n"
         f"💬 Business DM users: <b>{dm_users}</b>\n\n"
         f"⏰ Reminder users: <b>{reminder_users}</b>\n"
         f"🔕 Reminder opt-outs: <b>{opted_out}</b>\n"
@@ -226,10 +222,7 @@ def report_menu() -> InlineKeyboardMarkup:
                 InlineKeyboardButton("👥 BOT USERS", callback_data="reports:users"),
                 InlineKeyboardButton("🏏 LIVE LINE + MOBILE", callback_data="reports:liveline"),
             ],
-            [
-                InlineKeyboardButton("📺 LIVE TV + MOBILE", callback_data="reports:livetv"),
-                InlineKeyboardButton("💬 DM USERS", callback_data="reports:business"),
-            ],
+            [InlineKeyboardButton("💬 DM USERS", callback_data="reports:business")],
             [
                 InlineKeyboardButton("⏰ REMINDERS", callback_data="reports:reminders"),
                 InlineKeyboardButton("🖱 ACTIVITY", callback_data="reports:activity"),
@@ -467,7 +460,6 @@ def _report_campaigns():
 REPORT_BUILDERS = {
     "users": ("IBETIN_Bot_Users.csv", _report_users),
     "liveline": ("IBETIN_Live_Line_Users_With_Mobile.csv", _report_liveline),
-    "livetv": ("IBETIN_Live_TV_Users_With_Mobile.csv", _report_livetv),
     "business": ("IBETIN_Business_DM_Users.csv", _report_business),
     "reminders": ("IBETIN_Reminder_Users.csv", _report_reminders),
     "activity": ("IBETIN_Activity_Report.csv", _report_activity),

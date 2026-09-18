@@ -152,7 +152,43 @@ def _match_payload(key: str):
     return payload, node
 
 
+def _fallback_detail_v23(key: str):
+    """Normalize the pre-Roanuz provider detail into the stable V23 contract."""
+    result = v20._OLD_MATCH_DETAIL(str(key))
+    if isinstance(result, tuple) and result:
+        result = result[0]
+    if not isinstance(result, dict):
+        raise RuntimeError("Fallback match detail unavailable")
+    detail = dict(result)
+    match = detail.get("match")
+    if not isinstance(match, dict):
+        match = {"id": str(key)}
+        detail["match"] = match
+    else:
+        match = dict(match)
+        match.setdefault("id", str(key))
+        # Do not label a numeric fallback id as a Roanuz key.
+        if str(match.get("roanuzMatchKey") or "").isdigit():
+            match.pop("roanuzMatchKey", None)
+        detail["match"] = match
+    for name in ("statistics", "squad", "bestBatsmen", "bestBowlers", "timeline"):
+        if not isinstance(detail.get(name), list):
+            detail[name] = []
+    if not isinstance(detail.get("venue"), dict):
+        detail["venue"] = {}
+    if not isinstance(detail.get("inplayData"), dict):
+        detail["inplayData"] = {}
+    detail.setdefault("forecast", {})
+    detail["fallback"] = {"provider": "Highlightly", "matchId": str(key)}
+    return detail
+
+
 def _score_summary(key: str):
+    key = str(key or "").strip()
+    if key.isdigit():
+        detail = _fallback_detail_v23(key)
+        match = detail.get("match") if isinstance(detail, dict) else None
+        return match if isinstance(match, dict) else {"id": key}
     _payload, node = _match_payload(key)
     normalized = v20._normalize_roanuz_match(node)
     if not normalized.get("id"):
@@ -238,6 +274,9 @@ def _embedded_timeline(node):
 
 
 def _match_detail_v23(key: str):
+    key = str(key or "").strip()
+    if key.isdigit():
+        return _fallback_detail_v23(key)
     _payload, node = _match_payload(key)
     normalized = v20._normalize_roanuz_match(node)
     if not normalized.get("id"):
@@ -504,7 +543,7 @@ def _startup_self_test() -> None:
 
 _startup_self_test()
 logger.info(
-    "IBETIN V23 installed: stable Roanuz feed + embedded scorecard/balls + deduped hydration + mobile UI polish"
+    "IBETIN V23 installed: stable Roanuz feed + embedded scorecard/balls + numeric fallback detail + deduped hydration + mobile UI polish"
 )
 
 if __name__ == "__main__":

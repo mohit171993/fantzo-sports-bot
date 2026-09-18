@@ -467,8 +467,114 @@ async def _startup_creative_status_and_test(application) -> None:
             "IBETIN creative pools ready channel=%s dm=%s reminder=%s",
             c["channel"], c["dm"], c["reminder"],
         )
+
+        creative = _latest_test_creative()
+        if not creative:
+            logger.info("IBETIN startup creative test skipped: no uploaded creative")
+            return
+
+        business_target = _find_business_target_username("mohit_97saxena")
+        bot_target = _find_target_username("mohit_97saxena")
+
+        if not business_target and not bot_target:
+            logger.info(
+                "IBETIN startup creative test target not found username=mohit_97saxena"
+            )
+            return
+
+        with core.db() as conn:
+            existing = conn.execute(
+                "SELECT status FROM creative_test_sends WHERE campaign_key = ?",
+                (TEST_CAMPAIGN_KEY,),
+            ).fetchone()
+        if existing and str(existing["status"]) == "sent":
+            logger.info(
+                "IBETIN startup creative test already sent campaign=%s",
+                TEST_CAMPAIGN_KEY,
+            )
+            return
+
+        sent_routes = []
+        failures = []
+
+        if business_target:
+            try:
+                ok = await _send_test_to_business_target(
+                    application.bot, business_target, creative
+                )
+                if ok:
+                    sent_routes.append("business_dm")
+                    logger.info(
+                        "IBETIN creative test BUSINESS DM sent username=%s user_id=%s",
+                        str(business_target["username"] or "mohit_97saxena"),
+                        int(business_target["user_id"]),
+                    )
+            except Exception as exc:
+                failures.append("business_dm:" + str(exc)[:140])
+                logger.warning(
+                    "IBETIN creative test BUSINESS DM failed username=mohit_97saxena error=%s",
+                    str(exc)[:180],
+                )
+
+        if bot_target:
+            try:
+                ok = await _send_test_to_bot_target(
+                    application.bot, bot_target, creative
+                )
+                if ok:
+                    sent_routes.append("bot_dm")
+                    logger.info(
+                        "IBETIN creative test BOT DM sent username=%s user_id=%s",
+                        str(bot_target["username"] or "mohit_97saxena"),
+                        int(bot_target["user_id"]),
+                    )
+            except Exception as exc:
+                failures.append("bot_dm:" + str(exc)[:140])
+                logger.warning(
+                    "IBETIN creative test BOT DM failed username=mohit_97saxena error=%s",
+                    str(exc)[:180],
+                )
+
+        status = "sent" if sent_routes else "failed"
+        target_id = (
+            int(business_target["user_id"])
+            if business_target
+            else int(bot_target["user_id"]) if bot_target else None
+        )
+        with core.db() as conn:
+            conn.execute(
+                """
+                INSERT INTO creative_test_sends(
+                    campaign_key, target_username, target_user_id,
+                    creative_id, sent_at, status
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(campaign_key) DO UPDATE SET
+                    target_user_id = excluded.target_user_id,
+                    creative_id = excluded.creative_id,
+                    sent_at = excluded.sent_at,
+                    status = excluded.status
+                """,
+                (
+                    TEST_CAMPAIGN_KEY,
+                    "mohit_97saxena",
+                    target_id,
+                    int(creative["id"]),
+                    core.now_iso(),
+                    status,
+                ),
+            )
+
+        logger.info(
+            "IBETIN startup creative test complete routes=%s failures=%s creative_id=%s",
+            ",".join(sent_routes) or "none",
+            " | ".join(failures) or "none",
+            int(creative["id"]),
+        )
     except Exception as exc:
-        logger.warning("IBETIN creative startup verification failed: %s", str(exc)[:180])
+        logger.warning(
+            "IBETIN creative startup verification/test failed: %s",
+            str(exc)[:180],
+        )
 
 
 def install(application) -> None:

@@ -240,10 +240,21 @@ def run_navigation_self_test() -> None:
     errors: list[str] = []
 
     main_markup = ibetin_entry.runtime.premium_main_keyboard()
-    main_count = _expect_webapps("main-bot", main_markup, errors)
-    main_texts = [button.text for button in _buttons(main_markup)]
+    main_buttons = _buttons(main_markup)
+    main_count = len(main_buttons)
+    main_texts = [button.text for button in main_buttons]
     if not any("WATCH IBETIN LIVE LINE" in (text or "") for text in main_texts):
         errors.append("main bot missing WATCH IBETIN LIVE LINE")
+    if not any("JOIN CHANNEL" in (text or "") for text in main_texts):
+        errors.append("main bot missing JOIN CHANNEL")
+    for button in main_buttons:
+        if "JOIN CHANNEL" in (button.text or "").upper():
+            if not button.url or "t.me/ibetinoffcial" not in button.url:
+                errors.append("main-bot/JOIN CHANNEL: wrong Telegram channel URL")
+            if button.web_app is not None:
+                errors.append("main-bot/JOIN CHANNEL: must be normal Telegram URL")
+        elif button.web_app is None:
+            errors.append(f"main-bot/{button.text}: expected web_app button")
     direct_auto_markup = ibetin_entry.runtime.app.fantzo_autoreply.standard_keyboard()
     direct_auto_buttons = _buttons(direct_auto_markup)
     direct_auto_count = len(direct_auto_buttons)

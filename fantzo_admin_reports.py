@@ -108,7 +108,7 @@ def _report_menu() -> InlineKeyboardMarkup:
                 _styled_button("🔔 REMINDERS", "rpt:reminders", "primary"),
                 _styled_button("⭐ FAVOURITES", "rpt:favourites", "primary"),
             ],
-            [_styled_button("📱 MOBILE NUMBERS", "rpt:mobile", "success")],
+            [_styled_button("📱 VERIFIED NUMBERS", "rpt:mobile", "success")],
             [
                 _styled_button("📅 DAILY", "rpt:daily", "primary"),
                 _styled_button("🖼 BANNERS", "rpt:banners", "primary"),
@@ -136,7 +136,7 @@ def _downloads_menu() -> InlineKeyboardMarkup:
             ],
             [
                 InlineKeyboardButton("📺 Live TV CSV", callback_data="rptdl:livetv"),
-                InlineKeyboardButton("📱 Mobile CSV", callback_data="rptdl:mobile"),
+                InlineKeyboardButton("📱 Verified Numbers CSV", callback_data="rptdl:mobile"),
             ],
             [InlineKeyboardButton("🌐 Fantzo Opens CSV", callback_data="rptdl:web")],
             [
@@ -184,7 +184,7 @@ def _overview_text() -> str:
         f"🔔 Alert subscribers: <b>{_fmt_int(subscribers)}</b>\n\n"
         f"🎯 Bot actions: <b>{_fmt_int(clicks)}</b> total · <b>{_fmt_int(clicks_24)}</b> in 24h\n"
         f"📺 Live TV opens: <b>{_fmt_int(live_tv)}</b> from <b>{_fmt_int(live_tv_users)}</b> users\n"
-        f"📱 Live TV mobile numbers: <b>{_fmt_int(mobile_users)}</b>\n"
+        f"📱 Telegram-verified numbers: <b>{_fmt_int(mobile_users)}</b>\n"
         f"🌐 Fantzo web opens: <b>{_fmt_int(web_opens)}</b>\n"
         f"💬 Business DM events: <b>{_fmt_int(business)}</b>\n"
         f"📨 Reminders sent: <b>{_fmt_int(reminder_sent)}</b>\n"
@@ -286,7 +286,7 @@ def _mobile_text() -> str:
     day, week, _ = _cutoffs()
     with core.db() as conn:
         if not _table_exists(conn, "live_tv_mobile_users"):
-            return "📱 <b>MOBILE VERIFICATION REPORT</b>\n\nNo mobile verification data is available yet."
+            return "📱 <b>TELEGRAM VERIFIED NUMBERS</b>\n\nNo mobile verification data is available yet."
 
         verified = _scalar(
             conn,
@@ -341,7 +341,7 @@ def _mobile_text() -> str:
     ) or "• No verified mobile numbers yet"
 
     return (
-        "📱 <b>MOBILE VERIFICATION REPORT</b>\n"
+        "📱 <b>TELEGRAM VERIFIED NUMBERS</b>\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
         f"Telegram-verified users: <b>{_fmt_int(verified)}</b>\n"
         f"Unique verified numbers: <b>{_fmt_int(unique_numbers)}</b>\n"
@@ -350,7 +350,7 @@ def _mobile_text() -> str:
         f"<b>Verification sources</b>\n{source_text}\n\n"
         f"<b>Latest verified users · masked</b>\n{latest_text}\n\n"
         "<i>Only Telegram self-contact shares count as verified. "
-        "Full numbers remain admin-only in the CSV export.</i>"
+        "Full verified numbers and country codes remain admin-only in the CSV export.</i>"
     )
 def _web_text() -> str:
     day, week, _ = _cutoffs()
@@ -588,7 +588,7 @@ def _report_csv(key: str) -> tuple[str, bytes]:
             "WHERE c.action='live_tv_status' ORDER BY c.created_at DESC"
         )
     if key == "mobile":
-        return f"fantzo_live_tv_mobile_numbers_{stamp}.csv", _query_csv(
+        return f"fantzo_verified_mobile_numbers_{stamp}.csv", _query_csv(
             "SELECT m.user_id,u.username,u.first_name,m.mobile_e164,m.mobile_national,"
             "CASE WHEN m.capture_method='telegram_contact' THEN 1 ELSE 0 END AS telegram_verified,"
             "m.capture_method,m.source,m.created_at,m.updated_at,m.last_live_tv_at "
@@ -640,7 +640,7 @@ def _all_reports_zip() -> tuple[str, bytes]:
         f"Generated: {datetime.now(timezone.utc).isoformat()}\n\n"
         "Definitions:\n"
         "- Live TV canonical opens: clicks.action = live_tv_status\n"
-        "- Mobile verification: only capture_method=telegram_contact is verified\n"
+        "- Mobile verification: Telegram self-contact only; all countries accepted\n"
         "- Full mobile numbers are admin-only in live_tv_mobile_users/CSV exports\n"
         "- Fantzo web opens: web_events.event = fantzo_open\n"
         "- Business DM activity: clicks.action starts with business_dm:\n"

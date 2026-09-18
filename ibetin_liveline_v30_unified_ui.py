@@ -72,7 +72,7 @@ function findMatchMarket(j){const es=entries(j);return es.find(e=>/match|winner|
 function sessionMarkets(j,main){return entries(j).filter(e=>e!==main&&values(e).length>=2&&/over|session|runs|line|total|fancy|innings/i.test(String(e?.market||''))).slice(0,3)}
 function homeOddsHtml(m){if(mode!=='live')return'';const c=bhavCache.get(matchKey(m));if(!c?.data)return'';const market=findMatchMarket(c.data);if(!market)return'';const vs=values(market).slice(0,2);return `<div class="oddsRow"><span class="oddsTitle">MATCH ODDS</span>${vs.map(x=>`<div class="oddBox"><span class="oddLabel">${esc(x.label||'Selection')}</span><span class="oddValue">${esc(x.odd)}</span></div>`).join('')}</div>`}
 function card(m){const live=mode==='live',label=live?'● LIVE':mode==='upcoming'?(fmtTime(m.startTime)||'UPCOMING'):(prettyState(m.state)||'FINAL');return `<article class="match ${live?'live':''}" data-key="${esc(matchKey(m))}"><div class="mh"><div class="fmt">${esc(m.format||'CRICKET')} · ${esc(league(m))}</div><span class="badge ${live?'live':''}">${esc(label)}</span></div>${teamRow(m.home,m.homeScore,m.homeInfo)}${teamRow(m.away,m.awayScore,m.awayInfo)}${homeOddsHtml(m)}<div class="foot"><span>${esc(m.report||prettyState(m.state)||fmtTime(m.startTime)||'Tap for details')}</span><b>›</b></div></article>`}
-function render(){const q=(document.getElementById('search').value||'').trim().toLowerCase(),rows=allMatches.filter(m=>!q||[m.home?.name,m.away?.name,league(m),m.format].join(' ').toLowerCase().includes(q)),list=document.getElementById('list');if(!rows.length){list.innerHTML='<div class="empty">No matching cricket matches found.</div>';return}let last='';list.innerHTML=rows.map(m=>{const l=league(m),h=l!==last?`<div class="league">${esc(l)}</div>`:'';last=l;return h+card(m)}).join('');list.querySelectorAll('.match').forEach(el=>el.onclick=()=>openMatch(el.dataset.key));if(mode==='live')setTimeout(()=>rows.slice(0,6).forEach(m=>getBhav(matchKey(m))),120)}
+function render(){const q=(document.getElementById('search').value||'').trim().toLowerCase(),rows=allMatches.filter(m=>!q||[m.home?.name,m.away?.name,league(m),m.format].join(' ').toLowerCase().includes(q)),list=document.getElementById('list');if(!rows.length){list.innerHTML='<div class="empty">'+(mode==='live'&&!q?'No live matches right now.':mode==='upcoming'&&!q?'No upcoming matches right now.':mode==='results'&&!q?'No recent results found.':'No matching cricket matches found.')+'</div>';return}let last='';list.innerHTML=rows.map(m=>{const l=league(m),h=l!==last?`<div class="league">${esc(l)}</div>`:'';last=l;return h+card(m)}).join('');list.querySelectorAll('.match').forEach(el=>el.onclick=()=>openMatch(el.dataset.key));if(mode==='live')setTimeout(()=>rows.slice(0,6).forEach(m=>getBhav(matchKey(m))),120)}
 function mergeScore(base,fresh){if(!base||!fresh)return base;return {...base,home:fresh.home||base.home,away:fresh.away||base.away,homeScore:fresh.homeScore||base.homeScore,homeInfo:fresh.homeInfo||base.homeInfo,awayScore:fresh.awayScore||base.awayScore,awayInfo:fresh.awayInfo||base.awayInfo,report:fresh.report||base.report,state:fresh.state||base.state}}
 async function hydrateScore(m){const key=matchKey(m);if(!key)return;try{const j=await api({action:'score',key});const i=allMatches.findIndex(x=>matchKey(x)===key);if(i>=0){allMatches[i]=mergeScore(allMatches[i],j.match||{});render()}}catch(e){}}
 async function getBhav(key,force=false){if(!key)return null;const c=bhavCache.get(key);if(!force&&c&&Date.now()-c.ts<BHAV_TTL)return c.data;if(bhavBusy.has(key))return c?.data||null;bhavBusy.add(key);try{const j=await api({action:'bhav',matchId:key},false);bhavCache.set(key,{ts:Date.now(),data:j});if(mode==='live'&&document.getElementById('home').style.display!=='none')render();return j}catch(e){bhavCache.set(key,{ts:Date.now(),data:null});return null}finally{bhavBusy.delete(key)}}
@@ -781,7 +781,9 @@ IBETIN_V40_VISUAL_POLISH_PATH = "/admin/ibetin-v40-visual-polish"
 
 IBETIN_V40_VISUAL_POLISH_CSS = r"""
 /* V40 VISUAL REFINEMENT PREVIEW */
+/* V40 single-live-control refinement */
 body:before{content:"V40 POLISH"!important;background:#0f82e9!important;font-size:6px!important;padding:4px 7px!important;opacity:.92}
+.liveDot{display:none!important}
 
 /* Cleaner brand hierarchy */
 .top{padding:12px 15px 10px!important;box-shadow:0 8px 24px rgba(0,0,0,.22)!important}
@@ -891,6 +893,16 @@ button:active{opacity:.86}
 def _page_v40_visual_polish() -> str:
     html = _page_v39_favourites()
     html = html.replace("<title>IBETIN Live Line · My Matches V39</title>", "<title>IBETIN Live Line · Visual Polish V40</title>", 1)
+    html = html.replace(
+        '<button data-nav="live"><b style="color:#ff5b6f">●</b>LIVE</button>',
+        '<button data-nav="mymatches"><b>★</b>MY MATCHES</button>',
+        1,
+    )
+    html = html.replace(
+        "if(nav==='home'||nav==='live'){backHome();if(mode!=='live'||Date.now()-lastHomeLoad>10000){allMatches=[];load('live',true)}}else if(nav==='fixtures'){backHome();allMatches=[];load('upcoming',true)}else{backHome();setTimeout(()=>document.getElementById('search').focus(),100)}",
+        "if(nav==='home'){backHome();if(mode!=='live'||Date.now()-lastHomeLoad>10000){allMatches=[];load('live',true)}}else if(nav==='mymatches'){backHome();const mine=document.querySelector('[data-fav-view=\"mine\"]');if(mine)mine.click()}else if(nav==='fixtures'){backHome();allMatches=[];load('upcoming',true)}else{backHome();setTimeout(()=>document.getElementById('search').focus(),100)}",
+        1,
+    )
     html = html.replace("</style>", IBETIN_V40_VISUAL_POLISH_CSS + "\n</style>", 1)
     return html
 

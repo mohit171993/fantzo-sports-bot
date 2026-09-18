@@ -139,6 +139,8 @@ def _norm_live_state(value) -> str:
 
 
 def _deep_has_toss(node) -> bool:
+    if isinstance(node, list):
+        return any(_deep_has_toss(value) for value in node)
     if not isinstance(node, dict):
         return False
     for key in ("toss", "toss_winner", "tossWinner", "toss_result", "tossResult"):
@@ -152,10 +154,7 @@ def _deep_has_toss(node) -> bool:
                     return True
             else:
                 return True
-    for value in node.values():
-        if isinstance(value, dict) and _deep_has_toss(value):
-            return True
-    return False
+    return any(_deep_has_toss(value) for value in node.values() if isinstance(value, (dict, list)))
 
 
 def _match_text(match) -> str:
@@ -258,8 +257,11 @@ def _fast_matches(mode: str):
     if mode == "live":
         try:
             raw = v20._roanuz_featured_raw()
-            candidates = [v20._normalize_roanuz_match(x) for x in raw if isinstance(x, dict)]
-            live = [m for m in candidates if v21._display_ok(m) and _is_live_coverage_match(m)]
+            selected_raw = [x for x in raw if isinstance(x, dict) and _is_live_coverage_match(x)]
+            live = [
+                m for m in (v20._normalize_roanuz_match(x) for x in selected_raw)
+                if v21._display_ok(m)
+            ]
             if live:
                 logger.info(
                     "IBETIN V23 live coverage feed source=Roanuz matches=%s first=%s vs %s",

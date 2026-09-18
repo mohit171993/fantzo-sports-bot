@@ -173,7 +173,7 @@ def _overview_text() -> str:
         reminder_sent = _scalar(conn, "SELECT COUNT(*) FROM reminder_sends WHERE status='sent'") if _table_exists(conn, "reminder_sends") else 0
         favourites = _scalar(conn, "SELECT COUNT(*) FROM user_favourites WHERE alerts_enabled=1") if _table_exists(conn, "user_favourites") else 0
         queued_banners = _scalar(conn, "SELECT COUNT(*) FROM live_tv_banners WHERE status='queued'") if _table_exists(conn, "live_tv_banners") else 0
-        mobile_users = _scalar(conn, "SELECT COUNT(*) FROM live_tv_mobile_users") if _table_exists(conn, "live_tv_mobile_users") else 0
+        mobile_users = _scalar(conn, "SELECT COUNT(*) FROM live_tv_mobile_users WHERE capture_method='telegram_contact'") if _table_exists(conn, "live_tv_mobile_users") else 0
 
     return (
         "📊 <b>FANTZO REPORTS · OVERVIEW</b>\n"
@@ -256,7 +256,7 @@ def _livetv_text() -> str:
         unique_7 = _scalar(conn, "SELECT COUNT(DISTINCT user_id) FROM clicks WHERE action='live_tv_status' AND created_at>=?", (week,))
         first_last = _one(conn, "SELECT MIN(created_at) first_at, MAX(created_at) last_at FROM clicks WHERE action='live_tv_status'")
         callback_opens = _scalar(conn, "SELECT COUNT(*) FROM growth_events WHERE event='live_tv_open'") if _table_exists(conn, "growth_events") else 0
-        mobile_users = _scalar(conn, "SELECT COUNT(*) FROM live_tv_mobile_users") if _table_exists(conn, "live_tv_mobile_users") else 0
+        mobile_users = _scalar(conn, "SELECT COUNT(*) FROM live_tv_mobile_users WHERE capture_method='telegram_contact'") if _table_exists(conn, "live_tv_mobile_users") else 0
     derived_deeplinks = max(int(total) - int(callback_opens), 0)
     return (
         "📺 <b>LIVE TV REPORT</b>\n"
@@ -286,23 +286,46 @@ def _mobile_text() -> str:
     day, week, _ = _cutoffs()
     with core.db() as conn:
         if not _table_exists(conn, "live_tv_mobile_users"):
-            return "📱 <b>MOBILE NUMBERS REPORT</b>\n\nNo mobile numbers have been captured yet."
+            return "📱 <b>MOBILE VERIFICATION REPORT</b>\n\nNo mobile verification data is available yet."
 
-        total = _scalar(conn, "SELECT COUNT(*) FROM live_tv_mobile_users")
-        unique_numbers = _scalar(conn, "SELECT COUNT(DISTINCT mobile_e164) FROM live_tv_mobile_users")
-        count_24 = _scalar(conn, "SELECT COUNT(*) FROM live_tv_mobile_users WHERE created_at>=?", (day,))
-        count_7 = _scalar(conn, "SELECT COUNT(*) FROM live_tv_mobile_users WHERE created_at>=?", (week,))
-        contact_count = _scalar(conn, "SELECT COUNT(*) FROM live_tv_mobile_users WHERE capture_method='telegram_contact'")
-        manual_count = _scalar(conn, "SELECT COUNT(*) FROM live_tv_mobile_users WHERE capture_method='manual'")
+        verified = _scalar(
+            conn,
+            "SELECT COUNT(*) FROM live_tv_mobile_users WHERE capture_method='telegram_contact'"
+        )
+        unique_numbers = _scalar(
+            conn,
+            "SELECT COUNT(DISTINCT mobile_e164) FROM live_tv_mobile_users "
+            "WHERE capture_method='telegram_contact'"
+        )
+        count_24 = _scalar(
+            conn,
+            "SELECT COUNT(*) FROM live_tv_mobile_users "
+            "WHERE capture_method='telegram_contact' AND created_at>=?",
+            (day,),
+        )
+        count_7 = _scalar(
+            conn,
+            "SELECT COUNT(*) FROM live_tv_mobile_users "
+            "WHERE capture_method='telegram_contact' AND created_at>=?",
+            (week,),
+        )
+        legacy_unverified = _scalar(
+            conn,
+            "SELECT COUNT(*) FROM live_tv_mobile_users "
+            "WHERE capture_method!='telegram_contact'"
+        )
         sources = _rows(
             conn,
-            "SELECT source, COUNT(*) c FROM live_tv_mobile_users GROUP BY source ORDER BY c DESC LIMIT 6"
+            "SELECT source, COUNT(*) c FROM live_tv_mobile_users "
+            "WHERE capture_method='telegram_contact' "
+            "GROUP BY source ORDER BY c DESC LIMIT 6"
         )
         latest = _rows(
             conn,
-            "SELECT m.mobile_e164,m.source,m.capture_method,m.created_at,"
+            "SELECT m.mobile_e164,m.source,m.created_at,"
             "u.username,u.first_name FROM live_tv_mobile_users m "
             "LEFT JOIN users u ON u.user_id=m.user_id "
+            "WHERE m.capture_method='telegram_contact' "
             "ORDER BY m.created_at DESC LIMIT 6"
         )
 
@@ -315,20 +338,20 @@ def _mobile_text() -> str:
         f"{escape(str(r['username'] or r['first_name'] or 'user'))} · "
         f"{escape(str(r['source']))}"
         for r in latest
-    ) or "• No mobile numbers yet"
+    ) or "• No verified mobile numbers yet"
 
     return (
-        "📱 <b>MOBILE NUMBERS REPORT</b>\n"
+        "📱 <b>MOBILE VERIFICATION REPORT</b>\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
-        f"Registered users: <b>{_fmt_int(total)}</b>\n"
-        f"Unique mobile numbers: <b>{_fmt_int(unique_numbers)}</b>\n"
-        f"New captures: <b>{_fmt_int(count_24)}</b> (24h) · <b>{_fmt_int(count_7)}</b> (7d)\n"
-        f"Telegram contact: <b>{_fmt_int(contact_count)}</b> · Manual: <b>{_fmt_int(manual_count)}</b>\n\n"
-        f"<b>Capture sources</b>\n{source_text}\n\n"
-        f"<b>Latest registrations · masked</b>\n{latest_text}\n\n"
-        "<i>Full mobile numbers are available only in the admin CSV download.</i>"
+        f"Telegram-verified users: <b>{_fmt_int(verified)}</b>\n"
+        f"Unique verified numbers: <b>{_fmt_int(unique_numbers)}</b>\n"
+        f"New verifications: <b>{_fmt_int(count_24)}</b> (24h) · <b>{_fmt_int(count_7)}</b> (7d)\n"
+        f"Legacy/unverified records: <b>{_fmt_int(legacy_unverified)}</b>\n\n"
+        f"<b>Verification sources</b>\n{source_text}\n\n"
+        f"<b>Latest verified users · masked</b>\n{latest_text}\n\n"
+        "<i>Only Telegram self-contact shares count as verified. "
+        "Full numbers remain admin-only in the CSV export.</i>"
     )
-
 def _web_text() -> str:
     day, week, _ = _cutoffs()
     with core.db() as conn:
@@ -444,7 +467,7 @@ def _daily_rows(days: int = 30):
         business = grouped("clicks", "created_at", "action LIKE 'business_dm:%'")
         web = grouped("web_events", "created_at", "event='fantzo_open'")
         reminders = grouped("reminder_sends", "sent_at", "status='sent'")
-        mobile = grouped("live_tv_mobile_users", "created_at")
+        mobile = grouped("live_tv_mobile_users", "created_at", "capture_method='telegram_contact'")
 
         active = {}
         if _table_exists(conn, "users"):
@@ -567,6 +590,7 @@ def _report_csv(key: str) -> tuple[str, bytes]:
     if key == "mobile":
         return f"fantzo_live_tv_mobile_numbers_{stamp}.csv", _query_csv(
             "SELECT m.user_id,u.username,u.first_name,m.mobile_e164,m.mobile_national,"
+            "CASE WHEN m.capture_method='telegram_contact' THEN 1 ELSE 0 END AS telegram_verified,"
             "m.capture_method,m.source,m.created_at,m.updated_at,m.last_live_tv_at "
             "FROM live_tv_mobile_users m LEFT JOIN users u ON u.user_id=m.user_id "
             "ORDER BY m.created_at DESC"
@@ -616,7 +640,8 @@ def _all_reports_zip() -> tuple[str, bytes]:
         f"Generated: {datetime.now(timezone.utc).isoformat()}\n\n"
         "Definitions:\n"
         "- Live TV canonical opens: clicks.action = live_tv_status\n"
-        "- Mobile capture: live_tv_mobile_users (full number is admin-only)\n"
+        "- Mobile verification: only capture_method=telegram_contact is verified\n"
+        "- Full mobile numbers are admin-only in live_tv_mobile_users/CSV exports\n"
         "- Fantzo web opens: web_events.event = fantzo_open\n"
         "- Business DM activity: clicks.action starts with business_dm:\n"
         "- Web redirect events do not contain Telegram user_id.\n"

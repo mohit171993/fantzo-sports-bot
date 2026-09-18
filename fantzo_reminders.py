@@ -34,6 +34,10 @@ _IBETIN_APP_BASE_URL = (
 IBETIN_LIVE_LINE_URL = os.getenv(
     "IBETIN_LIVE_LINE_URL", f"{_IBETIN_APP_BASE_URL}/liveline"
 ).strip()
+IBETIN_LIVE_LINE_MINI_APP_URL = os.getenv(
+    "IBETIN_LIVELINE_MINI_APP_DEEP_LINK",
+    "https://t.me/Ibtnofficialbot/liveline?startapp=liveline",
+).strip()
 LIVELINE_CHANNEL_CAMPAIGN_KEY = "liveline-v40-launch-20260918"
 SPORTS_BOT_URL = os.getenv("IBETIN_SPORTS_BOT_URL", IBETIN_HOME_URL).strip()
 
@@ -209,7 +213,7 @@ def _copy_for(interest: str, stage: int, source: str):
                 [
                     TelegramInlineKeyboardButton(
                         "🏏 OPEN LIVE LINE",
-                        url=IBETIN_LIVE_LINE_URL,
+                        url=IBETIN_LIVE_LINE_MINI_APP_URL,
                     )
                 ],
                 [
@@ -379,7 +383,7 @@ async def send_liveline_channel_launch(application) -> bool:
         [[
             TelegramInlineKeyboardButton(
                 "🏏 OPEN IBETIN LIVE LINE",
-                url=IBETIN_LIVE_LINE_URL,
+                url=IBETIN_LIVE_LINE_MINI_APP_URL,
             )
         ]]
     )

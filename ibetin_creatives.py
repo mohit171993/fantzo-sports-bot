@@ -279,6 +279,29 @@ async def creativepool_command(update, context) -> None:
     )
 
 
+def _recent_business_targets(limit: int = 5):
+    ensure_tables()
+    with core.db() as conn:
+        try:
+            return conn.execute(
+                """
+                SELECT bc.customer_id AS user_id,
+                       bc.username AS username,
+                       bc.connection_id AS business_connection_id,
+                       bc.last_seen AS last_seen
+                FROM business_customers bc
+                JOIN business_connections c
+                  ON c.connection_id = bc.connection_id
+                WHERE c.enabled = 1
+                ORDER BY bc.last_seen DESC
+                LIMIT ?
+                """,
+                (int(limit),),
+            ).fetchall()
+        except Exception:
+            return []
+
+
 def _find_business_target_username(username: str):
     clean = (username or "").strip().lstrip("@")
     if not clean:
@@ -477,8 +500,17 @@ async def _startup_creative_status_and_test(application) -> None:
         bot_target = _find_target_username("mohit_97saxena")
 
         if not business_target and not bot_target:
+            recent = _recent_business_targets(5)
             logger.info(
-                "IBETIN startup creative test target not found username=mohit_97saxena"
+                "IBETIN startup creative test target not found username=mohit_97saxena recent_business=%s",
+                [
+                    {
+                        "user_id": int(r["user_id"]),
+                        "username": str(r["username"] or ""),
+                        "last_seen": str(r["last_seen"] or ""),
+                    }
+                    for r in recent
+                ],
             )
             return
 

@@ -15,7 +15,7 @@ PUBLIC_BASE_URL = (
     or "https://ibetin-app-production.up.railway.app"
 )
 LIVE_LINE_URL = os.getenv("IBETIN_LIVE_LINE_URL", f"{PUBLIC_BASE_URL}/liveline").strip()
-TEST_CAMPAIGN_KEY = "liveline-inline-photo-test-mohit-97saxena-20260918-v2"
+TEST_CAMPAIGN_KEY = "liveline-direct-v40-test-mohit-97saxena-20260918-v3"
 CREATIVE_UNLOCK_CODE = os.getenv("IBETIN_CREATIVE_UNLOCK_CODE", "").strip()
 
 

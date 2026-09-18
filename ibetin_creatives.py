@@ -279,6 +279,33 @@ async def creativepool_command(update, context) -> None:
     )
 
 
+def _find_business_target_username(username: str):
+    clean = (username or "").strip().lstrip("@")
+    if not clean:
+        return None
+    ensure_tables()
+    with core.db() as conn:
+        try:
+            return conn.execute(
+                """
+                SELECT bc.customer_id AS user_id,
+                       bc.username AS username,
+                       bc.connection_id AS business_connection_id,
+                       bc.last_seen AS last_seen
+                FROM business_customers bc
+                JOIN business_connections c
+                  ON c.connection_id = bc.connection_id
+                WHERE lower(bc.username) = lower(?)
+                  AND c.enabled = 1
+                ORDER BY bc.last_seen DESC
+                LIMIT 1
+                """,
+                (clean,),
+            ).fetchone()
+        except Exception:
+            return None
+
+
 def _find_target_username(username: str):
     clean = (username or "").strip().lstrip("@")
     if not clean:
@@ -321,31 +348,38 @@ def _latest_test_creative():
         ).fetchone()
 
 
-async def senddmtest_command(update, context) -> None:
-    message = update.effective_message
-    if not message or not _is_admin(update):
-        return
+async def _send_test_to_business_target(bot, target, creative) -> bool:
+    if not target or not target["business_connection_id"]:
+        return False
+    markup = InlineKeyboardMarkup(
+        [[InlineKeyboardButton(
+            "🏏 OPEN IBETIN LIVE LINE",
+            url="https://t.me/Ibtnofficialbot?startapp=liveline",
+        )]]
+    )
+    caption = (
+        "🏏 <b>IBETIN LIVE LINE</b>\n\n"
+        "Live cricket scores, Match Pulse, scorecards, fixtures and results — inside Telegram."
+    )
+    kwargs = {
+        "chat_id": int(target["user_id"]),
+        "business_connection_id": str(target["business_connection_id"]),
+        "caption": caption,
+        "parse_mode": "HTML",
+        "reply_markup": markup,
+    }
+    if str(creative["media_type"]) == "document":
+        kwargs["document"] = str(creative["file_id"])
+        await bot.send_document(**kwargs)
+    else:
+        kwargs["photo"] = str(creative["file_id"])
+        await bot.send_photo(**kwargs)
+    return True
 
-    username = context.args[0] if context.args else ""
-    if not username:
-        await message.reply_text("Usage: /senddmtest @username")
-        return
 
-    target = _find_target_username(username)
+async def _send_test_to_bot_target(bot, target, creative) -> bool:
     if not target:
-        await message.reply_text(
-            f"⚠️ I don't have {username} in the bot user database yet. "
-            "Ask that account to open/start @Ibtnofficialbot once, then retry."
-        )
-        return
-
-    creative = _latest_test_creative()
-    if not creative:
-        await message.reply_text(
-            "⚠️ No creative is uploaded yet. Use /bulkcreatives first."
-        )
-        return
-
+        return False
     markup = InlineKeyboardMarkup(
         [[InlineKeyboardButton(
             "🏏 OPEN IBETIN LIVE LINE",
@@ -356,117 +390,72 @@ async def senddmtest_command(update, context) -> None:
         "🏏 <b>IBETIN LIVE LINE</b>\n\n"
         "Live cricket scores, Match Pulse, scorecards, fixtures and results — inside Telegram."
     )
+    kwargs = {
+        "chat_id": int(target["user_id"]),
+        "caption": caption,
+        "parse_mode": "HTML",
+        "reply_markup": markup,
+    }
+    if str(creative["media_type"]) == "document":
+        kwargs["document"] = str(creative["file_id"])
+        await bot.send_document(**kwargs)
+    else:
+        kwargs["photo"] = str(creative["file_id"])
+        await bot.send_photo(**kwargs)
+    return True
 
-    try:
-        if str(creative["media_type"]) == "document":
-            await context.bot.send_document(
-                chat_id=int(target["user_id"]),
-                document=str(creative["file_id"]),
-                caption=caption,
-                parse_mode="HTML",
-                reply_markup=markup,
-            )
-        else:
-            await context.bot.send_photo(
-                chat_id=int(target["user_id"]),
-                photo=str(creative["file_id"]),
-                caption=caption,
-                parse_mode="HTML",
-                reply_markup=markup,
-            )
+
+async def senddmtest_command(update, context) -> None:
+    message = update.effective_message
+    if not message or not _is_admin(update):
+        return
+
+    username = context.args[0] if context.args else ""
+    if not username:
+        await message.reply_text("Usage: /senddmtest @username")
+        return
+
+    creative = _latest_test_creative()
+    if not creative:
         await message.reply_text(
-            f"✅ Live Line creative test sent to @{target['username']}."
+            "⚠️ No creative is uploaded yet. Use /bulkcreatives first."
         )
-    except (Forbidden, BadRequest) as exc:
-        await message.reply_text(f"⚠️ Telegram rejected the test: {exc}")
-    except Exception as exc:
-        logger.exception("IBETIN creative DM test failed")
-        await message.reply_text(f"⚠️ Test send failed: {str(exc)[:160]}")
+        return
 
+    business_target = _find_business_target_username(username)
+    bot_target = _find_target_username(username)
 
-async def _startup_creative_status_and_test(application) -> None:
-    # Give the bot a few seconds to finish Telegram startup before diagnostics/test send.
-    import asyncio
-    await asyncio.sleep(6)
-    try:
-        c = counts()
-        logger.info(
-            "IBETIN creative pools ready channel=%s dm=%s reminder=%s",
-            c["channel"], c["dm"], c["reminder"],
+    if not business_target and not bot_target:
+        await message.reply_text(
+            f"⚠️ I can't find {username} in either the Business-DM contacts "
+            "or the bot-user database yet. Ask the user to send one new DM to "
+            "the connected Business account or press Start on @Ibtnofficialbot."
         )
+        return
 
-        target = _find_target_username("mohit_97saxena")
-        if not target:
-            logger.info("IBETIN creative test target not found username=mohit_97saxena")
-            return
+    sent = []
+    failed = []
 
-        ensure_tables()
-        with core.db() as conn:
-            existing = conn.execute(
-                "SELECT status FROM creative_test_sends WHERE campaign_key = ?",
-                (TEST_CAMPAIGN_KEY,),
-            ).fetchone()
-        if existing and str(existing["status"]) == "sent":
-            logger.info("IBETIN creative DM test already sent campaign=%s", TEST_CAMPAIGN_KEY)
-            return
+    if business_target:
+        try:
+            if await _send_test_to_business_target(context.bot, business_target, creative):
+                sent.append("Business DM")
+        except Exception as exc:
+            failed.append(f"Business DM: {str(exc)[:110]}")
 
-        creative = _latest_test_creative()
-        if not creative:
-            logger.info("IBETIN creative DM test skipped: no uploaded creative")
-            return
+    if bot_target:
+        try:
+            if await _send_test_to_bot_target(context.bot, bot_target, creative):
+                sent.append("Bot DM")
+        except Exception as exc:
+            failed.append(f"Bot DM: {str(exc)[:110]}")
 
-        markup = InlineKeyboardMarkup(
-            [[InlineKeyboardButton(
-                "🏏 OPEN IBETIN LIVE LINE",
-                web_app=WebAppInfo(url=LIVE_LINE_URL),
-            )]]
-        )
-        caption = (
-            "🏏 <b>IBETIN LIVE LINE</b>\n\n"
-            "Live cricket scores, Match Pulse, scorecards, fixtures and results — inside Telegram."
-        )
-        kwargs = {
-            "chat_id": int(target["user_id"]),
-            "caption": caption,
-            "parse_mode": "HTML",
-            "reply_markup": markup,
-        }
-        if str(creative["media_type"]) == "document":
-            kwargs["document"] = str(creative["file_id"])
-            msg = await application.bot.send_document(**kwargs)
-        else:
-            kwargs["photo"] = str(creative["file_id"])
-            msg = await application.bot.send_photo(**kwargs)
-
-        with core.db() as conn:
-            conn.execute(
-                """
-                INSERT INTO creative_test_sends(
-                    campaign_key, target_username, target_user_id,
-                    creative_id, sent_at, status
-                ) VALUES (?, ?, ?, ?, ?, 'sent')
-                ON CONFLICT(campaign_key) DO UPDATE SET
-                    target_user_id = excluded.target_user_id,
-                    creative_id = excluded.creative_id,
-                    sent_at = excluded.sent_at,
-                    status = 'sent'
-                """,
-                (
-                    TEST_CAMPAIGN_KEY,
-                    str(target["username"] or "mohit_97saxena"),
-                    int(target["user_id"]),
-                    int(creative["id"]),
-                    core.now_iso(),
-                ),
-            )
-        logger.info(
-            "IBETIN creative DM test sent username=%s creative_id=%s message_id=%s",
-            str(target["username"] or "mohit_97saxena"),
-            int(creative["id"]),
-            int(msg.message_id),
-        )
-    except Exception as exc:
-        logger.warning("IBETIN startup creative test failed: %s", str(exc)[:180])
+    lines = []
+    if sent:
+        lines.append("✅ Sent via: " + " + ".join(sent))
+    if failed:
+        lines.append("⚠️ " + " | ".join(failed))
+    await message.reply_text("\n".join(lines) or "No test route was available.")
 
 
 def install(application) -> None:

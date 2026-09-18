@@ -248,11 +248,17 @@ def run_navigation_self_test() -> None:
     if not any("JOIN CHANNEL" in (text or "") for text in main_texts):
         errors.append("main bot missing JOIN CHANNEL")
     for button in main_buttons:
-        if "JOIN CHANNEL" in (button.text or "").upper():
+        text = str(button.text or "")
+        if "JOIN CHANNEL" in text.upper():
             if not button.url or "t.me/ibetinoffcial" not in button.url:
                 errors.append("main-bot/JOIN CHANNEL: wrong Telegram channel URL")
             if button.web_app is not None:
                 errors.append("main-bot/JOIN CHANNEL: must be normal Telegram URL")
+        elif "WATCH IBETIN LIVE LINE" in text:
+            if button.callback_data != "liveline_access":
+                errors.append("main-bot/WATCH LIVE LINE: unverified menu must use liveline_access gate")
+            if button.web_app is not None or button.url:
+                errors.append("main-bot/WATCH LIVE LINE: must not bypass mobile verification")
         elif button.web_app is None:
             errors.append(f"main-bot/{button.text}: expected web_app button")
     direct_auto_markup = ibetin_entry.runtime.app.fantzo_autoreply.standard_keyboard()

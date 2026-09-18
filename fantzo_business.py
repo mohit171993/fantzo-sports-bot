@@ -15,6 +15,10 @@ import fantzo_autoreply
 logger = logging.getLogger(__name__)
 
 BOT_USERNAME = os.getenv("IBETIN_BOT_USERNAME", "Ibtnofficialbot").strip().lstrip("@") or "Ibtnofficialbot"
+LIVELINE_MINI_APP_URL = os.getenv(
+    "IBETIN_LIVELINE_MINI_APP_DEEP_LINK",
+    f"https://t.me/{BOT_USERNAME}/liveline?startapp=liveline",
+).strip()
 ALLOWED_MINI_APP_SECTIONS = {
     "home",
     "sports",
@@ -45,6 +49,9 @@ def telegram_mini_app_url(section: str = "home") -> str:
 
 
 def _business_url(section: str = "home", customer_id: int = 0) -> str:
+    section = (section or "home").strip().lower()
+    if section == "liveline":
+        return LIVELINE_MINI_APP_URL
     return telegram_mini_app_url(section)
 
 

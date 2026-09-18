@@ -266,6 +266,12 @@ async def banner_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 async def runtime_admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # Resolve at execution time so runtime patches to core.admin are honored.
+    user = update.effective_user
+    logger.info(
+        "IBETIN admin command received user_id=%s username=%s",
+        user.id if user else None,
+        user.username if user else None,
+    )
     await core.admin(update, context)
 
 

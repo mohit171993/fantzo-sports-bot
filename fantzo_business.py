@@ -19,6 +19,10 @@ LIVELINE_MINI_APP_URL = os.getenv(
     "IBETIN_LIVELINE_MINI_APP_DEEP_LINK",
     f"https://t.me/{BOT_USERNAME}/liveline?startapp=liveline",
 ).strip()
+LIVE_LINE_DIRECT_URL = os.getenv(
+    "IBETIN_LIVE_LINE_URL",
+    "https://ibetin-app-production.up.railway.app/liveline",
+).strip()
 ALLOWED_MINI_APP_SECTIONS = {
     "home",
     "sports",
@@ -51,7 +55,7 @@ def telegram_mini_app_url(section: str = "home") -> str:
 def _business_url(section: str = "home", customer_id: int = 0) -> str:
     section = (section or "home").strip().lower()
     if section == "liveline":
-        return LIVELINE_MINI_APP_URL
+        return LIVE_LINE_DIRECT_URL
     return telegram_mini_app_url(section)
 
 

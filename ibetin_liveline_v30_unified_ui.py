@@ -255,8 +255,51 @@ IBETIN_V35_MARKET_JS = r"""
     const es=entries(j);if(!es.length)return'<div class="notice">Live BHAV is not available for this match right now.</div>';
     return `<div class="previewMarketList">${es.map(e=>{const session=/over|session|runs|line|total|fancy|innings/i.test(String(e?.market||''));return `<div class="previewMarketRow"><b>${esc(e.market||'Market')}</b><div class="previewMarketVals">${values(e).map(v=>`<span>${esc(v.label||'Selection')} <strong>${session?previewLineFmt(v.odd):previewPriceFmt(v.odd)}</strong></span>`).join('')}</div></div>`}).join('')}</div>`;
   };
-  try{if(allMatches?.length)render();if(detailData)drawDetail();}catch(e){console.error('IBETIN preview renderer',e)}
+
+  let previewWarmCycle=0;
+  function previewWarmBhav(){
+    if(mode!=='live'||!Array.isArray(allMatches)||!allMatches.length)return;
+    const cycle=++previewWarmCycle;
+    allMatches.slice(0,8).forEach((m,i)=>{
+      const key=matchKey(m);if(!key)return;
+      const cached=bhavCache.get(key);
+      if(cached?.data && Date.now()-cached.ts < BHAV_TTL)return;
+      setTimeout(()=>{
+        if(cycle!==previewWarmCycle||mode!=='live')return;
+        getBhav(key,false).then(()=>{
+          if(cycle===previewWarmCycle && document.getElementById('home')?.style.display!=='none'){
+            try{previewBaseRender()}catch(e){}
+          }
+        }).catch(()=>{});
+      },i*90);
+    });
+  }
+
+  const previewBaseRender=render;
+  render=function(){
+    previewBaseRender();
+    if(mode==='live')previewWarmBhav();
+  };
+
+  const previewBaseOpenMatch=openMatch;
+  openMatch=async function(key){
+    if(!key)return;
+    const bhavPromise=getBhav(key,false);
+    const detailPromise=previewBaseOpenMatch(key);
+    try{
+      const market=await bhavPromise;
+      if(market && document.getElementById('quickMarket'))renderQuickMarket(market);
+      if(market && detailTab==='bhav' && document.getElementById('panel'))drawPanel();
+    }catch(e){}
+    return await detailPromise;
+  };
+
+  try{
+    if(allMatches?.length){previewBaseRender();previewWarmBhav()}
+    if(detailData)drawDetail();
+  }catch(e){console.error('IBETIN preview renderer',e)}
   window.__IBETIN_V35_MARKET_RENDERER__=true;
+  window.__IBETIN_V35_BHAV_PREFETCH__=true;
 })();
 </script>
 """
@@ -272,7 +315,7 @@ def _page_v35_preview() -> str:
 
 def _preview_v35_url() -> str:
     root = v23.os.getenv("TRACKING_BASE_URL", "").strip().rstrip("/") or "https://ibetin-app-production.up.railway.app"
-    return f"{root}{IBETIN_V35_PREVIEW_PATH}?{v23.urlencode({'t': v23.liveline._token(), 'v': '20260918-v35-preview'})}"
+    return f"{root}{IBETIN_V35_PREVIEW_PATH}?{v23.urlencode({'t': v23.liveline._token(), 'v': '20260918-v35-prefetch'})}"
 
 
 def _install_v35_preview_route() -> None:

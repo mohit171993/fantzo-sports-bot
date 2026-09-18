@@ -9,9 +9,10 @@ from telegram import (
     KeyboardButton,
     MenuButtonWebApp,
     ReplyKeyboardMarkup,
+    ReplyKeyboardRemove,
     WebAppInfo,
 )
-from telegram.ext import CommandHandler
+from telegram.ext import CommandHandler, MessageHandler, filters
 
 import bot_persistent as app
 import fantzo_analytics as analytics
@@ -20,6 +21,7 @@ import fantzo_reminders as reminders
 import ibetin_hub as hub
 import ibetin_creatives
 import ibetin_news as news
+import ibetin_phone_verify as phone_verify
 import private_apk_upload
 import trial_live_tv
 
@@ -221,12 +223,15 @@ def sky_admin_url() -> str:
     return f"{SKY_ADMIN_BASE_URL}/open?{query}"
 
 
-# Persistent quick-access keyboard is now a WebApp button too.
+# Persistent bottom keyboard: a visible START entry plus direct IBETIN access.
 app.QUICK_MENU = ReplyKeyboardMarkup(
-    [[KeyboardButton("⚡ OPEN IBETIN MINI APP", web_app=WebAppInfo(url=hub.hub_url("home")))]],
+    [[
+        KeyboardButton("▶️ START"),
+        KeyboardButton("⚡ OPEN IBETIN", web_app=WebAppInfo(url=hub.hub_url("home"))),
+    ]],
     resize_keyboard=True,
     is_persistent=True,
-    input_field_placeholder="Open IBETIN Mini App",
+    input_field_placeholder="Tap START or open IBETIN",
 )
 
 
@@ -262,10 +267,21 @@ reminders.InlineKeyboardButton = _mini_only_button
 # MAIN IBETIN HUB — COMPACT SIX-ACTION MENU
 # =========================================================
 
-def premium_main_keyboard() -> InlineKeyboardMarkup:
+def premium_main_keyboard(user_id: int = 0) -> InlineKeyboardMarkup:
+    if user_id and phone_verify.is_verified(user_id):
+        live_line_button = site_button(
+            "🏏 WATCH IBETIN LIVE LINE",
+            phone_verify.live_line_url(user_id, IBETIN_LIVE_LINE_URL),
+        )
+    else:
+        live_line_button = InlineKeyboardButton(
+            "🏏 WATCH IBETIN LIVE LINE",
+            callback_data="liveline_access",
+        )
+
     rows = [
         [hub_button("🚀 JOIN IBETIN", "home")],
-        [site_button("🏏 WATCH IBETIN LIVE LINE", IBETIN_LIVE_LINE_URL)],
+        [live_line_button],
         [
             site_button("🔴 LIVE NOW", IBETIN_LIVE_URL),
             site_button("🏆 SPORTS", IBETIN_SPORTS_URL),
@@ -414,9 +430,138 @@ app.core.touch_user = tracked_touch_user
 # COMMANDS — RETURN MINI APP LAUNCHERS ONLY
 # =========================================================
 
+async def smart_show_home(update, context) -> None:
+    user = update.effective_user
+    message = update.effective_message
+    if not user or not message:
+        return
+    app.core.touch_user(update)
+    lang = app.core.get_user_lang(user.id)
+    banner_file_id = app.get_banner_file_id()
+    markup = premium_main_keyboard(user.id)
+
+    if banner_file_id:
+        try:
+            await message.reply_photo(
+                photo=banner_file_id,
+                caption=app.core.TEXT[lang]["welcome"],
+                parse_mode="HTML",
+                reply_markup=markup,
+            )
+            return
+        except Exception as exc:
+            logger.warning("IBETIN banner send failed, falling back to text: %s", exc)
+
+    await message.reply_text(
+        app.core.TEXT[lang]["welcome"],
+        parse_mode="HTML",
+        reply_markup=markup,
+        disable_web_page_preview=True,
+    )
+
+
+app.show_home = smart_show_home
+
+
+async def _prompt_mobile_verification(update, context) -> None:
+    user = update.effective_user
+    message = update.effective_message
+    if not user or not message:
+        return
+
+    if phone_verify.is_verified(user.id):
+        await message.reply_text(
+            "✅ <b>Mobile number already verified.</b>\n\nOpen Live Line below.",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton(
+                    "🏏 OPEN IBETIN LIVE LINE",
+                    web_app=WebAppInfo(
+                        url=phone_verify.live_line_url(user.id, IBETIN_LIVE_LINE_URL)
+                    ),
+                )]]
+            ),
+        )
+        return
+
+    await message.reply_text(
+        "📱 <b>Mobile verification required</b>\n\n"
+        "To access IBETIN Live Line, share the mobile number linked to your Telegram account. "
+        "There is no country restriction.\n\n"
+        "Tap <b>📱 VERIFY MOBILE NUMBER</b> below.",
+        parse_mode="HTML",
+        reply_markup=ReplyKeyboardMarkup(
+            [[KeyboardButton("📱 VERIFY MOBILE NUMBER", request_contact=True)]],
+            resize_keyboard=True,
+            one_time_keyboard=True,
+            input_field_placeholder="Verify mobile number",
+        ),
+    )
+
+
+async def mobile_contact_handler(update, context) -> None:
+    user = update.effective_user
+    message = update.effective_message
+    contact = message.contact if message else None
+    if not user or not message or not contact:
+        return
+
+    # Only accept Telegram's own-account contact share. A manually forwarded or
+    # different person's contact must never unlock Live Line.
+    if not contact.user_id or int(contact.user_id) != int(user.id):
+        await message.reply_text(
+            "❌ Please use <b>📱 VERIFY MOBILE NUMBER</b> and share your own Telegram number.",
+            parse_mode="HTML",
+        )
+        return
+
+    if not phone_verify.verify_user(user.id, contact.phone_number):
+        await message.reply_text(
+            "❌ Mobile verification failed. Please try again.",
+            reply_markup=app.QUICK_MENU,
+        )
+        return
+
+    logger.info("IBETIN Live Line mobile verified user_id=%s", user.id)
+    await message.reply_text(
+        "✅ <b>Mobile number verified.</b>",
+        parse_mode="HTML",
+        reply_markup=ReplyKeyboardRemove(),
+    )
+    await message.reply_text(
+        "🏏 <b>IBETIN Live Line is unlocked.</b>\n\nTap below to continue.",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(
+            [[InlineKeyboardButton(
+                "🏏 OPEN IBETIN LIVE LINE",
+                web_app=WebAppInfo(
+                    url=phone_verify.live_line_url(user.id, IBETIN_LIVE_LINE_URL)
+                ),
+            )]]
+        ),
+    )
+    await message.reply_text(
+        "Use <b>▶️ START</b> anytime to reopen the main menu.",
+        parse_mode="HTML",
+        reply_markup=app.QUICK_MENU,
+    )
+
+
+async def liveline_command(update, context) -> None:
+    await _prompt_mobile_verification(update, context)
+
+
+async def start_button_handler(update, context) -> None:
+    await smart_start(update, context)
+
+
 async def smart_start(update, context) -> None:
     user = update.effective_user
     arg = context.args[0].lower() if context.args else ""
+
+    if user and arg in {"verifyliveline", "liveline", "livelineverify"}:
+        await _prompt_mobile_verification(update, context)
+        return
 
     if user and arg == "stopreminders":
         reminders.set_opt_out("bot", user.id, True)
@@ -500,6 +645,15 @@ app.core.help_command = help_command
 
 
 async def smart_callback_router(update, context) -> None:
+    query = update.callback_query
+    if query and query.data == "liveline_access":
+        try:
+            await query.answer()
+        except Exception:
+            pass
+        await _prompt_mobile_verification(update, context)
+        return
+
     # Legacy callbacks can still arrive from old messages; keep them compatible.
     await _original_callback_router(update, context)
 
@@ -584,6 +738,7 @@ async def configure_telegram_ui(application) -> None:
             BotCommand("news", "Open Sports News Mini App"),
             BotCommand("website", "Open IBETIN Mini App"),
             BotCommand("live", "Open Live Mini App"),
+            BotCommand("liveline", "Open IBETIN Live Line"),
             BotCommand("sports", "Open Sports Mini App"),
             BotCommand("team", "Open team search"),
             BotCommand("support", "Open Support Mini App"),
@@ -602,8 +757,24 @@ async def configure_telegram_ui(application) -> None:
     application.add_handler(CommandHandler("website", website_command))
     application.add_handler(CommandHandler("live", live_command))
     application.add_handler(CommandHandler("support", support_command))
+    application.add_handler(CommandHandler("liveline", liveline_command))
+    application.add_handler(
+        MessageHandler(
+            filters.UpdateType.MESSAGE & filters.CONTACT,
+            mobile_contact_handler,
+        )
+    )
+    application.add_handler(
+        MessageHandler(
+            filters.UpdateType.MESSAGE
+            & filters.TEXT
+            & filters.Regex(r"^▶️ START$"),
+            start_button_handler,
+        )
+    )
     application.add_handler(CommandHandler("livetvadmin", live_tv_admin_command))
 
+    phone_verify.ensure_tables()
     reminders.ensure_tables()
     reminders.start_background_loop(application)
     ibetin_creatives.install(application)

@@ -49,6 +49,7 @@ _IBETIN_APP_BASE_URL = (
 IBETIN_LIVE_LINE_URL = os.getenv(
     "IBETIN_LIVE_LINE_URL", f"{_IBETIN_APP_BASE_URL}/liveline"
 ).strip()
+IBETIN_CHANNEL_URL = "https://t.me/ibetinoffcial"
 
 # =========================================================
 # LIVE TV SETTINGS
@@ -273,7 +274,10 @@ def premium_main_keyboard() -> InlineKeyboardMarkup:
             news.news_webapp_button("📰 NEWS"),
             hub_button("🔔 MATCH ALERTS", "alerts"),
         ],
-        [site_button("🛟 SUPPORT", IBETIN_SUPPORT_URL)],
+        [
+            InlineKeyboardButton("📢 JOIN CHANNEL", url=IBETIN_CHANNEL_URL),
+            site_button("🛟 SUPPORT", IBETIN_SUPPORT_URL),
+        ],
     ]
 
     if LIVE_TV_MODE == "public":

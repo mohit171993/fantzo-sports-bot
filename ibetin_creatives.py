@@ -458,6 +458,19 @@ async def senddmtest_command(update, context) -> None:
     await message.reply_text("\n".join(lines) or "No test route was available.")
 
 
+async def _startup_creative_status_and_test(application) -> None:
+    import asyncio
+    await asyncio.sleep(6)
+    try:
+        c = counts()
+        logger.info(
+            "IBETIN creative pools ready channel=%s dm=%s reminder=%s",
+            c["channel"], c["dm"], c["reminder"],
+        )
+    except Exception as exc:
+        logger.warning("IBETIN creative startup verification failed: %s", str(exc)[:180])
+
+
 def install(application) -> None:
     if application.bot_data.get("ibetin_creative_manager_installed"):
         return

@@ -301,8 +301,8 @@ def run_navigation_self_test() -> None:
                 if button.web_app is not None:
                     errors.append("business-autoreply/JOIN CHANNEL: Business message cannot use web_app")
             elif "WATCH IBETIN LIVE LINE" in text:
-                if not button.url or "/liveline" not in button.url or "ibetin-app-production.up.railway.app" not in button.url:
-                    errors.append("business-autoreply/WATCH LIVE LINE: must point directly to V40 /liveline")
+                if not button.url or "t.me/Ibtnofficialbot" not in button.url or "start=verifyliveline" not in button.url:
+                    errors.append("business-autoreply/WATCH LIVE LINE: unverified user must go to bot verification")
                 if button.web_app is not None:
                     errors.append("business-autoreply/WATCH LIVE LINE: Business message cannot use web_app")
             elif "JOIN IBETIN" in text:
@@ -331,9 +331,15 @@ def run_navigation_self_test() -> None:
     if not bot_reminder_buttons:
         errors.append("direct-reminder: no buttons")
     for button in bot_reminder_buttons:
-        if "JOIN CHANNEL" in str(button.text or "").upper():
+        text = str(button.text or "")
+        if "JOIN CHANNEL" in text.upper():
             if not button.url or "t.me/ibetinoffcial" not in button.url:
                 errors.append("direct-reminder/JOIN CHANNEL: wrong Telegram channel URL")
+        elif "OPEN LIVE LINE" in text.upper():
+            if button.callback_data != "liveline_access":
+                errors.append("direct-reminder/OPEN LIVE LINE: unverified user must use liveline_access callback")
+            if button.web_app is not None or button.url:
+                errors.append("direct-reminder/OPEN LIVE LINE: must not bypass verification")
         elif button.web_app is None:
             errors.append(f"direct-reminder/{button.text}: expected web_app button")
 

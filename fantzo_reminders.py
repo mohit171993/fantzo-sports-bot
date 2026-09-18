@@ -27,6 +27,13 @@ MAX_SENDS_PER_RUN = 20
 IBETIN_HOME_URL = os.getenv("IBETIN_HOME_URL", "https://ibetin.com").strip()
 IBETIN_MINI_APP_DEEP_LINK = os.getenv("IBETIN_MINI_APP_DEEP_LINK", IBETIN_HOME_URL).strip()
 IBETIN_CHANNEL_URL = "https://t.me/ibetinoffcial"
+_IBETIN_APP_BASE_URL = (
+    os.getenv("TRACKING_BASE_URL", "").strip().rstrip("/")
+    or "https://ibetin-app-production.up.railway.app"
+)
+IBETIN_LIVE_LINE_URL = os.getenv(
+    "IBETIN_LIVE_LINE_URL", f"{_IBETIN_APP_BASE_URL}/liveline"
+).strip()
 SPORTS_BOT_URL = os.getenv("IBETIN_SPORTS_BOT_URL", IBETIN_HOME_URL).strip()
 
 
@@ -161,14 +168,14 @@ def _due_stage(row, now_utc: datetime):
 
 def _copy_for(interest: str, stage: int, source: str):
     if interest == "cricket":
-        subject = "🏏 Cricket action is waiting"
-        detail = "Check live scores, today’s fixtures and the latest cricket updates."
+        subject = "🏏 IBETIN Live Line is ready"
+        detail = "Open Live Line for live cricket scores, Match Pulse, scorecards, fixtures and results."
     elif interest == "football":
         subject = "⚽ Football updates are ready"
         detail = "See live scores, upcoming fixtures and the latest football updates."
     else:
         subject = "🔥 Catch up with today’s sports"
-        detail = "Follow live scores, fixtures, sports news and highlights in one place."
+        detail = "Open IBETIN Live Line for live cricket scores, Match Pulse, scorecards, fixtures and results."
 
     if stage == 1:
         intro = subject
@@ -190,6 +197,12 @@ def _copy_for(interest: str, stage: int, source: str):
             [
                 [
                     TelegramInlineKeyboardButton(
+                        "🏏 OPEN LIVE LINE",
+                        url=IBETIN_LIVE_LINE_URL,
+                    )
+                ],
+                [
+                    TelegramInlineKeyboardButton(
                         "🚀 JOIN IBETIN",
                         url=business.telegram_mini_app_url("home"),
                     )
@@ -207,6 +220,12 @@ def _copy_for(interest: str, stage: int, source: str):
         # JOIN IBETIN opens the Mini App directly without an external browser.
         markup = InlineKeyboardMarkup(
             [
+                [
+                    TelegramInlineKeyboardButton(
+                        "🏏 OPEN LIVE LINE",
+                        web_app=WebAppInfo(url=IBETIN_LIVE_LINE_URL),
+                    )
+                ],
                 [
                     InlineKeyboardButton("🔴 LIVE NOW", callback_data="live_now"),
                     InlineKeyboardButton("🗓 UPCOMING", callback_data="upcoming"),

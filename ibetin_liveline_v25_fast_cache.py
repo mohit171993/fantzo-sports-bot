@@ -22,11 +22,28 @@ _lock = threading.RLock()
 _ORIGINAL_MATCHES = v23._fast_matches
 _ORIGINAL_DETAIL = v24._match_detail_contract
 _ORIGINAL_PAGE = v23._page
+_ORIGINAL_VALID_KEY = v23.v21._valid_key
+
+
+def _roanuz_key(value: str) -> bool:
+    """Roanuz match keys are provider keys, not Highlightly's numeric IDs."""
+    value = str(value or "").strip()
+    return bool(value and not value.isdigit() and _ORIGINAL_VALID_KEY(value))
+
+
+# Numeric IDs belong to the display-fallback provider. Prevent score/BHAV/detail
+# code from accidentally sending them to Roanuz and producing HTTP 404.
+v23.v21._valid_key = _roanuz_key
 
 
 def _refresh_detail(key: str):
     try:
-        detail, source = _ORIGINAL_DETAIL(key)
+        key = str(key or "").strip()
+        if key.isdigit():
+            detail = v23.v21.v20._OLD_MATCH_DETAIL(key)
+            source = "Highlightly fallback"
+        else:
+            detail, source = _ORIGINAL_DETAIL(key)
         if isinstance(detail, dict):
             with _lock:
                 _detail_cache[key] = (time.monotonic(), detail, source)
@@ -58,7 +75,7 @@ def _prewarm_rows(rows) -> None:
         if not isinstance(row, dict):
             continue
         key = str(row.get("roanuzMatchKey") or row.get("id") or "")
-        if key and v23.v21._valid_key(key):
+        if key and _roanuz_key(key):
             _spawn_detail_refresh(key)
 
 
@@ -166,7 +183,7 @@ try:
 except Exception:
     logger.exception("IBETIN V25 startup warm cache failed; runtime will fall back to synchronous first fetch")
 
-logger.info("IBETIN V25 installed: stale-while-refresh list/detail cache + background live prewarm + second score hydrate")
+logger.info("IBETIN V25 installed: stale-while-refresh list/detail cache + background live prewarm + second score hydrate + numeric fallback detail safety")
 
 app = v23.app
 

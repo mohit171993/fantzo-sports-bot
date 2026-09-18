@@ -165,6 +165,116 @@ def _self_test() -> None:
 _self_test()
 logger.info('IBETIN V30 installed: inline BHAV + session markets + full BHAV tab over frozen V25 fast feed/cache')
 
+
+# ---------------------------------------------------------------------------
+# IBETIN V35 isolated premium preview
+# Production /admin/liveline-ibetinv23 continues to use _page_v30 unchanged.
+# ---------------------------------------------------------------------------
+IBETIN_V35_PREVIEW_PATH = "/admin/ibetin-v35-preview"
+
+IBETIN_V35_PREVIEW_CSS = r"""
+/* V35 PREVIEW ONLY */
+:root{--pbg:#020814;--ppanel:#06182b;--pline:#153f63;--pblue:#1497ff;--pgreen:#23d98b;--ppurple:#794cff;--ptext:#f4f9ff;--pmuted:#8fa8bf}
+html,body{background:radial-gradient(circle at 50% -10%,#0b315e 0,#041425 35%,#020814 76%)!important;color:var(--ptext)!important}
+body{padding-bottom:calc(105px + env(safe-area-inset-bottom))!important}
+.top{background:linear-gradient(125deg,#031125,#092c55 72%,#12396b)!important;border-bottom:1px solid rgba(42,155,255,.24)!important;box-shadow:0 12px 32px rgba(0,0,0,.30)!important}
+.mark{background:linear-gradient(145deg,#ffd553,#ffae17)!important;color:#152235!important;border-radius:12px!important}
+.brand b{color:#fff!important}.brand span{color:#b7cae0!important}
+.liveDot{background:rgba(20,157,91,.22)!important;border-color:#2bdd8d!important;box-shadow:0 0 20px rgba(35,217,139,.14)!important}
+.tab{background:#0a2747!important;color:#a9bed2!important}.tab.on{background:linear-gradient(135deg,#178fff,#0a66d5)!important;color:#fff!important;box-shadow:0 8px 24px rgba(20,126,255,.22)!important}
+.main{background:transparent!important}.search,.refresh{background:#06182b!important;color:#edf7ff!important;border-color:#154262!important;box-shadow:none!important}.search::placeholder{color:#6f8aa4!important}
+.status,.league{color:#8da8c0!important}
+.match{background:linear-gradient(180deg,#071b30,#051522)!important;border:1px solid #164463!important;border-left:4px solid #2b9cff!important;box-shadow:0 15px 34px rgba(0,0,0,.25)!important}.match.live{border-left-color:#ff536f!important}
+.fmt,.ta,.si,.foot{color:#8da7bf!important}.tn{color:#fff!important}.sc{color:#f8fbff!important}.badge{background:#102b47!important;color:#a8c5df!important}.badge.live{background:rgba(255,83,111,.14)!important;color:#ff758a!important}
+.oddsRow{background:#051522!important;border-top-color:#143b5a!important}.oddBox{background:linear-gradient(135deg,#0b6fd7,#0a3b78)!important;border-color:#1d99ff!important}.oddBox:nth-of-type(3){background:linear-gradient(135deg,#119c61,#075d3d)!important;border-color:#25d98b!important}.oddLabel{color:#cfe4f5!important}.oddValue{color:#fff!important}
+.detail{background:transparent!important;padding-top:12px!important}.back{background:#08213a!important;color:#d9ecff!important;border:1px solid #174565!important;box-shadow:none!important}
+.scorehero{background:radial-gradient(circle at 50% 10%,rgba(25,139,255,.20),transparent 30%),linear-gradient(180deg,#082342,#06182b)!important;border-color:#174c70!important;box-shadow:0 18px 38px rgba(0,0,0,.28)!important}
+.scoretop{border-bottom-color:#16415f!important;color:#9cb5cc!important}.sname{color:#d9ecff!important}.sval{color:#fff!important}.vs{background:#0b2848!important;color:#d9ecff!important;border:1px solid #246da8!important}.report{background:#061729!important;border-top-color:#16415f!important;color:#c5d8e8!important}
+.quickMarket,.panel{background:linear-gradient(180deg,#071b30,#061522)!important;border-color:#174767!important;box-shadow:0 14px 32px rgba(0,0,0,.24)!important}.quickHead b,.ptitle b{color:#fff!important}.quickHead span,.sessionTitle{color:#38b9ff!important}
+.quickOdd{background:linear-gradient(135deg,#0a78e8,#08448d)!important;border-color:#20a4ff!important}.quickOdd:nth-child(2){background:linear-gradient(135deg,#10a466,#075c3d)!important;border-color:#2cde8c!important}.quickOdd small{color:#d7edff!important}.quickOdd strong{color:#fff!important;font-size:24px!important}
+.sessionGrid{display:flex!important;gap:8px!important;overflow-x:auto!important;scrollbar-width:none!important}.sessionGrid::-webkit-scrollbar{display:none!important}.sessionCard{flex:0 0 min(74vw,240px)!important;background:linear-gradient(135deg,#0a448f,#082750)!important;border-color:#367ee0!important}.sessionCard:nth-child(even){background:linear-gradient(135deg,#5b2aad,#2f1c66)!important;border-color:#9b67ff!important}.sessionCard b,.sessionVals strong{color:#fff!important}.sessionVals{color:#c8dcef!important}
+.dtab{background:#0a2139!important;color:#9eb7cd!important;border-color:#173f5f!important}.dtab.on{background:linear-gradient(135deg,#1594ff,#1268e7)!important;color:#fff!important;border-color:#2ca9ff!important}
+.notice,.inning,.ball,.moreItem,.playerCard{background:#081a2c!important;border-color:#173e5d!important;color:#bad0e2!important}.playerName,.inningTeam,.inningScore,.moreItem,.kv b{color:#fff!important}.metric{background:#0b2a49!important;color:#a9c3d9!important}.ballChip{background:#244764!important;color:#fff!important}.ballChip.boundary{background:#1398ef!important}.ballChip.six{background:#7650e3!important}.ballChip.wicket{background:#e94d68!important}
+.bottom{background:rgba(2,11,23,.98)!important;border:1px solid #153854!important;box-shadow:0 18px 40px rgba(0,0,0,.42)!important}.bottom .on{background:linear-gradient(180deg,rgba(27,137,255,.24),rgba(11,76,139,.16))!important}
+body:before{content:"PREVIEW";position:fixed;right:10px;top:8px;z-index:9999;background:#7b43f6;color:#fff;font-size:8px;font-weight:1000;letter-spacing:1px;padding:5px 8px;border-radius:999px;pointer-events:none}
+"""
+
+
+def _page_v35_preview() -> str:
+    html = _page_v30()
+    html = html.replace("<title>IBETIN Live Cricket</title>", "<title>IBETIN Premium UI Preview</title>", 1)
+    html = html.replace("</style>", IBETIN_V35_PREVIEW_CSS + "\n</style>", 1)
+    return html
+
+
+def _preview_v35_url() -> str:
+    root = v23.os.getenv("TRACKING_BASE_URL", "").strip().rstrip("/") or "https://ibetin-app-production.up.railway.app"
+    return f"{root}{IBETIN_V35_PREVIEW_PATH}?{v23.urlencode({'t': v23.liveline._token(), 'v': '20260918-v35-preview'})}"
+
+
+def _install_v35_preview_route() -> None:
+    handler_cls = v23.liveline.base.ibetin_start.ibetin_entry.analytics.TrackingHandler
+    if getattr(handler_cls, "_ibetin_v35_preview_installed", False):
+        return
+    previous_get = handler_cls.do_GET
+
+    def routed_get(self):
+        parsed = v23.urlparse(self.path)
+        if parsed.path == IBETIN_V35_PREVIEW_PATH:
+            if not v23.liveline._authorized(self.path):
+                v23.liveline._send_html(self, 403, "<h3>IBETIN preview link is invalid.</h3>")
+                return
+            v23.liveline._send_html(self, 200, _page_v35_preview())
+            return
+        previous_get(self)
+
+    handler_cls.do_GET = routed_get
+    handler_cls._ibetin_v35_preview_installed = True
+    logger.info("IBETIN V35 isolated preview route installed at %s", IBETIN_V35_PREVIEW_PATH)
+
+
+async def _previewui_command(update, context):
+    user, message, chat = update.effective_user, update.effective_message, update.effective_chat
+    if not user or not message or not chat:
+        return
+    if getattr(chat, "type", "") != "private":
+        await message.reply_text("Open this preview from a private chat with the bot.")
+        return
+    await message.reply_text(
+        "🎨 <b>IBETIN PREMIUM UI · PREVIEW</b>\n\n"
+        "This is an isolated design preview using the stable V30 live data/API. "
+        "The production LIVE Mini App is unchanged.",
+        parse_mode="HTML",
+        reply_markup=v23.liveline.InlineKeyboardMarkup(
+            [[v23.liveline.InlineKeyboardButton(
+                "🎨 OPEN PREMIUM PREVIEW",
+                web_app=v23.liveline.WebAppInfo(url=_preview_v35_url()),
+            )]]
+        ),
+        disable_web_page_preview=True,
+    )
+
+
+def _install_v35_preview_command() -> None:
+    runtime = v23.liveline.base._runtime
+    if getattr(runtime, "_ibetin_v35_preview_configured", False):
+        return
+    previous_config = runtime.configure_telegram_ui
+
+    async def configure_with_preview(application):
+        await previous_config(application)
+        application.add_handler(v23.liveline.CommandHandler("previewui", _previewui_command))
+        logger.info("IBETIN /previewui premium preview command registered")
+
+    runtime.configure_telegram_ui = configure_with_preview
+    runtime.app.configure_telegram_ui = configure_with_preview
+    runtime._ibetin_v35_preview_configured = True
+
+
+_install_v35_preview_route()
+_install_v35_preview_command()
+logger.info("IBETIN V35 preview installed without replacing production V30 page")
+
 app = v25.app
 
 if __name__ == '__main__':

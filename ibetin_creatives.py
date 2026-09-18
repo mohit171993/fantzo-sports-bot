@@ -7,6 +7,7 @@ from telegram.ext import CommandHandler, MessageHandler, filters
 from telegram.error import BadRequest, Forbidden
 
 import bot as core
+import ibetin_phone_verify as phone_verify
 
 logger = logging.getLogger(__name__)
 
@@ -443,7 +444,7 @@ async def _send_test_to_business_target(bot, target, creative) -> bool:
     markup = InlineKeyboardMarkup(
         [[InlineKeyboardButton(
             "🏏 OPEN IBETIN LIVE LINE",
-            url=LIVE_LINE_MINI_APP_URL,
+            url=phone_verify.live_line_url(int(target["user_id"]), LIVE_LINE_URL),
         )]]
     )
     caption = (
@@ -467,7 +468,9 @@ async def _send_test_to_bot_target(bot, target, creative) -> bool:
     markup = InlineKeyboardMarkup(
         [[InlineKeyboardButton(
             "🏏 OPEN IBETIN LIVE LINE",
-            web_app=WebAppInfo(url=LIVE_LINE_URL),
+            web_app=WebAppInfo(
+                url=phone_verify.live_line_url(int(target["user_id"]), LIVE_LINE_URL)
+            ),
         )]]
     )
     caption = (

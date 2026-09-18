@@ -19,6 +19,7 @@ ALLOWED_MINI_APP_SECTIONS = {
     "home",
     "sports",
     "live",
+    "liveline",
     "news",
     "casino",
     "games",

@@ -3,6 +3,8 @@ import hmac
 import json
 import logging
 import os
+import threading
+import time
 import zlib
 from urllib.parse import urlparse
 
@@ -13,6 +15,118 @@ v23 = v25.v23
 API_PATH = v23.liveline.LIVELINE_API_PATH
 
 ROANUZ_WEBHOOK_PATH = "/roanuz/match/feed/v1/"
+IBETIN_LIVE_STREAM_PATH = "/admin/ibetin-live-stream"
+IBETIN_LIVE_HEALTH_PATH = "/admin/ibetin-live-health"
+
+_live_event_condition = threading.Condition()
+_live_event_seq = 0
+_live_event_key = ""
+_live_sse_clients = 0
+_webhook_rejected_count = 0
+
+
+def _publish_live_event(key: str):
+    global _live_event_seq, _live_event_key
+    with _live_event_condition:
+        _live_event_seq += 1
+        _live_event_key = str(key or "")
+        _live_event_condition.notify_all()
+
+
+def _live_health_payload():
+    base = v23._webhook_health_snapshot() if hasattr(v23, "_webhook_health_snapshot") else {}
+    return {
+        "ok": True,
+        "webhook": {
+            **base,
+            "lastKey": _roanuz_webhook_last_key,
+            "lastAt": _roanuz_webhook_last_at,
+            "rejectedPushes": _webhook_rejected_count,
+        },
+        "sse": {
+            "clients": _live_sse_clients,
+            "eventSeq": _live_event_seq,
+        },
+        "productionRenderer": "V35",
+        "previewRenderer": "V40",
+    }
+
+
+def _install_live_stream_routes() -> None:
+    handler_cls = v23.liveline.base.ibetin_start.ibetin_entry.analytics.TrackingHandler
+    if getattr(handler_cls, "_ibetin_live_stream_routes_installed", False):
+        return
+
+    previous_get = handler_cls.do_GET
+
+    def routed_get(self):
+        global _live_sse_clients
+        parsed = urlparse(self.path)
+
+        if parsed.path == IBETIN_LIVE_HEALTH_PATH:
+            if not v23.liveline._authorized(self.path):
+                self.send_response(403)
+                self.end_headers()
+                return
+            raw = json.dumps(_live_health_payload(), separators=(",", ":")).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(raw)))
+            self.end_headers()
+            self.wfile.write(raw)
+            return
+
+        if parsed.path == IBETIN_LIVE_STREAM_PATH:
+            if not v23.liveline._authorized(self.path):
+                self.send_response(403)
+                self.end_headers()
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Cache-Control", "no-cache, no-transform")
+            self.send_header("Connection", "keep-alive")
+            self.send_header("X-Accel-Buffering", "no")
+            self.end_headers()
+
+            _live_sse_clients += 1
+            try:
+                with _live_event_condition:
+                    seen = _live_event_seq
+                initial = f"event: ready\ndata: {{\"seq\":{seen}}}\n\n".encode("utf-8")
+                self.wfile.write(initial)
+                self.wfile.flush()
+
+                deadline = time.monotonic() + 55
+                while time.monotonic() < deadline:
+                    with _live_event_condition:
+                        if _live_event_seq == seen:
+                            _live_event_condition.wait(timeout=12)
+                        seq = _live_event_seq
+                        key = _live_event_key
+                    if seq != seen:
+                        seen = seq
+                        payload = json.dumps({"seq": seq, "key": key}, separators=(",", ":"))
+                        chunk = f"event: match\ndata: {payload}\n\n".encode("utf-8")
+                    else:
+                        chunk = b": keepalive\n\n"
+                    self.wfile.write(chunk)
+                    self.wfile.flush()
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+            except Exception as exc:
+                logger.debug("IBETIN SSE connection ended: %s", str(exc)[:100])
+            finally:
+                _live_sse_clients = max(0, _live_sse_clients - 1)
+            return
+
+        previous_get(self)
+
+    handler_cls.do_GET = routed_get
+    handler_cls._ibetin_live_stream_routes_installed = True
+    logger.info("IBETIN live SSE/health routes installed")
+
+
 _roanuz_webhook_last_key = ""
 _roanuz_webhook_last_at = ""
 
@@ -48,7 +162,7 @@ def _install_roanuz_webhook_route() -> None:
     previous_post = getattr(handler_cls, "do_POST", None)
 
     def routed_post(self):
-        global _roanuz_webhook_last_key, _roanuz_webhook_last_at
+        global _roanuz_webhook_last_key, _roanuz_webhook_last_at, _webhook_rejected_count
         parsed = urlparse(self.path)
         if parsed.path.rstrip("/") != ROANUZ_WEBHOOK_PATH.rstrip("/"):
             if previous_post:
@@ -60,6 +174,7 @@ def _install_roanuz_webhook_route() -> None:
         expected = os.getenv("ROANUZ_API_KEY", "").strip()
         supplied = str(self.headers.get("rs-api-key") or "").strip()
         if not expected or not supplied or not hmac.compare_digest(expected, supplied):
+            _webhook_rejected_count += 1
             body = b'{"status":false}'
             self.send_response(403)
             self.send_header("Content-Type", "application/json")
@@ -90,6 +205,7 @@ def _install_roanuz_webhook_route() -> None:
 
             _roanuz_webhook_last_key = key
             _roanuz_webhook_last_at = v23.datetime.now(v23.timezone.utc).isoformat()
+            _publish_live_event(key)
             body = b'{"status":true}'
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
@@ -99,6 +215,7 @@ def _install_roanuz_webhook_route() -> None:
             self.wfile.write(body)
             logger.info("IBETIN Roanuz webhook accepted key=%s", key)
         except Exception as exc:
+            _webhook_rejected_count += 1
             logger.warning("IBETIN Roanuz webhook rejected: %s", str(exc)[:180])
             body = b'{"status":false}'
             self.send_response(400)
@@ -1137,6 +1254,27 @@ IBETIN_V40_LIVE_STATE_JS = r"""
     }catch(e){console.error('IBETIN V40 stage',e)}
   };
 
+  const IBETIN_LIVE_STREAM='/admin/ibetin-live-stream?t='+encodeURIComponent(TOKEN);
+  let v40EventSource=null,v40PushTimer=null;
+  function v40ConnectPush(){
+    if(v40EventSource||!TOKEN||typeof EventSource==='undefined')return;
+    try{
+      v40EventSource=new EventSource(IBETIN_LIVE_STREAM);
+      v40EventSource.addEventListener('match',()=>{
+        clearTimeout(v40PushTimer);
+        v40PushTimer=setTimeout(v40StateRefresh,120);
+      });
+      v40EventSource.onerror=()=>{
+        try{v40EventSource.close()}catch(e){}
+        v40EventSource=null;
+        setTimeout(v40ConnectPush,3000);
+      };
+    }catch(e){
+      v40EventSource=null;
+      setTimeout(v40ConnectPush,5000);
+    }
+  }
+
   let v40RefreshBusy=false;
   async function v40StateRefresh(){
     if(document.hidden||v40RefreshBusy)return;
@@ -1164,8 +1302,9 @@ IBETIN_V40_LIVE_STATE_JS = r"""
     }catch(e){}
     finally{v40RefreshBusy=false}
   }
-  setInterval(v40StateRefresh,12000);
-  document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(v40StateRefresh,250)});
+  setInterval(v40StateRefresh,30000);
+  v40ConnectPush();
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden){setTimeout(v40StateRefresh,250);v40ConnectPush()}});
   window.__IBETIN_V40_LIVE_STATE__=true;
 })();
 </script>
@@ -1193,7 +1332,7 @@ def _page_v40_visual_polish() -> str:
 
 def _preview_v40_url() -> str:
     root = v23.os.getenv("TRACKING_BASE_URL", "").strip().rstrip("/") or "https://ibetin-app-production.up.railway.app"
-    return f"{root}{IBETIN_V40_VISUAL_POLISH_PATH}?{v23.urlencode({'t': v23.liveline._token(), 'v': '20260918-v40-state-webhook'})}"
+    return f"{root}{IBETIN_V40_VISUAL_POLISH_PATH}?{v23.urlencode({'t': v23.liveline._token(), 'v': '20260918-v40-sse-health'})}"
 
 
 def _install_v40_visual_polish_route() -> None:
@@ -1386,6 +1525,7 @@ def _install_v35_preview_command() -> None:
 
 
 _install_v35_preview_route()
+_install_live_stream_routes()
 _install_roanuz_webhook_route()
 _install_v36_brand_preview_route()
 _install_v37_promo_preview_route()

@@ -15,6 +15,42 @@ logger = logging.getLogger(__name__)
 REPORT_PREFIX = "reports:"
 
 
+def _setting_user_id(key: str):
+    try:
+        with core.db() as conn:
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)"
+            )
+            row = conn.execute(
+                "SELECT value FROM settings WHERE key = ?",
+                (key,),
+            ).fetchone()
+        return int(row["value"]) if row and row["value"] else None
+    except Exception:
+        return None
+
+
+def is_authorized_admin(user_id: int) -> bool:
+    try:
+        uid = int(user_id or 0)
+    except Exception:
+        return False
+    if not uid:
+        return False
+    if uid == int(core.ADMIN_USER_ID):
+        return True
+    # The creative manager was already explicitly unlocked from Telegram.
+    # Reuse that persisted authorization for reports/admin instead of forcing
+    # the operator back to the original Telegram account.
+    return uid in {
+        x for x in (
+            _setting_user_id("creative_admin_user_id"),
+            _setting_user_id("report_admin_user_id"),
+        )
+        if x
+    }
+
+
 def _table_exists(conn, table: str) -> bool:
     row = conn.execute(
         "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
@@ -210,7 +246,9 @@ def report_menu() -> InlineKeyboardMarkup:
 async def send_menu(update, context) -> None:
     user = update.effective_user
     message = update.effective_message
-    if not user or not message or int(user.id) != int(core.ADMIN_USER_ID):
+    if not user or not message or not is_authorized_admin(user.id):
+        if message:
+            await message.reply_text("This command is restricted.")
         return
     ensure_tables()
     await message.reply_text(
@@ -474,7 +512,7 @@ async def handle_callback(update, context) -> bool:
         return False
 
     user = update.effective_user
-    if not user or int(user.id) != int(core.ADMIN_USER_ID):
+    if not user or not is_authorized_admin(user.id):
         try:
             await query.answer("Restricted", show_alert=True)
         except Exception:

@@ -1,9 +1,12 @@
 import logging
 import os
 from html import escape
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlencode, urlparse
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+
+import ibetin_phone_verify as phone_verify
+import ibetin_reports as reports
 
 logger = logging.getLogger(__name__)
 
@@ -18,21 +21,23 @@ if LIVE_TV_MODE not in {"off", "admin", "public"}:
 MINITV_PATH = "/minitv"
 
 
-def minitv_url() -> str:
-    """Return the public IBETIN MiniTV URL used by Telegram WebApp buttons."""
-    if TRACKING_BASE_URL:
-        return f"{TRACKING_BASE_URL}{MINITV_PATH}"
-    return LIVE_TV_URL
+def minitv_url(user_id: int = 0) -> str:
+    """Return the IBETIN MiniTV URL, signed to a Telegram user when known."""
+    base = f"{TRACKING_BASE_URL}{MINITV_PATH}" if TRACKING_BASE_URL else LIVE_TV_URL
+    if user_id and TRACKING_BASE_URL:
+        token = phone_verify.issue_access_token(int(user_id))
+        return f"{base}?{urlencode({'viewer': token})}"
+    return base
 
 
-def live_tv_button(label: str = "📺 Live TV") -> InlineKeyboardButton:
-    return InlineKeyboardButton(label, web_app=WebAppInfo(url=minitv_url()))
+def live_tv_button(label: str = "📺 Live TV", user_id: int = 0) -> InlineKeyboardButton:
+    return InlineKeyboardButton(label, web_app=WebAppInfo(url=minitv_url(user_id)))
 
 
-def live_tv_keyboard() -> InlineKeyboardMarkup:
+def live_tv_keyboard(user_id: int = 0) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
-            [live_tv_button("📺 OPEN LIVE TV")],
+            [live_tv_button("📺 OPEN LIVE TV", user_id)],
             [InlineKeyboardButton("⬅️ Back to IBETIN", callback_data="back")],
         ]
     )
@@ -117,12 +122,17 @@ def install_on_tracking_handler(analytics_module) -> None:
     previous_get = handler_cls.do_GET
 
     def patched_get(self):
-        path = urlparse(self.path).path
+        parsed = urlparse(self.path)
+        path = parsed.path
         if path == MINITV_PATH:
             if not is_public_enabled():
                 _send_html(self, 503, "<h3>IBETIN Live TV is temporarily unavailable.</h3>")
                 return
             try:
+                viewer_token = (parse_qs(parsed.query).get("viewer") or [""])[0]
+                viewer_id = phone_verify.verify_access_token(viewer_token) if viewer_token else 0
+                if viewer_id:
+                    reports.record_live_tv_open(viewer_id)
                 _send_html(self, 200, _page())
             except Exception:
                 logger.exception("Could not render IBETIN MiniTV")

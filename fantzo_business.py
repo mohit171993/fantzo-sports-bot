@@ -229,6 +229,21 @@ def _mark_welcomed(connection_id: str, customer_id: int) -> None:
         )
 
 
+def _touch_business_reminder(customer_id: int, connection_id: str, category: str = "general") -> None:
+    if not customer_id or not connection_id:
+        return
+    try:
+        import fantzo_reminders as reminders
+        reminders.touch_user(
+            "business_dm",
+            int(customer_id),
+            category or "general",
+            str(connection_id),
+        )
+    except Exception:
+        logger.exception("Could not persist IBETIN Business DM reminder contact")
+
+
 def _contains(text: str, words) -> bool:
     return any(re.search(rf"\b{re.escape(word)}\b", text) for word in words)
 
@@ -372,6 +387,7 @@ async def business_auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE
     customer_id = message.from_user.id if message.from_user else 0
     if customer_id and connection_id and message.from_user:
         _save_business_customer(connection_id, message.from_user)
+        _touch_business_reminder(customer_id, connection_id, "general")
 
     if customer_id and connection_id and not _has_been_welcomed(connection_id, customer_id):
         await _reply_with_retry(message, WELCOME_REPLY, business_keyboard(customer_id))
@@ -412,6 +428,7 @@ async def business_auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
 
     category, reply, markup = classify_business_dm(text)
+    _touch_business_reminder(customer_id, connection_id, category)
 
     try:
         if customer_id:

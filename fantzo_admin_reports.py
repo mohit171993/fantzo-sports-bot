@@ -109,9 +109,10 @@ def _report_menu() -> InlineKeyboardMarkup:
                 _styled_button("⭐ FAVOURITES", "rpt:favourites", "primary"),
             ],
             [
+                _styled_button("📅 DAILY", "rpt:daily", "primary"),
                 _styled_button("🖼 BANNERS", "rpt:banners", "primary"),
-                _styled_button("⬇️ DOWNLOADS", "rpt:downloads", "success"),
             ],
+            [_styled_button("⬇️ DOWNLOADS", "rpt:downloads", "success")],
             [_styled_button("📦 DOWNLOAD ALL REPORTS", "rptdl:all", "success")],
         ]
     )
@@ -142,8 +143,9 @@ def _downloads_menu() -> InlineKeyboardMarkup:
             ],
             [
                 InlineKeyboardButton("⭐ Favourites CSV", callback_data="rptdl:favourites"),
-                InlineKeyboardButton("🖼 Banners CSV", callback_data="rptdl:banners"),
+                InlineKeyboardButton("📅 Daily CSV", callback_data="rptdl:daily"),
             ],
+            [InlineKeyboardButton("🖼 Banners CSV", callback_data="rptdl:banners")],
             [_styled_button("📦 COMPLETE ZIP", "rptdl:all", "success")],
             [InlineKeyboardButton("⬅️ REPORTS", callback_data="rpt:home")],
         ]
@@ -361,6 +363,67 @@ def _favourites_text() -> str:
     )
 
 
+
+def _daily_rows(days: int = 30):
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days - 1)).date().isoformat()
+    with core.db() as conn:
+        def grouped(table, date_col, where="", params=()):
+            if not _table_exists(conn, table):
+                return {}
+            sql = f"SELECT substr({date_col},1,10) d, COUNT(*) c FROM {table} WHERE substr({date_col},1,10)>=?"
+            values = [cutoff]
+            if where:
+                sql += f" AND {where}"
+                values.extend(params)
+            sql += " GROUP BY substr(" + date_col + ",1,10)"
+            return {str(r["d"]): int(r["c"]) for r in _rows(conn, sql, tuple(values))}
+
+        actions = grouped("clicks", "created_at")
+        live_tv = grouped("clicks", "created_at", "action='live_tv_status'")
+        business = grouped("clicks", "created_at", "action LIKE 'business_dm:%'")
+        web = grouped("web_events", "created_at", "event='fantzo_open'")
+        reminders = grouped("reminder_sends", "sent_at", "status='sent'")
+
+        active = {}
+        if _table_exists(conn, "users"):
+            rows = _rows(
+                conn,
+                "SELECT substr(last_seen,1,10) d, COUNT(*) c FROM users "
+                "WHERE substr(last_seen,1,10)>=? GROUP BY substr(last_seen,1,10)",
+                (cutoff,),
+            )
+            active = {str(r["d"]): int(r["c"]) for r in rows}
+
+    dates = sorted(set(actions) | set(live_tv) | set(business) | set(web) | set(reminders) | set(active), reverse=True)
+    return [
+        (d, active.get(d, 0), actions.get(d, 0), live_tv.get(d, 0), web.get(d, 0), business.get(d, 0), reminders.get(d, 0))
+        for d in dates
+    ]
+
+
+def _daily_text() -> str:
+    rows = _daily_rows(14)
+    if not rows:
+        return "📅 <b>DAILY ACTIVITY</b>\n\nNo daily activity is available yet."
+    lines = []
+    for d, active, actions, live, web, business, reminders in rows[:14]:
+        lines.append(
+            f"<b>{escape(d)}</b> · 👥 {active} · 🎯 {actions} · 📺 {live} · 🌐 {web} · 💬 {business} · 📨 {reminders}"
+        )
+    return (
+        "📅 <b>DAILY ACTIVITY · LAST 14 DAYS</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
+        "👥 active · 🎯 actions · 📺 Live TV · 🌐 opens · 💬 Business · 📨 reminders\n\n"
+        + "\n".join(lines)
+    )
+
+
+def _daily_csv() -> bytes:
+    return _csv_bytes(
+        ["date_utc", "active_users_by_last_seen", "bot_actions", "live_tv_entries", "fantzo_web_opens", "business_dm_events", "reminders_sent"],
+        _daily_rows(3650),
+    )
+
 def _banners_text() -> str:
     with core.db() as conn:
         if not _table_exists(conn, "live_tv_banners"):
@@ -453,6 +516,8 @@ def _report_csv(key: str) -> tuple[str, bytes]:
         return f"fantzo_reminder_sends_{stamp}.csv", _table_csv("reminder_sends")
     if key == "favourites":
         return f"fantzo_favourites_{stamp}.csv", _table_csv("user_favourites")
+    if key == "daily":
+        return f"fantzo_daily_activity_{stamp}.csv", _daily_csv()
     if key == "banners":
         return f"fantzo_banners_{stamp}.csv", _table_csv("live_tv_banners")
     raise ValueError(f"Unknown report: {key}")
@@ -472,8 +537,9 @@ def _all_reports_zip() -> tuple[str, bytes]:
         "08_reminder_users.csv": _table_csv("reminder_users"),
         "09_reminder_sends.csv": _table_csv("reminder_sends"),
         "10_favourites.csv": _table_csv("user_favourites"),
-        "11_live_tv_banners.csv": _table_csv("live_tv_banners"),
-        "12_live_tv_banner_settings.csv": _table_csv("live_tv_banner_settings"),
+        "11_daily_activity.csv": _daily_csv(),
+        "12_live_tv_banners.csv": _table_csv("live_tv_banners"),
+        "13_live_tv_banner_settings.csv": _table_csv("live_tv_banner_settings"),
     }
     readme = (
         "FANTZO ADMIN REPORT PACK\n"
@@ -565,6 +631,8 @@ async def _handle_report_callback(update, context) -> bool:
         await _show(query, _reminders_text(), _back_menu("reminders"))
     elif action == "favourites":
         await _show(query, _favourites_text(), _back_menu("favourites"))
+    elif action == "daily":
+        await _show(query, _daily_text(), _back_menu("daily"))
     elif action == "banners":
         await _show(query, _banners_text(), _back_menu("banners"))
     elif action == "downloads":

@@ -506,6 +506,167 @@ def _page_v37_promo_preview() -> str:
     return html
 
 
+IBETIN_V38_MATCH_PULSE_PATH = "/admin/ibetin-v38-match-pulse"
+
+IBETIN_V38_MATCH_PULSE_CSS = r"""
+/* V38 MATCH PULSE PREVIEW */
+body:before{content:"V38 MATCH PULSE"!important;background:#176fe5!important}
+.v38Pulse{margin:10px 0 12px;border:1px solid #1a547d;border-radius:17px;background:linear-gradient(145deg,#071b31,#092845 68%,#082238);padding:13px;box-shadow:0 14px 34px rgba(0,0,0,.22)}
+.v38PulseHead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
+.v38PulseHead b{font-size:15px;color:#fff;letter-spacing:.2px}.v38PulseHead span{font-size:7px;font-weight:1000;color:#63c3ff;letter-spacing:1px}
+.v38PulseMetrics{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:10px}
+.v38PulseMetric{padding:9px 8px;border-radius:11px;border:1px solid #174566;background:#061625;min-width:0}
+.v38PulseMetric span{display:block;font-size:7px;color:#7695ae;font-weight:900;letter-spacing:.7px}
+.v38PulseMetric b{display:block;margin-top:3px;font-size:15px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.v38Recent{padding:10px;border-radius:12px;background:#061725;border:1px solid #163e5c}
+.v38RecentTop{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+.v38RecentTop b{font-size:9px;color:#fff}.v38RecentTop span{font-size:7px;color:#7898b2}
+.v38Balls{display:flex;gap:5px;overflow-x:auto;scrollbar-width:none}.v38Balls::-webkit-scrollbar{display:none}
+.v38Ball{flex:0 0 27px;height:27px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#0b2943;border:1px solid #245578;color:#fff;font-size:9px;font-weight:1000}
+.v38Ball.boundary{background:#0b6c49;border-color:#22bd7b}.v38Ball.six{background:#6140b1;border-color:#9d77ff}.v38Ball.wicket{background:#8e2436;border-color:#e55068}.v38Ball.extra{background:#7b5a13;border-color:#d7ac39}
+.v38PulseSummary{margin-top:9px;color:#a9c0d4;font-size:9px;line-height:1.45}.v38PulseSummary b{color:#fff}
+.v38Latest{margin-top:7px;padding-top:8px;border-top:1px solid #143952;color:#87a8c1;font-size:8px;line-height:1.45}
+.v38Pulse .playerStrip{margin-top:10px!important}
+.v38HideNav{display:none!important}
+.detail{padding-bottom:calc(90px + env(safe-area-inset-bottom))!important}
+"""
+
+IBETIN_V38_MATCH_PULSE_JS = r"""
+<script>
+(function(){
+  function pulseMetric(label,value){
+    if(value===null||value===undefined||value==='')return '';
+    return '<div class="v38PulseMetric"><span>'+esc(label)+'</span><b>'+esc(value)+'</b></div>';
+  }
+  function pulseBallClass(o){
+    if(!o||!o[1])return '';
+    return o[1];
+  }
+  function latestText(e){
+    if(!e||typeof e!=='object')return '';
+    return String(e.commentary||e.comment||e.description||e.text||'').trim();
+  }
+  function matchPulseHtml(detail){
+    detail=detail||{};
+    const m=detail.match||{};
+    const rows=Array.isArray(detail.timeline)?detail.timeline:[];
+    const recent=rows.slice(-12);
+    const crr=rateValue(detail.roanuz?.runRate)||rateValue(deepFind(detail,['current_run_rate','currentRunRate','crr']));
+    const rrr=rateValue(deepFind(detail,['required_run_rate','requiredRunRate','required_rate','requiredRate','rrr']));
+    const target=targetRuns(detail.roanuz?.target)||targetRuns(deepFind(detail,['target']));
+    const metrics=[
+      pulseMetric('CRR',crr),
+      pulseMetric('RRR',rrr),
+      pulseMetric('TARGET',target)
+    ].filter(Boolean).join('');
+
+    let fours=0,sixes=0,wickets=0;
+    const balls=recent.map(e=>{
+      const o=ballOutcome(e);
+      if(o[0]==='4')fours++;
+      if(o[0]==='6')sixes++;
+      if(o[0]==='W')wickets++;
+      return '<span class="v38Ball '+pulseBallClass(o)+'">'+esc(o[0])+'</span>';
+    }).join('');
+
+    const boundaryCount=fours+sixes;
+    const facts=[];
+    if(boundaryCount)facts.push(boundaryCount+' '+(boundaryCount===1?'boundary':'boundaries'));
+    if(wickets)facts.push(wickets+' '+(wickets===1?'wicket':'wickets'));
+    if(recent.length && !facts.length)facts.push('no boundary or wicket in the recent '+recent.length+' deliveries');
+    const latest=latestText(recent[recent.length-1]);
+    const latestSafe=latest.length>120?latest.slice(0,117)+'…':latest;
+
+    return '<div class="v38Pulse">'
+      +'<div class="v38PulseHead"><b>⚡ MATCH PULSE</b><span>5-SECOND VIEW</span></div>'
+      +(metrics?'<div class="v38PulseMetrics">'+metrics+'</div>':'')
+      +(recent.length?'<div class="v38Recent"><div class="v38RecentTop"><b>LAST '+recent.length+' DELIVERIES</b><span>RECENT PHASE</span></div><div class="v38Balls">'+balls+'</div>'
+        +(facts.length?'<div class="v38PulseSummary"><b>Recent:</b> '+esc(facts.join(' · '))+'</div>':'')
+        +(latestSafe?'<div class="v38Latest"><b>Latest:</b> '+esc(latestSafe)+'</div>':'')
+        +'</div>':'<div class="v38PulseSummary">Live context will update as delivery data arrives.</div>')
+      +currentPlayersHtml(detail)
+      +'</div>';
+  }
+
+  function v38SetDetailMode(on){
+    const bottom=document.querySelector('.bottom');
+    const powered=document.querySelector('.ibPowered');
+    if(bottom)bottom.classList.toggle('v38HideNav',!!on);
+    if(powered)powered.classList.toggle('v38HideNav',!!on);
+  }
+
+  const v38BaseDrawDetail=drawDetail;
+  drawDetail=function(){
+    v38BaseDrawDetail();
+    try{
+      v38SetDetailMode(true);
+      const hero=document.querySelector('#detail .scorehero');
+      if(hero && !document.getElementById('v38Pulse')){
+        const wrap=document.createElement('div');
+        wrap.id='v38Pulse';
+        wrap.innerHTML=matchPulseHtml(detailData||{});
+        hero.insertAdjacentElement('afterend',wrap);
+      }
+    }catch(e){console.error('IBETIN V38 Match Pulse',e)}
+  };
+
+  const v38BaseOpenMatch=openMatch;
+  openMatch=async function(key){
+    v38SetDetailMode(true);
+    return await v38BaseOpenMatch(key);
+  };
+
+  const v38BaseBackHome=backHome;
+  backHome=function(){
+    const out=v38BaseBackHome();
+    v38SetDetailMode(false);
+    return out;
+  };
+
+  try{
+    if(detailData)drawDetail();
+    else v38SetDetailMode(false);
+  }catch(e){}
+  window.__IBETIN_V38_MATCH_PULSE__=true;
+})();
+</script>
+"""
+
+
+def _page_v38_match_pulse() -> str:
+    html = _page_v37_promo_preview()
+    html = html.replace("<title>IBETIN Live Line · Powered by ibetin.com</title>", "<title>IBETIN Live Line · Match Pulse V38</title>", 1)
+    html = html.replace("</style>", IBETIN_V38_MATCH_PULSE_CSS + "\n</style>", 1)
+    html = html.replace("</body>", IBETIN_V38_MATCH_PULSE_JS + "\n</body>", 1)
+    return html
+
+
+def _preview_v38_url() -> str:
+    root = v23.os.getenv("TRACKING_BASE_URL", "").strip().rstrip("/") or "https://ibetin-app-production.up.railway.app"
+    return f"{root}{IBETIN_V38_MATCH_PULSE_PATH}?{v23.urlencode({'t': v23.liveline._token(), 'v': '20260918-v38-pulse'})}"
+
+
+def _install_v38_match_pulse_route() -> None:
+    handler_cls = v23.liveline.base.ibetin_start.ibetin_entry.analytics.TrackingHandler
+    if getattr(handler_cls, "_ibetin_v38_match_pulse_installed", False):
+        return
+    previous_get = handler_cls.do_GET
+
+    def routed_get(self):
+        parsed = v23.urlparse(self.path)
+        if parsed.path == IBETIN_V38_MATCH_PULSE_PATH:
+            if not v23.liveline._authorized(self.path):
+                v23.liveline._send_html(self, 403, "<h3>IBETIN Live Line preview link is invalid.</h3>")
+                return
+            v23.liveline._send_html(self, 200, _page_v38_match_pulse())
+            return
+        previous_get(self)
+
+    handler_cls.do_GET = routed_get
+    handler_cls._ibetin_v38_match_pulse_installed = True
+    logger.info("IBETIN V38 Match Pulse preview route installed at %s", IBETIN_V38_MATCH_PULSE_PATH)
+
+
 def _preview_v37_url() -> str:
     root = v23.os.getenv("TRACKING_BASE_URL", "").strip().rstrip("/") or "https://ibetin-app-production.up.railway.app"
     return f"{root}{IBETIN_V37_PROMO_PREVIEW_PATH}?{v23.urlencode({'t': v23.liveline._token(), 'v': '20260918-v37-inapp-browser'})}"
@@ -592,14 +753,14 @@ async def _previewui_command(update, context):
         await message.reply_text("Open this preview from a private chat with the bot.")
         return
     await message.reply_text(
-        "⚡ <b>IBETIN LIVE LINE · V37 PROMO PREVIEW</b>\n\n"
-        "Live Line stays the free sports utility. ibetin.com appears as the parent brand and betting destination. "
-        "Production LIVE remains on approved V35 until you approve this version.",
+        "⚡ <b>IBETIN LIVE LINE · MATCH PULSE V38</b>\n\n"
+        "Testing the new 5-second match view on top of the approved Live Line experience. "
+        "Production LIVE remains on approved V35 until you approve V38.",
         parse_mode="HTML",
         reply_markup=v23.liveline.InlineKeyboardMarkup(
             [[v23.liveline.InlineKeyboardButton(
-                "⚡ OPEN LIVE LINE V37",
-                web_app=v23.liveline.WebAppInfo(url=_preview_v37_url()),
+                "⚡ OPEN MATCH PULSE V38",
+                web_app=v23.liveline.WebAppInfo(url=_preview_v38_url()),
             )]]
         ),
         disable_web_page_preview=True,
@@ -625,6 +786,7 @@ def _install_v35_preview_command() -> None:
 _install_v35_preview_route()
 _install_v36_brand_preview_route()
 _install_v37_promo_preview_route()
+_install_v38_match_pulse_route()
 _install_v35_preview_command()
 
 # Promote the approved V35 UI to the production Live route.

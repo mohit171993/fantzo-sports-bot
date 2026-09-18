@@ -7,7 +7,7 @@ import shutil
 import threading
 import time
 import zlib
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 # Use Railway persistent storage whenever the volume is mounted. This executes
 # before the bot/data modules import DB_PATH, so all SQLite users share one file.
@@ -29,6 +29,7 @@ if os.path.isdir(_IBETIN_PERSIST_DIR):
         logging.getLogger(__name__).warning("IBETIN persistent DB bootstrap failed: %s", str(exc)[:140])
 
 import ibetin_liveline_v25_fast_cache as v25
+import ibetin_phone_verify as phone_verify
 
 logger = logging.getLogger(__name__)
 v23 = v25.v23
@@ -40,6 +41,133 @@ IBETIN_LIVE_HEALTH_PATH = "/admin/ibetin-live-health"
 IBETIN_PUBLIC_LIVELINE_PATH = "/liveline"
 IBETIN_PUBLIC_LIVELINE_API_PATH = "/liveline/api"
 IBETIN_PUBLIC_LIVE_STREAM_PATH = "/liveline/stream"
+IBETIN_PUBLIC_VERIFY_STATUS_PATH = "/liveline/verify-status"
+IBETIN_LIVELINE_COOKIE = "ibetin_ll"
+IBETIN_LIVELINE_COOKIE_MAX_AGE = 30 * 24 * 60 * 60
+
+
+def _request_liveline_token(handler, parsed=None) -> str:
+    parsed = parsed or urlparse(handler.path)
+    try:
+        query = parse_qs(parsed.query, keep_blank_values=True)
+        supplied = (query.get("access") or [""])[0].strip()
+        if supplied:
+            return supplied
+    except Exception:
+        pass
+
+    raw_cookie = str(handler.headers.get("Cookie") or "")
+    for part in raw_cookie.split(";"):
+        name, sep, value = part.strip().partition("=")
+        if sep and name == IBETIN_LIVELINE_COOKIE:
+            return value.strip()
+    return ""
+
+
+def _liveline_identity(handler, parsed=None):
+    token = _request_liveline_token(handler, parsed)
+    user_id = phone_verify.verify_access_token(token) if token else 0
+    return int(user_id or 0), token
+
+
+def _liveline_verified(handler, parsed=None):
+    user_id, token = _liveline_identity(handler, parsed)
+    return user_id, token, bool(user_id and phone_verify.is_verified(user_id))
+
+
+def _send_json(handler, status: int, payload) -> None:
+    raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    handler.send_response(status)
+    handler.send_header("Content-Type", "application/json; charset=utf-8")
+    handler.send_header("Cache-Control", "no-store")
+    handler.send_header("Content-Length", str(len(raw)))
+    handler.end_headers()
+    handler.wfile.write(raw)
+
+
+def _set_liveline_cookie(handler, token: str) -> None:
+    handler.send_header(
+        "Set-Cookie",
+        f"{IBETIN_LIVELINE_COOKIE}={token}; Max-Age={IBETIN_LIVELINE_COOKIE_MAX_AGE}; "
+        "Path=/liveline; Secure; HttpOnly; SameSite=Lax",
+    )
+
+
+def _send_liveline_redirect_with_cookie(handler, token: str) -> None:
+    handler.send_response(302)
+    handler.send_header("Location", IBETIN_PUBLIC_LIVELINE_PATH)
+    handler.send_header("Cache-Control", "no-store")
+    _set_liveline_cookie(handler, token)
+    handler.send_header("Content-Length", "0")
+    handler.end_headers()
+
+
+def _liveline_verification_page(token: str = "") -> str:
+    verify_url = phone_verify.verification_bot_url()
+    if token:
+        status_url = (
+            IBETIN_PUBLIC_VERIFY_STATUS_PATH
+            + "?access="
+            + token
+        )
+        poll_js = f"""
+<script>
+(function(){{
+  const statusUrl={json.dumps(status_url)};
+  async function check(){{
+    try{{
+      const r=await fetch(statusUrl,{{cache:'no-store'}});
+      const j=await r.json();
+      if(j && j.verified){{
+        window.location.replace('/liveline?access='+encodeURIComponent({json.dumps(token)}));
+        return;
+      }}
+    }}catch(e){{}}
+    setTimeout(check,1800);
+  }}
+  check();
+}})();
+</script>"""
+        sub = "After sharing your number in the bot, this page unlocks automatically."
+    else:
+        poll_js = ""
+        sub = "After verification, use the Open Live Line button sent by the bot."
+
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta http-equiv="Cache-Control" content="no-store">
+<title>Verify Mobile · IBETIN Live Line</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+*{{box-sizing:border-box}}html,body{{margin:0;min-height:100%;font-family:Inter,Arial,sans-serif;background:#eef3f8;color:#102c4b}}
+.wrap{{max-width:560px;margin:0 auto;padding:28px 18px}}
+.card{{margin-top:42px;background:#fff;border-radius:22px;padding:26px 20px;box-shadow:0 10px 32px rgba(5,34,69,.10);text-align:center}}
+.mark{{width:60px;height:60px;border-radius:18px;margin:0 auto 16px;display:grid;place-items:center;background:#f6c84b;font-size:30px}}
+h1{{margin:0;font-size:24px}}p{{color:#6d8297;line-height:1.55;font-size:14px}}
+.btn{{display:block;margin-top:20px;padding:15px 16px;border-radius:14px;background:#0b5cb4;color:#fff;text-decoration:none;font-weight:900}}
+.note{{font-size:12px;color:#8a9bad;margin-top:14px}}
+</style>
+</head>
+<body><div class="wrap"><div class="card">
+<div class="mark">📱</div>
+<h1>Mobile verification required</h1>
+<p>IBETIN Live Line is available only after you verify the mobile number linked to your Telegram account.</p>
+<a class="btn" href="{verify_url}">▶ START VERIFICATION IN BOT</a>
+<div class="note">{sub}</div>
+</div></div>{poll_js}</body></html>"""
+
+
+def _deny_liveline_stream(handler) -> None:
+    body = b"mobile verification required"
+    handler.send_response(401)
+    handler.send_header("Content-Type", "text/plain; charset=utf-8")
+    handler.send_header("Cache-Control", "no-store")
+    handler.send_header("Content-Length", str(len(body)))
+    handler.end_headers()
+    handler.wfile.write(body)
 
 _live_event_condition = threading.Condition()
 _live_event_seq = 0
@@ -105,6 +233,11 @@ def _install_live_stream_routes() -> None:
                 self.send_response(403)
                 self.end_headers()
                 return
+            if parsed.path == IBETIN_PUBLIC_LIVE_STREAM_PATH:
+                _, _, verified = _liveline_verified(self, parsed)
+                if not verified:
+                    _deny_liveline_stream(self)
+                    return
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream; charset=utf-8")
             self.send_header("Cache-Control", "no-cache, no-transform")
@@ -1435,21 +1568,49 @@ def _install_public_liveline_routes() -> None:
 
     def routed_get(self):
         parsed = v23.urlparse(self.path)
+
+        if parsed.path == IBETIN_PUBLIC_VERIFY_STATUS_PATH:
+            user_id, _, verified = _liveline_verified(self, parsed)
+            _send_json(self, 200, {"verified": bool(user_id and verified)})
+            return
+
         if parsed.path == IBETIN_PUBLIC_LIVELINE_PATH:
+            user_id, token, verified = _liveline_verified(self, parsed)
+            if not verified:
+                v23.liveline._send_html(self, 401, _liveline_verification_page(token))
+                return
+
+            # A signed access token may arrive in the DM/bot button. Convert it
+            # to an HttpOnly cookie, then remove it from the visible URL.
+            try:
+                query = parse_qs(parsed.query, keep_blank_values=True)
+                if (query.get("access") or [""])[0].strip():
+                    _send_liveline_redirect_with_cookie(self, token)
+                    return
+            except Exception:
+                pass
+
             v23.liveline._send_html(self, 200, _page_v40_public())
             return
+
         if parsed.path == IBETIN_PUBLIC_LIVELINE_API_PATH:
+            _, _, verified = _liveline_verified(self, parsed)
+            if not verified:
+                _send_json(self, 401, {"ok": False, "error": "mobile_verification_required"})
+                return
             v23.liveline._api(self)
             return
+
         previous_get(self)
 
     handler_cls.do_GET = routed_get
     handler_cls._ibetin_public_liveline_installed = True
     logger.info(
-        "IBETIN public Live Line installed page=%s api=%s stream=%s",
+        "IBETIN verified Live Line installed page=%s api=%s stream=%s verify=%s",
         IBETIN_PUBLIC_LIVELINE_PATH,
         IBETIN_PUBLIC_LIVELINE_API_PATH,
         IBETIN_PUBLIC_LIVE_STREAM_PATH,
+        IBETIN_PUBLIC_VERIFY_STATUS_PATH,
     )
 
 

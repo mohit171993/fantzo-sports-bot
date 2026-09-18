@@ -290,9 +290,7 @@ def _recent_business_targets(limit: int = 5):
                        bc.connection_id AS business_connection_id,
                        bc.last_seen AS last_seen
                 FROM business_customers bc
-                JOIN business_connections c
-                  ON c.connection_id = bc.connection_id
-                WHERE c.enabled = 1
+                WHERE bc.connection_id != ''
                 ORDER BY bc.last_seen DESC
                 LIMIT ?
                 """,
@@ -300,6 +298,11 @@ def _recent_business_targets(limit: int = 5):
             ).fetchall()
         except Exception:
             return []
+
+
+def _most_recent_business_target():
+    rows = _recent_business_targets(1)
+    return rows[0] if rows else None
 
 
 def _find_business_target_username(username: str):
@@ -316,10 +319,8 @@ def _find_business_target_username(username: str):
                        bc.connection_id AS business_connection_id,
                        bc.last_seen AS last_seen
                 FROM business_customers bc
-                JOIN business_connections c
-                  ON c.connection_id = bc.connection_id
                 WHERE lower(bc.username) = lower(?)
-                  AND c.enabled = 1
+                  AND bc.connection_id != ''
                 ORDER BY bc.last_seen DESC
                 LIMIT 1
                 """,
@@ -499,18 +500,18 @@ async def _startup_creative_status_and_test(application) -> None:
         business_target = _find_business_target_username("mohit_97saxena")
         bot_target = _find_target_username("mohit_97saxena")
 
+        if not business_target:
+            business_target = _most_recent_business_target()
+            if business_target:
+                logger.info(
+                    "IBETIN startup creative test using most recent Business DM contact user_id=%s username=%s",
+                    int(business_target["user_id"]),
+                    str(business_target["username"] or ""),
+                )
+
         if not business_target and not bot_target:
-            recent = _recent_business_targets(5)
             logger.info(
-                "IBETIN startup creative test target not found username=mohit_97saxena recent_business=%s",
-                [
-                    {
-                        "user_id": int(r["user_id"]),
-                        "username": str(r["username"] or ""),
-                        "last_seen": str(r["last_seen"] or ""),
-                    }
-                    for r in recent
-                ],
+                "IBETIN startup creative test target not found in Business DM or bot contacts"
             )
             return
 

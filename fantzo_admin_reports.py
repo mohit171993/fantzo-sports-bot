@@ -108,6 +108,7 @@ def _report_menu() -> InlineKeyboardMarkup:
                 _styled_button("🔔 REMINDERS", "rpt:reminders", "primary"),
                 _styled_button("⭐ FAVOURITES", "rpt:favourites", "primary"),
             ],
+            [_styled_button("📱 MOBILE NUMBERS", "rpt:mobile", "success")],
             [
                 _styled_button("📅 DAILY", "rpt:daily", "primary"),
                 _styled_button("🖼 BANNERS", "rpt:banners", "primary"),
@@ -135,8 +136,9 @@ def _downloads_menu() -> InlineKeyboardMarkup:
             ],
             [
                 InlineKeyboardButton("📺 Live TV CSV", callback_data="rptdl:livetv"),
-                InlineKeyboardButton("🌐 Fantzo Opens CSV", callback_data="rptdl:web"),
+                InlineKeyboardButton("📱 Mobile CSV", callback_data="rptdl:mobile"),
             ],
+            [InlineKeyboardButton("🌐 Fantzo Opens CSV", callback_data="rptdl:web")],
             [
                 InlineKeyboardButton("💬 Business CSV", callback_data="rptdl:business"),
                 InlineKeyboardButton("🔔 Reminders CSV", callback_data="rptdl:reminders"),
@@ -171,6 +173,7 @@ def _overview_text() -> str:
         reminder_sent = _scalar(conn, "SELECT COUNT(*) FROM reminder_sends WHERE status='sent'") if _table_exists(conn, "reminder_sends") else 0
         favourites = _scalar(conn, "SELECT COUNT(*) FROM user_favourites WHERE alerts_enabled=1") if _table_exists(conn, "user_favourites") else 0
         queued_banners = _scalar(conn, "SELECT COUNT(*) FROM live_tv_banners WHERE status='queued'") if _table_exists(conn, "live_tv_banners") else 0
+        mobile_users = _scalar(conn, "SELECT COUNT(*) FROM live_tv_mobile_users") if _table_exists(conn, "live_tv_mobile_users") else 0
 
     return (
         "📊 <b>FANTZO REPORTS · OVERVIEW</b>\n"
@@ -181,6 +184,7 @@ def _overview_text() -> str:
         f"🔔 Alert subscribers: <b>{_fmt_int(subscribers)}</b>\n\n"
         f"🎯 Bot actions: <b>{_fmt_int(clicks)}</b> total · <b>{_fmt_int(clicks_24)}</b> in 24h\n"
         f"📺 Live TV opens: <b>{_fmt_int(live_tv)}</b> from <b>{_fmt_int(live_tv_users)}</b> users\n"
+        f"📱 Live TV mobile numbers: <b>{_fmt_int(mobile_users)}</b>\n"
         f"🌐 Fantzo web opens: <b>{_fmt_int(web_opens)}</b>\n"
         f"💬 Business DM events: <b>{_fmt_int(business)}</b>\n"
         f"📨 Reminders sent: <b>{_fmt_int(reminder_sent)}</b>\n"
@@ -252,6 +256,7 @@ def _livetv_text() -> str:
         unique_7 = _scalar(conn, "SELECT COUNT(DISTINCT user_id) FROM clicks WHERE action='live_tv_status' AND created_at>=?", (week,))
         first_last = _one(conn, "SELECT MIN(created_at) first_at, MAX(created_at) last_at FROM clicks WHERE action='live_tv_status'")
         callback_opens = _scalar(conn, "SELECT COUNT(*) FROM growth_events WHERE event='live_tv_open'") if _table_exists(conn, "growth_events") else 0
+        mobile_users = _scalar(conn, "SELECT COUNT(*) FROM live_tv_mobile_users") if _table_exists(conn, "live_tv_mobile_users") else 0
     derived_deeplinks = max(int(total) - int(callback_opens), 0)
     return (
         "📺 <b>LIVE TV REPORT</b>\n"
@@ -259,7 +264,8 @@ def _livetv_text() -> str:
         f"Total Live TV entries: <b>{_fmt_int(total)}</b>\n"
         f"Unique users: <b>{_fmt_int(unique)}</b>\n\n"
         f"24h: <b>{_fmt_int(count_24)}</b> opens · <b>{_fmt_int(unique_24)}</b> users\n"
-        f"7d: <b>{_fmt_int(count_7)}</b> opens · <b>{_fmt_int(unique_7)}</b> users\n\n"
+        f"7d: <b>{_fmt_int(count_7)}</b> opens · <b>{_fmt_int(unique_7)}</b> users\n"
+        f"📱 Mobile numbers captured: <b>{_fmt_int(mobile_users)}</b>\n\n"
         f"In-bot status-button opens: <b>{_fmt_int(callback_opens)}</b>\n"
         f"Deep-link / other entries (derived): <b>{_fmt_int(derived_deeplinks)}</b>\n\n"
         f"First recorded: <b>{_fmt_dt(first_last['first_at'] if first_last else None)}</b>\n"
@@ -267,6 +273,61 @@ def _livetv_text() -> str:
         "<i>Live TV totals use clicks.action=live_tv_status as the canonical count.</i>"
     )
 
+
+
+def _mask_mobile(value: str) -> str:
+    text = str(value or "")
+    if len(text) >= 7:
+        return text[:3] + "••••••" + text[-4:]
+    return "—"
+
+
+def _mobile_text() -> str:
+    day, week, _ = _cutoffs()
+    with core.db() as conn:
+        if not _table_exists(conn, "live_tv_mobile_users"):
+            return "📱 <b>MOBILE NUMBERS REPORT</b>\n\nNo mobile numbers have been captured yet."
+
+        total = _scalar(conn, "SELECT COUNT(*) FROM live_tv_mobile_users")
+        unique_numbers = _scalar(conn, "SELECT COUNT(DISTINCT mobile_e164) FROM live_tv_mobile_users")
+        count_24 = _scalar(conn, "SELECT COUNT(*) FROM live_tv_mobile_users WHERE created_at>=?", (day,))
+        count_7 = _scalar(conn, "SELECT COUNT(*) FROM live_tv_mobile_users WHERE created_at>=?", (week,))
+        contact_count = _scalar(conn, "SELECT COUNT(*) FROM live_tv_mobile_users WHERE capture_method='telegram_contact'")
+        manual_count = _scalar(conn, "SELECT COUNT(*) FROM live_tv_mobile_users WHERE capture_method='manual'")
+        sources = _rows(
+            conn,
+            "SELECT source, COUNT(*) c FROM live_tv_mobile_users GROUP BY source ORDER BY c DESC LIMIT 6"
+        )
+        latest = _rows(
+            conn,
+            "SELECT m.mobile_e164,m.source,m.capture_method,m.created_at,"
+            "u.username,u.first_name FROM live_tv_mobile_users m "
+            "LEFT JOIN users u ON u.user_id=m.user_id "
+            "ORDER BY m.created_at DESC LIMIT 6"
+        )
+
+    source_text = "\n".join(
+        f"• {escape(str(r['source']))}: <b>{_fmt_int(r['c'])}</b>" for r in sources
+    ) or "• No source data"
+
+    latest_text = "\n".join(
+        f"• <code>{_mask_mobile(r['mobile_e164'])}</code> · "
+        f"{escape(str(r['username'] or r['first_name'] or 'user'))} · "
+        f"{escape(str(r['source']))}"
+        for r in latest
+    ) or "• No mobile numbers yet"
+
+    return (
+        "📱 <b>MOBILE NUMBERS REPORT</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
+        f"Registered users: <b>{_fmt_int(total)}</b>\n"
+        f"Unique mobile numbers: <b>{_fmt_int(unique_numbers)}</b>\n"
+        f"New captures: <b>{_fmt_int(count_24)}</b> (24h) · <b>{_fmt_int(count_7)}</b> (7d)\n"
+        f"Telegram contact: <b>{_fmt_int(contact_count)}</b> · Manual: <b>{_fmt_int(manual_count)}</b>\n\n"
+        f"<b>Capture sources</b>\n{source_text}\n\n"
+        f"<b>Latest registrations · masked</b>\n{latest_text}\n\n"
+        "<i>Full mobile numbers are available only in the admin CSV download.</i>"
+    )
 
 def _web_text() -> str:
     day, week, _ = _cutoffs()
@@ -383,6 +444,7 @@ def _daily_rows(days: int = 30):
         business = grouped("clicks", "created_at", "action LIKE 'business_dm:%'")
         web = grouped("web_events", "created_at", "event='fantzo_open'")
         reminders = grouped("reminder_sends", "sent_at", "status='sent'")
+        mobile = grouped("live_tv_mobile_users", "created_at")
 
         active = {}
         if _table_exists(conn, "users"):
@@ -394,9 +456,9 @@ def _daily_rows(days: int = 30):
             )
             active = {str(r["d"]): int(r["c"]) for r in rows}
 
-    dates = sorted(set(actions) | set(live_tv) | set(business) | set(web) | set(reminders) | set(active), reverse=True)
+    dates = sorted(set(actions) | set(live_tv) | set(business) | set(web) | set(reminders) | set(mobile) | set(active), reverse=True)
     return [
-        (d, active.get(d, 0), actions.get(d, 0), live_tv.get(d, 0), web.get(d, 0), business.get(d, 0), reminders.get(d, 0))
+        (d, active.get(d, 0), actions.get(d, 0), live_tv.get(d, 0), mobile.get(d, 0), web.get(d, 0), business.get(d, 0), reminders.get(d, 0))
         for d in dates
     ]
 
@@ -406,21 +468,21 @@ def _daily_text() -> str:
     if not rows:
         return "📅 <b>DAILY ACTIVITY</b>\n\nNo daily activity is available yet."
     lines = []
-    for d, active, actions, live, web, business, reminders in rows[:14]:
+    for d, active, actions, live, mobile, web, business, reminders in rows[:14]:
         lines.append(
-            f"<b>{escape(d)}</b> · 👥 {active} · 🎯 {actions} · 📺 {live} · 🌐 {web} · 💬 {business} · 📨 {reminders}"
+            f"<b>{escape(d)}</b> · 👥 {active} · 🎯 {actions} · 📺 {live} · 📱 {mobile} · 🌐 {web} · 💬 {business} · 📨 {reminders}"
         )
     return (
         "📅 <b>DAILY ACTIVITY · LAST 14 DAYS</b>\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
-        "👥 active · 🎯 actions · 📺 Live TV · 🌐 opens · 💬 Business · 📨 reminders\n\n"
+        "👥 active · 🎯 actions · 📺 Live TV · 📱 mobile · 🌐 opens · 💬 Business · 📨 reminders\n\n"
         + "\n".join(lines)
     )
 
 
 def _daily_csv() -> bytes:
     return _csv_bytes(
-        ["date_utc", "active_users_by_last_seen", "bot_actions", "live_tv_entries", "fantzo_web_opens", "business_dm_events", "reminders_sent"],
+        ["date_utc", "active_users_by_last_seen", "bot_actions", "live_tv_entries", "mobile_captures", "fantzo_web_opens", "business_dm_events", "reminders_sent"],
         _daily_rows(3650),
     )
 
@@ -502,6 +564,13 @@ def _report_csv(key: str) -> tuple[str, bytes]:
             "FROM clicks c LEFT JOIN users u ON u.user_id=c.user_id "
             "WHERE c.action='live_tv_status' ORDER BY c.created_at DESC"
         )
+    if key == "mobile":
+        return f"fantzo_live_tv_mobile_numbers_{stamp}.csv", _query_csv(
+            "SELECT m.user_id,u.username,u.first_name,m.mobile_e164,m.mobile_national,"
+            "m.capture_method,m.source,m.created_at,m.updated_at,m.last_live_tv_at "
+            "FROM live_tv_mobile_users m LEFT JOIN users u ON u.user_id=m.user_id "
+            "ORDER BY m.created_at DESC"
+        )
     if key == "web":
         return f"fantzo_opens_{stamp}.csv", _query_csv(
             "SELECT id,event,source,created_at FROM web_events ORDER BY created_at DESC"
@@ -530,22 +599,24 @@ def _all_reports_zip() -> tuple[str, bytes]:
         "01_users.csv": _table_csv("users"),
         "02_engagement_clicks.csv": _table_csv("clicks"),
         "03_live_tv.csv": _report_csv("livetv")[1],
-        "04_fantzo_web_opens.csv": _table_csv("web_events"),
-        "05_growth_events.csv": _table_csv("growth_events"),
-        "06_business_welcomes.csv": _table_csv("business_welcomes"),
-        "07_business_connections.csv": _table_csv("business_connections"),
-        "08_reminder_users.csv": _table_csv("reminder_users"),
-        "09_reminder_sends.csv": _table_csv("reminder_sends"),
-        "10_favourites.csv": _table_csv("user_favourites"),
-        "11_daily_activity.csv": _daily_csv(),
-        "12_live_tv_banners.csv": _table_csv("live_tv_banners"),
-        "13_live_tv_banner_settings.csv": _table_csv("live_tv_banner_settings"),
+        "04_live_tv_mobile_numbers.csv": _table_csv("live_tv_mobile_users"),
+        "05_fantzo_web_opens.csv": _table_csv("web_events"),
+        "06_growth_events.csv": _table_csv("growth_events"),
+        "07_business_welcomes.csv": _table_csv("business_welcomes"),
+        "08_business_connections.csv": _table_csv("business_connections"),
+        "09_reminder_users.csv": _table_csv("reminder_users"),
+        "10_reminder_sends.csv": _table_csv("reminder_sends"),
+        "11_favourites.csv": _table_csv("user_favourites"),
+        "12_daily_activity.csv": _daily_csv(),
+        "13_live_tv_banners.csv": _table_csv("live_tv_banners"),
+        "14_live_tv_banner_settings.csv": _table_csv("live_tv_banner_settings"),
     }
     readme = (
         "FANTZO ADMIN REPORT PACK\n"
         f"Generated: {datetime.now(timezone.utc).isoformat()}\n\n"
         "Definitions:\n"
         "- Live TV canonical opens: clicks.action = live_tv_status\n"
+        "- Mobile capture: live_tv_mobile_users (full number is admin-only)\n"
         "- Fantzo web opens: web_events.event = fantzo_open\n"
         "- Business DM activity: clicks.action starts with business_dm:\n"
         "- Web redirect events do not contain Telegram user_id.\n"
@@ -623,6 +694,8 @@ async def _handle_report_callback(update, context) -> bool:
         await _show(query, _engagement_text(), _back_menu("engagement"))
     elif action == "livetv":
         await _show(query, _livetv_text(), _back_menu("livetv"))
+    elif action == "mobile":
+        await _show(query, _mobile_text(), _back_menu("mobile"))
     elif action == "web":
         await _show(query, _web_text(), _back_menu("web"))
     elif action == "business":

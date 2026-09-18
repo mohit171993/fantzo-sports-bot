@@ -1,8 +1,8 @@
 """Telegram-contact verification gate for public Fantzo Live TV.
 
 A user is considered verified only when Telegram supplies a Contact whose
-contact.user_id exactly matches the requesting Telegram user and whose phone
-number is a valid Indian +91 mobile number. Typed numbers never unlock Live TV.
+contact.user_id exactly matches the requesting Telegram user. Any country's
+Telegram-linked phone number is accepted. Typed numbers never unlock Live TV.
 """
 
 from __future__ import annotations
@@ -61,18 +61,12 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def normalize_indian_mobile(value: str) -> tuple[str, str] | None:
+def normalize_telegram_mobile(value: str) -> tuple[str, str] | None:
+    """Normalize a Telegram-provided phone number without country restriction."""
     digits = re.sub(r"\D", "", str(value or ""))
-
-    if len(digits) == 12 and digits.startswith("91"):
-        digits = digits[2:]
-    elif len(digits) == 11 and digits.startswith("0"):
-        digits = digits[1:]
-
-    if len(digits) != 10 or digits[0] not in {"6", "7", "8", "9"}:
+    if len(digits) < 7 or len(digits) > 15:
         return None
-
-    return f"+91{digits}", digits
+    return f"+{digits}", digits
 
 
 def is_registered(user_id: int) -> bool:
@@ -92,11 +86,11 @@ def is_registered(user_id: int) -> bool:
 
 
 def save_verified_contact(user_id: int, value: str, source: str) -> tuple[str, str]:
-    normalized = normalize_indian_mobile(value)
+    normalized = normalize_telegram_mobile(value)
     if not normalized:
-        raise ValueError("A valid Indian mobile number is required")
+        raise ValueError("A valid Telegram-linked mobile number is required")
 
-    e164, national = normalized
+    e164, digits = normalized
     now = _now_iso()
 
     ensure_tables()
@@ -124,7 +118,7 @@ def save_verified_contact(user_id: int, value: str, source: str) -> tuple[str, s
             (
                 int(user_id),
                 e164,
-                national,
+                digits,
                 "telegram_contact",
                 str(source or "live_tv")[:64],
                 created_at,
@@ -133,7 +127,7 @@ def save_verified_contact(user_id: int, value: str, source: str) -> tuple[str, s
             ),
         )
 
-    return e164, national
+    return e164, digits
 
 
 def touch_live_tv_access(user_id: int) -> None:
@@ -179,10 +173,10 @@ async def _prompt_mobile(update: Update, context, source: str) -> None:
         await message.reply_text(
             "📱 <b>VERIFY MOBILE TO WATCH LIVE TV</b>\n"
             "━━━━━━━━━━━━━━━━━━\n\n"
-            "Fantzo Live TV requires a verified Indian mobile number.\n\n"
+            "Fantzo Live TV requires a verified Telegram-linked mobile number.\n\n"
             "Tap <b>📱 VERIFY & CONTINUE</b> below. Telegram will share the "
             "mobile number linked to your own Telegram account.\n\n"
-            "Only an Indian <b>+91</b> mobile number is accepted. "
+            "Numbers from <b>any country</b> are accepted. "
             "Typed numbers are not accepted.",
             parse_mode="HTML",
             reply_markup=_verify_keyboard(),
@@ -212,12 +206,12 @@ async def contact_handler(update: Update, context) -> None:
         )
         return
 
-    normalized = normalize_indian_mobile(contact.phone_number or "")
+    normalized = normalize_telegram_mobile(contact.phone_number or "")
     if not normalized:
         await message.reply_text(
-            "⚠️ <b>An Indian mobile number is required.</b>\n\n"
-            "The mobile number linked to this Telegram account is not a valid "
-            "Indian +91 mobile number, so Live TV cannot be unlocked.",
+            "⚠️ <b>A valid Telegram-linked mobile number is required.</b>\n\n"
+            "Telegram did not provide a usable phone number for this account, "
+            "so Live TV cannot be unlocked.",
             parse_mode="HTML",
             reply_markup=_verify_keyboard(),
         )
@@ -233,7 +227,11 @@ async def contact_handler(update: Update, context) -> None:
     context.user_data.pop(_PENDING_KEY, None)
     context.user_data.pop(_PENDING_SOURCE_KEY, None)
 
-    masked = e164[:3] + "••••••" + e164[-4:]
+    if len(e164) > 7:
+        masked = e164[:4] + "••••" + e164[-4:]
+    else:
+        masked = e164
+
     await message.reply_text(
         "✅ <b>Telegram mobile verified</b>\n\n"
         f"Verified number: <code>{masked}</code>\n"
@@ -314,7 +312,7 @@ def install() -> None:
     tracked.app.core.callback_router = gated_router
 
     logger.info(
-        "Fantzo Live TV mobile gate installed: Telegram self-contact + Indian +91 required"
+        "Fantzo Live TV mobile gate installed: Telegram self-contact required; all countries accepted"
     )
 
 

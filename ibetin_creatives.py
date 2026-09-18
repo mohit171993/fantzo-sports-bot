@@ -444,7 +444,11 @@ async def _send_test_to_business_target(bot, target, creative) -> bool:
     markup = InlineKeyboardMarkup(
         [[InlineKeyboardButton(
             "🏏 OPEN IBETIN LIVE LINE",
-            url=phone_verify.live_line_url(int(target["user_id"]), LIVE_LINE_URL),
+            url=(
+                phone_verify.live_line_url(int(target["user_id"]), LIVE_LINE_URL)
+                if phone_verify.is_verified(int(target["user_id"]))
+                else phone_verify.verification_bot_url()
+            ),
         )]]
     )
     caption = (
@@ -469,7 +473,11 @@ async def _send_test_to_bot_target(bot, target, creative) -> bool:
         [[InlineKeyboardButton(
             "🏏 OPEN IBETIN LIVE LINE",
             web_app=WebAppInfo(
-                url=phone_verify.live_line_url(int(target["user_id"]), LIVE_LINE_URL)
+                url=(
+                    phone_verify.live_line_url(int(target["user_id"]), LIVE_LINE_URL)
+                    if phone_verify.is_verified(int(target["user_id"]))
+                    else phone_verify.verification_bot_url()
+                )
             ),
         )]]
     )

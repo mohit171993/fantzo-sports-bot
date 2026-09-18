@@ -265,14 +265,25 @@ async def banner_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 
 async def runtime_admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    # Resolve at execution time so runtime patches to core.admin are honored.
+    # /admin is owned by the IBETIN Report Center.
+    # Do NOT delegate to core.admin because later startup modules may replace it.
     user = update.effective_user
+    message = update.effective_message
     logger.info(
         "IBETIN admin command received user_id=%s username=%s",
         user.id if user else None,
         user.username if user else None,
     )
-    await core.admin(update, context)
+    if not user or not message:
+        return
+
+    import ibetin_reports
+
+    if not ibetin_reports.is_authorized_admin(user.id):
+        await message.reply_text("This command is restricted.")
+        return
+
+    await ibetin_reports.send_menu(update, context)
 
 
 def run() -> None:

@@ -126,3 +126,33 @@ def verification_bot_url() -> str:
         or DEFAULT_BOT_USERNAME
     )
     return f"https://t.me/{username}?start=verifyliveline"
+
+
+def apply_requested_reset() -> int:
+    """One-time operator reset for Live Line mobile verification.
+
+    Controlled only through the IBETIN_RESET_VERIFICATION_PHONE environment
+    variable. The caller should clear that variable immediately after use.
+    """
+    requested = normalize_phone(
+        os.getenv("IBETIN_RESET_VERIFICATION_PHONE", "").strip()
+    )
+    if not requested:
+        return 0
+
+    ensure_tables()
+    requested_digits = re.sub(r"\D", "", requested)
+    deleted = 0
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT user_id, phone_number FROM liveline_verified_users"
+        ).fetchall()
+        for row in rows:
+            stored_digits = re.sub(r"\D", "", str(row["phone_number"] or ""))
+            if stored_digits == requested_digits:
+                cur = conn.execute(
+                    "DELETE FROM liveline_verified_users WHERE user_id = ?",
+                    (int(row["user_id"]),),
+                )
+                deleted += int(cur.rowcount or 0)
+    return deleted

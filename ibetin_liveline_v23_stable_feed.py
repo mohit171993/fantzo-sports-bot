@@ -113,15 +113,94 @@ def _normalize_with_play(node):
 v20._normalize_roanuz_match = _normalize_with_play
 
 
-_STRICT_ACTIVE_LIVE_STATES = {
-    "live", "in play", "inplay", "in-play", "playing", "started",
-    "in progress", "in_progress", "innings break", "innings_break",
+_LIVE_PLAYING_STATES = {
+    "live", "in play", "inplay", "playing", "started", "play",
+    "in progress", "ongoing", "innings break", "drinks", "lunch", "tea",
 }
+_LIVE_INTERRUPTION_STATES = {
+    "match delayed", "delay", "delayed", "interrupted", "suspended",
+    "rain delay", "rain stopped", "rain interruption", "wet outfield",
+    "bad light", "weather delay",
+}
+_LIVE_END_STATES = {
+    "stumps", "completed", "complete", "finished", "result", "ended", "closed",
+    "abandoned", "cancelled", "canceled", "no result", "postponed",
+}
+_LIVE_INTERRUPT_WORDS = (
+    "rain", "wet outfield", "bad light", "weather delay", "play suspended",
+    "match delayed", "play stopped", "interrupted",
+)
+_TOSS_WORDS = ("won the toss", "toss won", "elected to bat", "elected to bowl", "opted to bat", "opted to bowl")
 
 
-def _fallback_is_actively_live(match) -> bool:
+def _norm_live_state(value) -> str:
+    value = str(value or "").strip().casefold().replace("_", " ").replace("-", " ")
+    return " ".join(value.split())
+
+
+def _deep_has_toss(node) -> bool:
+    if not isinstance(node, dict):
+        return False
+    for key in ("toss", "toss_winner", "tossWinner", "toss_result", "tossResult"):
+        value = node.get(key)
+        if value not in (None, "", {}, []):
+            if isinstance(value, dict):
+                winner = value.get("winner") or value.get("team") or value.get("won") or value.get("decision")
+                if winner not in (None, "", {}, []):
+                    return True
+                if any(v not in (None, "", {}, []) for v in value.values()):
+                    return True
+            else:
+                return True
+    for value in node.values():
+        if isinstance(value, dict) and _deep_has_toss(value):
+            return True
+    return False
+
+
+def _match_text(match) -> str:
+    if not isinstance(match, dict):
+        return ""
+    parts = []
+    for key in ("report", "state", "status", "matchStatus", "match_status", "status_note", "statusNote", "note", "result"):
+        value = match.get(key)
+        if value not in (None, "", {}, []):
+            parts.append(str(value))
+    return " ".join(parts).casefold()
+
+
+def _match_has_score(match) -> bool:
     if not isinstance(match, dict):
         return False
+    for key in ("homeScore", "awayScore", "score", "runs", "overs", "over"):
+        value = match.get(key)
+        if value not in (None, "", {}, []):
+            text = str(value).strip()
+            if text and text not in {"0", "0/0", "0.0", "-"}:
+                return True
+    teams = match.get("teams")
+    if isinstance(teams, dict):
+        for team in teams.values():
+            if isinstance(team, dict):
+                for key in ("score", "runs", "overs", "over"):
+                    value = team.get(key)
+                    if value not in (None, "", {}, []):
+                        text = str(value).strip()
+                        if text and text not in {"0", "0/0", "0.0", "-"}:
+                            return True
+    return False
+
+
+def _toss_done(match) -> bool:
+    if _deep_has_toss(match):
+        return True
+    text = _match_text(match)
+    return any(word in text for word in _TOSS_WORDS)
+
+
+def _live_state(match) -> str:
+    if not isinstance(match, dict):
+        return ""
     raw = (
         match.get("state")
         or match.get("status")
@@ -129,13 +208,87 @@ def _fallback_is_actively_live(match) -> bool:
         or match.get("match_status")
         or ""
     )
-    state = str(raw).strip().casefold().replace("-", " ")
-    state = " ".join(state.split())
-    return state in {s.replace("-", " ") for s in _STRICT_ACTIVE_LIVE_STATES}
+    return _norm_live_state(raw)
+
+
+def _is_live_coverage_match(match) -> bool:
+    """LIVE starts at toss and survives temporary interruptions, but not stumps/end states."""
+    if not isinstance(match, dict):
+        return False
+    state = _live_state(match)
+    text = _match_text(match)
+
+    if state in _LIVE_END_STATES or any(
+        end in text for end in ("stumps", "match abandoned", "match cancelled", "match canceled", "no result", "match completed")
+    ):
+        return False
+
+    toss = _toss_done(match)
+    started = toss or _match_has_score(match) or state in _LIVE_PLAYING_STATES
+
+    if state in _LIVE_PLAYING_STATES:
+        return True
+    if toss:
+        return True
+
+    interruption = state in _LIVE_INTERRUPTION_STATES or any(word in text for word in _LIVE_INTERRUPT_WORDS)
+    if interruption and started:
+        return True
+
+    return False
+
+
+def _dedupe_matches(rows):
+    out, seen = [], set()
+    for row in rows or []:
+        if not isinstance(row, dict):
+            continue
+        key = str(row.get("roanuzMatchKey") or row.get("id") or row.get("key") or "")
+        marker = key or repr((row.get("home"), row.get("away"), row.get("startTime")))
+        if marker in seen:
+            continue
+        seen.add(marker)
+        out.append(row)
+    return out
 
 
 def _fast_matches(mode: str):
     source = "Roanuz V5 primary"
+
+    if mode == "live":
+        try:
+            raw = v20._roanuz_featured_raw()
+            candidates = [v20._normalize_roanuz_match(x) for x in raw if isinstance(x, dict)]
+            live = [m for m in candidates if v21._display_ok(m) and _is_live_coverage_match(m)]
+            if live:
+                logger.info(
+                    "IBETIN V23 live coverage feed source=Roanuz matches=%s first=%s vs %s",
+                    len(live),
+                    live[0].get("home", {}).get("name"),
+                    live[0].get("away", {}).get("name"),
+                )
+                return live[:40], source
+        except Exception as exc:
+            logger.warning("IBETIN V23 Roanuz live coverage list failed: %s", str(exc)[:160])
+
+        try:
+            fallback_live = list(v20._OLD_MATCHES_MODE("live") or [])
+            fallback_upcoming = list(v20._OLD_MATCHES_MODE("upcoming") or [])
+            candidates = _dedupe_matches(fallback_live + fallback_upcoming)
+            before = len(candidates)
+            live = [m for m in candidates if _is_live_coverage_match(m)]
+            logger.warning(
+                "IBETIN V23 live coverage fallback candidates=%s active_or_tossed=%s",
+                before,
+                len(live),
+            )
+            if live:
+                return live[:40], "Highlightly display fallback"
+            logger.info("IBETIN V23 live coverage fallback has no live/tossed matches")
+        except Exception as exc:
+            logger.warning("IBETIN V23 live coverage fallback failed: %s", str(exc)[:160])
+        return [], source
+
     try:
         rows = v20._roanuz_matches_mode(mode)
     except Exception as exc:
@@ -156,19 +309,8 @@ def _fast_matches(mode: str):
     try:
         fallback = v20._OLD_MATCHES_MODE(mode)
         if fallback:
-            if mode == "live":
-                before = len(fallback)
-                fallback = [m for m in fallback if _fallback_is_actively_live(m)]
-                logger.warning(
-                    "IBETIN V23 strict live fallback filter before=%s active=%s",
-                    before,
-                    len(fallback),
-                )
-            if fallback:
-                logger.warning("IBETIN V23 display fallback mode=%s matches=%s", mode, len(fallback))
-                return fallback[:40], "Highlightly display fallback"
-            if mode == "live":
-                logger.info("IBETIN V23 display fallback has no actively live matches")
+            logger.warning("IBETIN V23 display fallback mode=%s matches=%s", mode, len(fallback))
+            return fallback[:40], "Highlightly display fallback"
     except Exception as exc:
         logger.warning("IBETIN V23 fallback failed mode=%s: %s", mode, str(exc)[:160])
     return [], source

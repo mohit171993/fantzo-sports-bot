@@ -1128,6 +1128,58 @@ button:active{opacity:.86}
 .v40StageIcon{flex:0 0 28px;height:28px;border-radius:9px;background:#0d6fc8;display:grid;place-items:center;font-size:14px}
 .v40StageText{min-width:0}.v40StageText b{display:block;color:#fff;font-size:9px}.v40StageText span{display:block;color:#8fb1ca;font-size:7px;margin-top:2px;line-height:1.35}
 .v40Stage.weather{border-color:#665a24;background:#25200d}.v40Stage.weather .v40StageIcon{background:#8b741d}
+
+/* V40 MOBILE READABILITY PASS */
+.brand b{font-size:21px!important}
+.brand span{font-size:10px!important}
+.liveLineSub{font-size:8.5px!important}
+.tab{height:40px!important;font-size:11px!important}
+.status{font-size:10px!important}
+.v39FavFilter{font-size:10px!important;padding:8px 11px!important}
+.league{font-size:10px!important}
+.fmt{font-size:10px!important}
+.badge{font-size:9px!important}
+.tn{font-size:15px!important}
+.ta,.si{font-size:10px!important}
+.sc{font-size:23px!important}
+.previewOddsTitle{font-size:9px!important}
+.previewPrice small{font-size:10px!important}
+.foot{font-size:10px!important}
+.ibHomePromo{font-size:10px!important}
+.back,.v39DetailFav{font-size:10px!important;height:40px!important}
+.scoretop{font-size:9px!important}
+.sname{font-size:11px!important}
+.report{font-size:10px!important;line-height:1.45!important}
+.v38PulseHead b{font-size:14px!important}
+.v38PulseHead span{font-size:8px!important}
+.v38PulseMetric span{font-size:8px!important}
+.v38PulseMetric b{font-size:15px!important}
+.v38RecentTop b{font-size:10px!important}
+.v38RecentTop span{font-size:8px!important}
+.v38Ball{font-size:9px!important}
+.v38PulseSummary{font-size:10px!important;line-height:1.45!important}
+.v38Latest{font-size:9px!important;line-height:1.45!important}
+.previewBhavHead b{font-size:15px!important}
+.previewBhavHead span{font-size:9px!important}
+.previewHist span{font-size:8px!important}
+.previewHist b{font-size:12px!important}
+.ibQuickPromo b{font-size:10px!important}
+.ibQuickPromo span{font-size:8px!important}
+.ibQuickPromo button{font-size:9px!important}
+.dtab{height:39px!important;font-size:9px!important}
+.ptitle b{font-size:11px!important}
+.bottom button{height:48px!important;font-size:9px!important}
+.bottom b{font-size:17px!important}
+.v40LiveEmpty b{font-size:15px!important}
+.v40LiveEmpty span{font-size:10px!important;line-height:1.45!important}
+.v40ComingHead b{font-size:10px!important}
+.v40ComingHead button{font-size:9px!important}
+.v40ComingLeague,.v40ComingTime{font-size:9px!important}
+.v40ComingTeam{font-size:12px!important}
+.v40ComingVs{font-size:9px!important}
+.v40ComingNote{font-size:9px!important;line-height:1.45!important}
+.v40StageText b{font-size:11px!important}
+.v40StageText span{font-size:9px!important;line-height:1.45!important}
 """
 
 

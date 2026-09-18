@@ -1,10 +1,117 @@
+import gzip
+import hmac
+import json
 import logging
+import os
+import zlib
+from urllib.parse import urlparse
 
 import ibetin_liveline_v25_fast_cache as v25
 
 logger = logging.getLogger(__name__)
 v23 = v25.v23
 API_PATH = v23.liveline.LIVELINE_API_PATH
+
+ROANUZ_WEBHOOK_PATH = "/roanuz/match/feed/v1/"
+_roanuz_webhook_last_key = ""
+_roanuz_webhook_last_at = ""
+
+
+def _decode_roanuz_webhook(raw: bytes):
+    if not raw:
+        raise ValueError("Empty webhook body")
+    candidates = []
+    try:
+        candidates.append(gzip.decompress(raw))
+    except Exception:
+        pass
+    try:
+        candidates.append(zlib.decompress(raw))
+    except Exception:
+        pass
+    candidates.append(raw)
+    for data in candidates:
+        try:
+            payload = json.loads(data.decode("utf-8"))
+            if isinstance(payload, (dict, list)):
+                return payload
+        except Exception:
+            continue
+    raise ValueError("Invalid webhook payload")
+
+
+def _install_roanuz_webhook_route() -> None:
+    handler_cls = v23.liveline.base.ibetin_start.ibetin_entry.analytics.TrackingHandler
+    if getattr(handler_cls, "_ibetin_roanuz_webhook_installed", False):
+        return
+
+    previous_post = getattr(handler_cls, "do_POST", None)
+
+    def routed_post(self):
+        global _roanuz_webhook_last_key, _roanuz_webhook_last_at
+        parsed = urlparse(self.path)
+        if parsed.path.rstrip("/") != ROANUZ_WEBHOOK_PATH.rstrip("/"):
+            if previous_post:
+                return previous_post(self)
+            self.send_response(404)
+            self.end_headers()
+            return
+
+        expected = os.getenv("ROANUZ_API_KEY", "").strip()
+        supplied = str(self.headers.get("rs-api-key") or "").strip()
+        if not expected or not supplied or not hmac.compare_digest(expected, supplied):
+            body = b'{"status":false}'
+            self.send_response(403)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+            if length <= 0 or length > 8 * 1024 * 1024:
+                raise ValueError("Invalid webhook body size")
+            raw = self.rfile.read(length)
+            payload = _decode_roanuz_webhook(raw)
+            key = v23._accept_roanuz_webhook(payload)
+            if not key:
+                raise ValueError("No match found in webhook payload")
+
+            # Invalidate stale API caches so all connected users see the pushed
+            # state on their next lightweight refresh.
+            try:
+                with v25._lock:
+                    v25._list_cache.pop("live", None)
+                    v25._list_cache.pop("upcoming", None)
+                    v25._detail_cache.pop(key, None)
+            except Exception:
+                pass
+
+            _roanuz_webhook_last_key = key
+            _roanuz_webhook_last_at = v23.datetime.now(v23.timezone.utc).isoformat()
+            body = b'{"status":true}'
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            logger.info("IBETIN Roanuz webhook accepted key=%s", key)
+        except Exception as exc:
+            logger.warning("IBETIN Roanuz webhook rejected: %s", str(exc)[:180])
+            body = b'{"status":false}'
+            self.send_response(400)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+    handler_cls.do_POST = routed_post
+    handler_cls._ibetin_roanuz_webhook_installed = True
+    logger.info("IBETIN Roanuz webhook receiver installed at %s", ROANUZ_WEBHOOK_PATH)
+
+
 
 
 def _page_v30() -> str:
@@ -900,6 +1007,10 @@ button:active{opacity:.86}
 .v40ComingTeams{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px}
 .v40ComingTeam{font-size:10px;font-weight:900;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.v40ComingVs{font-size:7px;color:#627f98;font-weight:1000}
 .v40ComingNote{margin-top:7px;padding-top:7px;border-top:1px solid #12364f;color:#84a3bb;font-size:7px;line-height:1.35}
+.v40Stage{margin:8px 0 9px;padding:9px 10px;border:1px solid #1c557b;border-radius:11px;background:#082039;display:flex;align-items:center;gap:9px}
+.v40StageIcon{flex:0 0 28px;height:28px;border-radius:9px;background:#0d6fc8;display:grid;place-items:center;font-size:14px}
+.v40StageText{min-width:0}.v40StageText b{display:block;color:#fff;font-size:9px}.v40StageText span{display:block;color:#8fb1ca;font-size:7px;margin-top:2px;line-height:1.35}
+.v40Stage.weather{border-color:#665a24;background:#25200d}.v40Stage.weather .v40StageIcon{background:#8b741d}
 """
 
 
@@ -974,6 +1085,93 @@ IBETIN_V40_COMING_UP_JS = r"""
 </script>
 """
 
+IBETIN_V40_LIVE_STATE_JS = r"""
+<script>
+(function(){
+  function v40TeamNameFromToss(toss,detail){
+    if(!toss||typeof toss!=='object')return '';
+    let w=toss.winner||toss.team||toss.won_by||toss.wonBy||toss.winner_key||toss.winnerKey||'';
+    if(w&&typeof w==='object')return String(w.name||w.short_name||w.shortName||'');
+    w=String(w||'');
+    const m=detail?.match||{};
+    for(const team of [m.home,m.away]){
+      if(!team)continue;
+      const ids=[team.id,team.key,team.abbr,team.code].filter(Boolean).map(String);
+      if(ids.includes(w))return String(team.name||team.abbr||w);
+    }
+    return w;
+  }
+  function v40TossStage(detail){
+    const toss=detail?.roanuz?.toss;
+    const m=detail?.match||{};
+    const hasScore=!!(m.homeScore||m.awayScore);
+    if(!toss||hasScore)return '';
+    let decision='',winner='';
+    if(typeof toss==='object'){
+      winner=v40TeamNameFromToss(toss,detail);
+      decision=String(toss.decision||toss.choice||toss.elected||toss.opted||'').toLowerCase();
+    }
+    const line=winner&&decision?winner+' won the toss · chose to '+decision:
+      winner?winner+' won the toss':decision?'Toss completed · chose to '+decision:'Toss completed';
+    return '<div class="v40Stage" id="v40Stage"><div class="v40StageIcon">🪙</div><div class="v40StageText"><b>'+esc(line)+'</b><span>Awaiting first ball · This match remains in LIVE.</span></div></div>';
+  }
+  function v40InterruptionStage(detail){
+    const m=detail?.match||{};
+    const text=String(m.report||m.state||'').toLowerCase();
+    if(!/(rain|wet outfield|bad light|weather|interrupted|suspended|delayed)/.test(text))return '';
+    return '<div class="v40Stage weather" id="v40Stage"><div class="v40StageIcon">🌧</div><div class="v40StageText"><b>Play temporarily interrupted</b><span>'+esc(m.report||prettyState(m.state)||'Weather delay')+' · Match remains in LIVE.</span></div></div>';
+  }
+  function v40StageHtml(detail){
+    return v40InterruptionStage(detail)||v40TossStage(detail);
+  }
+
+  const v40StateBaseDrawDetail=drawDetail;
+  drawDetail=function(){
+    v40StateBaseDrawDetail();
+    try{
+      const hero=document.querySelector('#detail .scorehero');
+      if(hero&&!document.getElementById('v40Stage')){
+        const html=v40StageHtml(detailData||{});
+        if(html)hero.insertAdjacentHTML('afterend',html);
+      }
+    }catch(e){console.error('IBETIN V40 stage',e)}
+  };
+
+  let v40RefreshBusy=false;
+  async function v40StateRefresh(){
+    if(document.hidden||v40RefreshBusy)return;
+    v40RefreshBusy=true;
+    try{
+      const detail=document.getElementById('detail');
+      if(detail&&detail.style.display==='block'&&detailData?.match){
+        const key=matchKey(detailData.match);
+        if(key){
+          const y=window.scrollY;
+          const j=await api({action:'match',id:key},false);
+          if(j?.detail){
+            detailData=j.detail;
+            drawDetail();
+            requestAnimationFrame(()=>window.scrollTo(0,y));
+          }
+          getBhav(key,true).then(x=>{
+            if(x&&document.getElementById('quickMarket'))renderQuickMarket(x);
+            if(detailTab==='bhav')drawPanel();
+          });
+        }
+      }else if(mode==='live'&&Date.now()-lastHomeLoad>10000){
+        await load('live');
+      }
+    }catch(e){}
+    finally{v40RefreshBusy=false}
+  }
+  setInterval(v40StateRefresh,12000);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(v40StateRefresh,250)});
+  window.__IBETIN_V40_LIVE_STATE__=true;
+})();
+</script>
+"""
+
+
 def _page_v40_visual_polish() -> str:
     html = _page_v39_favourites()
     html = html.replace("<title>IBETIN Live Line · My Matches V39</title>", "<title>IBETIN Live Line · Visual Polish V40</title>", 1)
@@ -989,12 +1187,13 @@ def _page_v40_visual_polish() -> str:
     )
     html = html.replace("</style>", IBETIN_V40_VISUAL_POLISH_CSS + "\n</style>", 1)
     html = html.replace("</body>", IBETIN_V40_COMING_UP_JS + "\n</body>", 1)
+    html = html.replace("</body>", IBETIN_V40_LIVE_STATE_JS + "\n</body>", 1)
     return html
 
 
 def _preview_v40_url() -> str:
     root = v23.os.getenv("TRACKING_BASE_URL", "").strip().rstrip("/") or "https://ibetin-app-production.up.railway.app"
-    return f"{root}{IBETIN_V40_VISUAL_POLISH_PATH}?{v23.urlencode({'t': v23.liveline._token(), 'v': '20260918-v40-live-rules'})}"
+    return f"{root}{IBETIN_V40_VISUAL_POLISH_PATH}?{v23.urlencode({'t': v23.liveline._token(), 'v': '20260918-v40-state-webhook'})}"
 
 
 def _install_v40_visual_polish_route() -> None:
@@ -1187,6 +1386,7 @@ def _install_v35_preview_command() -> None:
 
 
 _install_v35_preview_route()
+_install_roanuz_webhook_route()
 _install_v36_brand_preview_route()
 _install_v37_promo_preview_route()
 _install_v38_match_pulse_route()

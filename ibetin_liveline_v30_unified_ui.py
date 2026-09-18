@@ -391,6 +391,113 @@ def _page_v36_brand_preview() -> str:
     return html
 
 
+IBETIN_V37_PROMO_PREVIEW_PATH = "/admin/ibetin-v37-promo-preview"
+
+IBETIN_V37_PROMO_CSS = r"""
+/* V37 LIVE LINE x IBETIN.COM PROMO PREVIEW */
+.brand b{font-size:20px!important;letter-spacing:.6px!important}
+.brand span{font-size:9px!important;letter-spacing:1.2px!important;font-weight:900!important;color:#9bb8d1!important}
+.liveLineSub{display:block;margin-top:2px;font-size:8px;color:#74baff;font-weight:900;letter-spacing:.7px}
+.ibPromoCard{margin:11px 0 0;border:1px solid #1a5e8b;border-radius:16px;background:linear-gradient(135deg,#08284a,#071a31 62%,#09263d);padding:13px;box-shadow:0 12px 28px rgba(0,0,0,.18)}
+.ibPromoTop{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px}
+.ibPromoBrand{font-size:12px;font-weight:1000;color:#fff;letter-spacing:.5px}.ibPromoBrand span{color:#38b8ff}
+.ibPromoPill{font-size:7px;font-weight:1000;color:#9ed2f5;border:1px solid #215c83;background:#0b2a47;border-radius:999px;padding:5px 7px;letter-spacing:.7px}
+.ibPromoTitle{font-size:14px;font-weight:1000;color:#fff;margin-bottom:4px}.ibPromoCopy{font-size:9px;line-height:1.45;color:#91abc2}
+.ibPromoBtn{width:100%;margin-top:10px;height:44px;border:0;border-radius:12px;background:linear-gradient(135deg,#1496ff,#0d68d4);color:#fff;font-size:11px;font-weight:1000;letter-spacing:.4px}
+.ibPromoLegal{margin-top:7px;font-size:7px;line-height:1.4;color:#6f8ca5;text-align:center}
+.ibPowered{margin:2px 16px 14px;text-align:center;color:#6f8da7;font-size:7px;font-weight:900;letter-spacing:1px}
+body:before{content:"V37 PROMO PREVIEW";position:fixed;right:10px;top:8px;z-index:9999;background:#0d73d7;color:#fff;font-size:7px;font-weight:1000;letter-spacing:.9px;padding:5px 8px;border-radius:999px;pointer-events:none}
+"""
+
+IBETIN_V37_PROMO_JS = r"""
+<script>
+(function(){
+  const IBETIN_LIVE_CRICKET_URL='https://ibetin.com/live/cricket';
+  function openIbetinLive(){
+    try{
+      if(window.Telegram&&Telegram.WebApp&&typeof Telegram.WebApp.openLink==='function'){
+        Telegram.WebApp.openLink(IBETIN_LIVE_CRICKET_URL);
+        return;
+      }
+    }catch(e){}
+    window.open(IBETIN_LIVE_CRICKET_URL,'_blank','noopener');
+  }
+  window.openIbetinLive=openIbetinLive;
+
+  function promoHtml(){
+    return '<div class="ibPromoCard" id="ibetinPromoCard">'
+      +'<div class="ibPromoTop"><div class="ibPromoBrand">IBETIN<span>.COM</span></div><div class="ibPromoPill">18+ · BET RESPONSIBLY</div></div>'
+      +'<div class="ibPromoTitle">More live cricket markets</div>'
+      +'<div class="ibPromoCopy">Continue to ibetin.com to view the live cricket betting section and available markets.</div>'
+      +'<button class="ibPromoBtn" onclick="openIbetinLive()">VIEW LIVE CRICKET MARKETS →</button>'
+      +'<div class="ibPromoLegal">18+ only. Availability depends on your location and local laws. Please gamble responsibly.</div>'
+      +'</div>';
+  }
+
+  const v37BaseDrawDetail=drawDetail;
+  drawDetail=function(){
+    v37BaseDrawDetail();
+    try{
+      const q=document.getElementById('quickMarket');
+      if(q && !document.getElementById('ibetinPromoCard')){
+        q.insertAdjacentHTML('afterend',promoHtml());
+      }
+    }catch(e){console.error('IBETIN V37 promo card',e)}
+  };
+
+  try{
+    if(detailData)drawDetail();
+  }catch(e){}
+  window.__IBETIN_V37_PROMO__=true;
+})();
+</script>
+"""
+
+
+def _page_v37_promo_preview() -> str:
+    html = _page_v35_production()
+    html = html.replace("<title>IBETIN Live Cricket</title>", "<title>IBETIN Live Line · Powered by ibetin.com</title>", 1)
+    html = html.replace(
+        '<div class="brand"><div class="mark">I</div><div><b>IBETIN</b><span>LIVE CRICKET</span></div></div><div class="liveDot">● LIVE</div>',
+        '<div class="brand"><div class="mark">I</div><div><b>IBETIN</b><span>LIVE LINE</span><small class="liveLineSub">POWERED BY IBETIN.COM</small></div></div><div class="liveDot">● LIVE</div>',
+        1,
+    )
+    html = html.replace(
+        '<nav class="bottom">',
+        '<div class="ibPowered">IBETIN LIVE LINE · POWERED BY IBETIN.COM</div><nav class="bottom">',
+        1,
+    )
+    html = html.replace("</style>", IBETIN_V37_PROMO_CSS + "\n</style>", 1)
+    html = html.replace("</body>", IBETIN_V37_PROMO_JS + "\n</body>", 1)
+    return html
+
+
+def _preview_v37_url() -> str:
+    root = v23.os.getenv("TRACKING_BASE_URL", "").strip().rstrip("/") or "https://ibetin-app-production.up.railway.app"
+    return f"{root}{IBETIN_V37_PROMO_PREVIEW_PATH}?{v23.urlencode({'t': v23.liveline._token(), 'v': '20260918-v37-promo'})}"
+
+
+def _install_v37_promo_preview_route() -> None:
+    handler_cls = v23.liveline.base.ibetin_start.ibetin_entry.analytics.TrackingHandler
+    if getattr(handler_cls, "_ibetin_v37_promo_preview_installed", False):
+        return
+    previous_get = handler_cls.do_GET
+
+    def routed_get(self):
+        parsed = v23.urlparse(self.path)
+        if parsed.path == IBETIN_V37_PROMO_PREVIEW_PATH:
+            if not v23.liveline._authorized(self.path):
+                v23.liveline._send_html(self, 403, "<h3>IBETIN Live Line preview link is invalid.</h3>")
+                return
+            v23.liveline._send_html(self, 200, _page_v37_promo_preview())
+            return
+        previous_get(self)
+
+    handler_cls.do_GET = routed_get
+    handler_cls._ibetin_v37_promo_preview_installed = True
+    logger.info("IBETIN V37 promo preview route installed at %s", IBETIN_V37_PROMO_PREVIEW_PATH)
+
+
 def _preview_v36_url() -> str:
     root = v23.os.getenv("TRACKING_BASE_URL", "").strip().rstrip("/") or "https://ibetin-app-production.up.railway.app"
     return f"{root}{IBETIN_V36_BRAND_PREVIEW_PATH}?{v23.urlencode({'t': v23.liveline._token(), 'v': '20260918-v36-brand'})}"
@@ -457,8 +564,8 @@ async def _previewui_command(update, context):
         parse_mode="HTML",
         reply_markup=v23.liveline.InlineKeyboardMarkup(
             [[v23.liveline.InlineKeyboardButton(
-                "🌐 OPEN IBETIN.COM PREVIEW",
-                web_app=v23.liveline.WebAppInfo(url=_preview_v36_url()),
+                "⚡ OPEN LIVE LINE V37",
+                web_app=v23.liveline.WebAppInfo(url=_preview_v37_url()),
             )]]
         ),
         disable_web_page_preview=True,
@@ -483,6 +590,7 @@ def _install_v35_preview_command() -> None:
 
 _install_v35_preview_route()
 _install_v36_brand_preview_route()
+_install_v37_promo_preview_route()
 _install_v35_preview_command()
 
 # Promote the approved V35 UI to the production Live route.

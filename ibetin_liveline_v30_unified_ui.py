@@ -444,6 +444,17 @@ IBETIN_V37_PROMO_JS = r"""
       +'</div>';
   }
 
+  const v37BaseQuickMarketHtml=quickMarketHtml;
+  quickMarketHtml=function(j){
+    const base=v37BaseQuickMarketHtml(j);
+    if(!base)return base;
+    const marker='</div><div class="previewHist">';
+    if(base.includes(marker)){
+      return base.replace(marker,'</div>'+quickPromoHtml()+'<div class="previewHist">');
+    }
+    return base+quickPromoHtml();
+  };
+
   function promoHtml(){
     return '<div class="ibPromoCard" id="ibetinPromoCard">'
       +'<div class="ibPromoTop"><div class="ibPromoBrand">IBETIN<span>.COM</span></div><div class="ibPromoPill">18+ · BET RESPONSIBLY</div></div>'
@@ -460,10 +471,6 @@ IBETIN_V37_PROMO_JS = r"""
     try{
       const q=document.getElementById('quickMarket');
       if(q){
-        const grid=q.querySelector('.previewBhavGrid');
-        if(grid && !document.getElementById('ibetinQuickPromo')){
-          grid.insertAdjacentHTML('afterend',quickPromoHtml());
-        }
         if(!document.getElementById('ibetinPromoCard')){
           q.insertAdjacentHTML('afterend',promoHtml());
         }
@@ -501,7 +508,7 @@ def _page_v37_promo_preview() -> str:
 
 def _preview_v37_url() -> str:
     root = v23.os.getenv("TRACKING_BASE_URL", "").strip().rstrip("/") or "https://ibetin-app-production.up.railway.app"
-    return f"{root}{IBETIN_V37_PROMO_PREVIEW_PATH}?{v23.urlencode({'t': v23.liveline._token(), 'v': '20260918-v37-promo2'})}"
+    return f"{root}{IBETIN_V37_PROMO_PREVIEW_PATH}?{v23.urlencode({'t': v23.liveline._token(), 'v': '20260918-v37-promo3'})}"
 
 
 def _install_v37_promo_preview_route() -> None:

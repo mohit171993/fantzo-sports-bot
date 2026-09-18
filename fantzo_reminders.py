@@ -198,7 +198,7 @@ def _copy_for(interest: str, stage: int, source: str):
                 [
                     TelegramInlineKeyboardButton(
                         "🏏 OPEN LIVE LINE",
-                        url=IBETIN_LIVE_LINE_URL,
+                        url=business.telegram_mini_app_url("liveline"),
                     )
                 ],
                 [

@@ -239,7 +239,11 @@ def _install_noop_client_router() -> None:
 def run_navigation_self_test() -> None:
     errors: list[str] = []
 
-    main_count = _expect_webapps("main-bot", ibetin_entry.runtime.premium_main_keyboard(), errors)
+    main_markup = ibetin_entry.runtime.premium_main_keyboard()
+    main_count = _expect_webapps("main-bot", main_markup, errors)
+    main_texts = [button.text for button in _buttons(main_markup)]
+    if not any("WATCH IBETIN LIVE LINE" in (text or "") for text in main_texts):
+        errors.append("main bot missing WATCH IBETIN LIVE LINE")
     direct_auto_count = _expect_webapps(
         "direct-autoreply",
         ibetin_entry.runtime.app.fantzo_autoreply.standard_keyboard(),

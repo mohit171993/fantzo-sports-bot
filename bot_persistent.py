@@ -264,6 +264,11 @@ async def banner_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     )
 
 
+async def runtime_admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    # Resolve at execution time so runtime patches to core.admin are honored.
+    await core.admin(update, context)
+
+
 def run() -> None:
     if not core.BOT_TOKEN:
         raise RuntimeError("BOT_TOKEN environment variable is required")
@@ -293,7 +298,7 @@ def run() -> None:
     app.add_handler(CommandHandler("help", core.help_command))
     app.add_handler(CommandHandler("sports", core.sports_command))
     app.add_handler(CommandHandler("team", core.team_command))
-    app.add_handler(CommandHandler("admin", core.admin))
+    app.add_handler(CommandHandler("admin", runtime_admin_command))
     app.add_handler(CommandHandler("stats", analytics.stats_command))
     app.add_handler(CommandHandler("trialtv", trial_live_tv.trial_tv_command))
     app.add_handler(CommandHandler("autoreply", fantzo_autoreply.autoreply_command))

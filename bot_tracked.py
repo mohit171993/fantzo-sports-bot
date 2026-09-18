@@ -672,10 +672,17 @@ app.core.callback_router = smart_callback_router
 async def smart_admin(update, context) -> None:
     user = update.effective_user
     message = update.effective_message
-    if not user or not message or user.id != app.core.ADMIN_USER_ID:
+    if not user or not message:
+        return
+    if not ibetin_reports.is_authorized_admin(user.id):
+        await message.reply_text("This command is restricted.")
         return
 
-    await _original_admin(update, context)
+    # Preserve the original legacy admin statistics for the original admin.
+    # Alternate explicitly-unlocked operators go straight to the new report center.
+    if int(user.id) == int(app.core.ADMIN_USER_ID):
+        await _original_admin(update, context)
+
     await ibetin_reports.send_menu(update, context)
 
     if LIVE_TV_MODE not in {"admin", "public"}:
@@ -706,7 +713,10 @@ app.core.admin = smart_admin
 async def live_tv_admin_command(update, context) -> None:
     user = update.effective_user
     message = update.effective_message
-    if not user or not message or user.id != app.core.ADMIN_USER_ID:
+    if not user or not message:
+        return
+    if not ibetin_reports.is_authorized_admin(user.id):
+        await message.reply_text("This command is restricted.")
         return
 
     if LIVE_TV_MODE == "off":

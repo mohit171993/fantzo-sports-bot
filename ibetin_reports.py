@@ -546,3 +546,35 @@ async def handle_callback(update, context) -> bool:
         return True
 
     return True
+
+
+def log_admin_diagnostics() -> None:
+    """Temporary startup diagnostic for admin authorization mismatch."""
+    try:
+        with core.db() as conn:
+            rows = conn.execute(
+                """
+                SELECT user_id, username, last_seen
+                FROM users
+                ORDER BY last_seen DESC
+                LIMIT 8
+                """
+            ).fetchall() if _table_exists(conn, "users") else []
+            creative_admin = _setting_user_id("creative_admin_user_id")
+            report_admin = _setting_user_id("report_admin_user_id")
+        logger.info(
+            "IBETIN admin diagnostic original_admin=%s creative_admin=%s report_admin=%s recent=%s",
+            core.ADMIN_USER_ID,
+            creative_admin,
+            report_admin,
+            [
+                {
+                    "user_id": int(r["user_id"]),
+                    "username": str(r["username"] or ""),
+                    "last_seen": str(r["last_seen"] or ""),
+                }
+                for r in rows
+            ],
+        )
+    except Exception:
+        logger.exception("IBETIN admin diagnostic failed")

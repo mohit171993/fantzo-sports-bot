@@ -469,18 +469,20 @@ async def _send_test_to_business_target(bot, target, creative) -> bool:
 async def _send_test_to_bot_target(bot, target, creative) -> bool:
     if not target:
         return False
-    markup = InlineKeyboardMarkup(
-        [[InlineKeyboardButton(
+    target_user_id = int(target["user_id"])
+    if phone_verify.is_verified(target_user_id):
+        live_line_button = InlineKeyboardButton(
             "🏏 OPEN IBETIN LIVE LINE",
             web_app=WebAppInfo(
-                url=(
-                    phone_verify.live_line_url(int(target["user_id"]), LIVE_LINE_URL)
-                    if phone_verify.is_verified(int(target["user_id"]))
-                    else phone_verify.verification_bot_url()
-                )
+                url=phone_verify.live_line_url(target_user_id, LIVE_LINE_URL)
             ),
-        )]]
-    )
+        )
+    else:
+        live_line_button = InlineKeyboardButton(
+            "🏏 OPEN IBETIN LIVE LINE",
+            callback_data="liveline_access",
+        )
+    markup = InlineKeyboardMarkup([[live_line_button]])
     caption = (
         "🏏 <b>IBETIN LIVE LINE</b>\n\n"
         "Live cricket scores, Match Pulse, scorecards, fixtures and results — inside Telegram."

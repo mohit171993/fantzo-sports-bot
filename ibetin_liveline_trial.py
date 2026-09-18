@@ -43,6 +43,11 @@ def admin_url() -> str:
     return f"{root}{LIVELINE_PATH}?{urlencode({'t': _token(), 'v': '20260916-v1'})}"
 
 
+def public_url() -> str:
+    root = os.getenv("TRACKING_BASE_URL", "").strip().rstrip("/") or "https://ibetin-app-production.up.railway.app"
+    return f"{root}/liveline"
+
+
 def _authorized(path: str) -> bool:
     expected = _token()
     supplied = (parse_qs(urlparse(path).query).get("t") or [""])[0]
@@ -287,11 +292,11 @@ async def liveline_command(update, context):
     if getattr(chat, "type", "") != "private":
         await message.reply_text("This preview is available only in a private chat with the bot.")
         return
-    logger.info("IBETIN Live Line V1 preview accepted user_id=%s", user.id)
+    logger.info("IBETIN Live Line command accepted user_id=%s", user.id)
     await message.reply_text(
-        "⚡ <b>IBETIN LIVE LINE · ADMIN V1</b>\n━━━━━━━━━━━━━━━━━━\n\nPrivate preview of Live Matches, Match Detail, Scorecard, In-Play data, Upcoming and Results.\n\nThe public IBETIN menu has not been changed.",
+        "⚡ <b>IBETIN LIVE LINE</b>\n━━━━━━━━━━━━━━━━━━\n\nOpen the current V40 Live Line for live matches, match details, scorecards, Match Pulse, upcoming fixtures and results.",
         parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚡ OPEN LIVE LINE V1", web_app=WebAppInfo(url=admin_url()))]]),
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚡ OPEN IBETIN LIVE LINE", web_app=WebAppInfo(url=public_url()))]]),
         disable_web_page_preview=True,
     )
 
@@ -309,4 +314,4 @@ def install():
     runtime.configure_telegram_ui = configure_with_liveline
     runtime.app.configure_telegram_ui = configure_with_liveline
     runtime._ibetin_liveline_v1_configured = True
-    logger.info("IBETIN Live Line V1 installed as hidden private preview")
+    logger.info("IBETIN Live Line command installed; public V40 launcher available")

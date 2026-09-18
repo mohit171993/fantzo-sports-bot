@@ -238,21 +238,24 @@ def _copy_for(interest: str, stage: int, source: str, user_id: int = 0):
             ]
         )
     else:
-        # Normal private-bot follow-ups can use a real WebApp button, so
-        # JOIN IBETIN opens the Mini App directly without an external browser.
+        # Normal private-bot follow-ups stay in chat until mobile verification.
+        # Only verified users receive a Live Line WebApp launcher.
+        if user_id and phone_verify.is_verified(user_id):
+            live_line_button = TelegramInlineKeyboardButton(
+                "🏏 OPEN LIVE LINE",
+                web_app=WebAppInfo(
+                    url=phone_verify.live_line_url(user_id, IBETIN_LIVE_LINE_URL)
+                ),
+            )
+        else:
+            live_line_button = InlineKeyboardButton(
+                "🏏 OPEN LIVE LINE",
+                callback_data="liveline_access",
+            )
+
         markup = InlineKeyboardMarkup(
             [
-                [
-                    TelegramInlineKeyboardButton(
-                        "🏏 OPEN LIVE LINE",
-                        web_app=WebAppInfo(
-                            url=(
-                                phone_verify.live_line_url(user_id, IBETIN_LIVE_LINE_URL)
-                                if user_id else IBETIN_LIVE_LINE_URL
-                            )
-                        ),
-                    )
-                ],
+                [live_line_button],
                 [
                     InlineKeyboardButton("🔴 LIVE NOW", callback_data="live_now"),
                     InlineKeyboardButton("🗓 UPCOMING", callback_data="upcoming"),

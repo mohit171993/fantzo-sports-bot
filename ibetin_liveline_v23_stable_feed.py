@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import re
@@ -6,6 +7,7 @@ import time
 from datetime import datetime, timezone
 from urllib.parse import parse_qs, urlencode, urlparse
 
+import bot as core
 import ibetin_liveline_trial as liveline
 import ibetin_liveline_v21_roanuz_clean_ui as v21
 import ibetin_liveline_v20_roanuz_primary_ui as v20
@@ -138,7 +140,148 @@ _ROANUZ_WEBHOOK_MATCHES = {}
 _ROANUZ_WEBHOOK_LOCK = threading.RLock()
 _ROANUZ_WEBHOOK_TTL = 6 * 60 * 60
 _WEBHOOK_SUBSCRIBE_ATTEMPTS = {}
+_WEBHOOK_UNSUBSCRIBE_ATTEMPTS = {}
 _WEBHOOK_SUBSCRIBE_LOCK = threading.RLock()
+_WEBHOOK_ACCEPTED_COUNT = 0
+_WEBHOOK_REST_FALLBACK_COUNT = 0
+_WEBHOOK_SUBSCRIBE_OK_COUNT = 0
+_WEBHOOK_UNSUBSCRIBE_OK_COUNT = 0
+_WEBHOOK_LAST_DISCOVERY = 0.0
+_WEBHOOK_DISCOVERY_BUSY = False
+
+
+def _init_webhook_state_store():
+    try:
+        with core.db() as conn:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS roanuz_webhook_state (
+                    match_key TEXT PRIMARY KEY,
+                    payload_json TEXT NOT NULL,
+                    received_at TEXT NOT NULL,
+                    terminal INTEGER NOT NULL DEFAULT 0
+                )
+                """
+            )
+    except Exception as exc:
+        logger.warning("IBETIN webhook state store unavailable: %s", str(exc)[:140])
+
+
+def _persist_webhook_state(key: str, node, terminal: bool = False):
+    if not key or not isinstance(node, dict):
+        return
+    try:
+        payload = json.dumps(node, separators=(",", ":"), ensure_ascii=False)
+        with core.db() as conn:
+            conn.execute(
+                """
+                INSERT INTO roanuz_webhook_state(match_key, payload_json, received_at, terminal)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(match_key) DO UPDATE SET
+                    payload_json=excluded.payload_json,
+                    received_at=excluded.received_at,
+                    terminal=excluded.terminal
+                """,
+                (key, payload, datetime.now(timezone.utc).isoformat(), 1 if terminal else 0),
+            )
+    except Exception as exc:
+        logger.warning("IBETIN webhook state persist failed key=%s: %s", key, str(exc)[:120])
+
+
+def _restore_webhook_state():
+    restored = 0
+    try:
+        with core.db() as conn:
+            rows = conn.execute(
+                "SELECT match_key, payload_json, received_at, terminal FROM roanuz_webhook_state WHERE terminal = 0"
+            ).fetchall()
+        now_wall = datetime.now(timezone.utc)
+        for row in rows:
+            try:
+                received = datetime.fromisoformat(str(row["received_at"]).replace("Z", "+00:00"))
+                if received.tzinfo is None:
+                    received = received.replace(tzinfo=timezone.utc)
+                age = (now_wall - received.astimezone(timezone.utc)).total_seconds()
+                if age < 0 or age > _ROANUZ_WEBHOOK_TTL:
+                    continue
+                node = json.loads(row["payload_json"])
+                if not isinstance(node, dict):
+                    continue
+                key = str(row["match_key"] or "")
+                with _ROANUZ_WEBHOOK_LOCK:
+                    _ROANUZ_WEBHOOK_MATCHES[key] = (time.monotonic() - age, node)
+                restored += 1
+            except Exception:
+                continue
+    except Exception as exc:
+        logger.warning("IBETIN webhook state restore unavailable: %s", str(exc)[:140])
+    logger.info("IBETIN webhook state restore rows=%s", restored)
+
+
+def _is_terminal_webhook_match(node) -> bool:
+    state = _live_state(node)
+    text = _match_text(node)
+    # Stumps is intentionally NOT terminal for subscription lifecycle.
+    return (
+        state in {"completed", "complete", "finished", "result", "ended", "closed", "abandoned", "cancelled", "canceled", "no result", "postponed"}
+        or any(x in text for x in ("match completed", "match abandoned", "match cancelled", "match canceled", "no result"))
+    )
+
+
+def _webhook_health_snapshot():
+    with _ROANUZ_WEBHOOK_LOCK:
+        cache_count = len(_ROANUZ_WEBHOOK_MATCHES)
+    return {
+        "cachedMatches": cache_count,
+        "acceptedPushes": _WEBHOOK_ACCEPTED_COUNT,
+        "restFallbacks": _WEBHOOK_REST_FALLBACK_COUNT,
+        "subscriptionsOk": _WEBHOOK_SUBSCRIBE_OK_COUNT,
+        "unsubscriptionsOk": _WEBHOOK_UNSUBSCRIBE_OK_COUNT,
+    }
+
+
+def _unsubscribe_webhook_key(key: str):
+    global _WEBHOOK_UNSUBSCRIBE_OK_COUNT
+    key = str(key or "").strip()
+    if not key:
+        return
+    try:
+        project = os.getenv("ROANUZ_PROJECT_KEY", "").strip()
+        if not project:
+            return
+        token = v20.admin._roanuz_auth()
+        url = f"https://api.sports.roanuz.com/v5/cricket/{project}/match/{key}/unsubscribe/"
+        with v20.admin.httpx.Client(timeout=12.0, follow_redirects=True) as client:
+            response = client.post(
+                url,
+                headers={"rs-token": token, "Accept": "application/json"},
+                json={"method": "web_hook"},
+            )
+        if 200 <= response.status_code < 300:
+            _WEBHOOK_UNSUBSCRIBE_OK_COUNT += 1
+            logger.info("IBETIN Roanuz webhook unsubscribe OK key=%s http=%s", key, response.status_code)
+        else:
+            logger.warning("IBETIN Roanuz webhook unsubscribe pending key=%s http=%s", key, response.status_code)
+    except Exception as exc:
+        logger.warning("IBETIN Roanuz webhook unsubscribe failed key=%s: %s", key, str(exc)[:140])
+
+
+def _schedule_webhook_unsubscribe(key: str):
+    key = str(key or "").strip()
+    if not key:
+        return
+    now = time.monotonic()
+    with _WEBHOOK_SUBSCRIBE_LOCK:
+        last = _WEBHOOK_UNSUBSCRIBE_ATTEMPTS.get(key, 0)
+        if now - last < 10 * 60:
+            return
+        _WEBHOOK_UNSUBSCRIBE_ATTEMPTS[key] = now
+    threading.Thread(
+        target=_unsubscribe_webhook_key,
+        args=(key,),
+        daemon=True,
+        name=f"ibetin-roanuz-webhook-unsub-{key[-10:]}",
+    ).start()
 
 
 def _subscribe_webhook_key(key: str):
@@ -158,6 +301,8 @@ def _subscribe_webhook_key(key: str):
                 json={"method": "web_hook"},
             )
         if 200 <= response.status_code < 300:
+            global _WEBHOOK_SUBSCRIBE_OK_COUNT
+            _WEBHOOK_SUBSCRIBE_OK_COUNT += 1
             logger.info("IBETIN Roanuz webhook subscription OK key=%s http=%s", key, response.status_code)
         else:
             logger.warning("IBETIN Roanuz webhook subscription pending key=%s http=%s", key, response.status_code)
@@ -214,19 +359,29 @@ def _webhook_candidate(node):
 
 
 def _accept_roanuz_webhook(payload):
+    global _WEBHOOK_ACCEPTED_COUNT
     node = _webhook_candidate(payload)
     if not node:
         return ""
     key = v20._match_key(node)
     if not key:
         return ""
+    terminal = _is_terminal_webhook_match(node)
     with _ROANUZ_WEBHOOK_LOCK:
-        _ROANUZ_WEBHOOK_MATCHES[key] = (time.monotonic(), node)
+        if terminal:
+            _ROANUZ_WEBHOOK_MATCHES.pop(key, None)
+        else:
+            _ROANUZ_WEBHOOK_MATCHES[key] = (time.monotonic(), node)
+    _WEBHOOK_ACCEPTED_COUNT += 1
+    _persist_webhook_state(key, node, terminal=terminal)
+    if terminal:
+        _schedule_webhook_unsubscribe(key)
     logger.info(
-        "IBETIN Roanuz webhook cached key=%s state=%s toss=%s",
+        "IBETIN Roanuz webhook cached key=%s state=%s toss=%s terminal=%s",
         key,
         _norm_live_state(v20._status(node)),
         _toss_done(node),
+        terminal,
     )
     return key
 
@@ -612,10 +767,51 @@ def _roanuz_toss_promotions():
     return _dedupe_matches(promoted)
 
 
+def _background_live_discovery():
+    global _WEBHOOK_LAST_DISCOVERY, _WEBHOOK_DISCOVERY_BUSY
+    try:
+        raw = v20._roanuz_featured_raw()
+        featured_live = [x for x in raw if isinstance(x, dict) and _is_live_coverage_match(x)]
+        for item in featured_live:
+            _schedule_webhook_subscription(v20._match_key(item))
+        # Also scans near-start fixtures and subscribes them before toss.
+        _roanuz_toss_promotions()
+    except Exception as exc:
+        logger.warning("IBETIN webhook discovery refresh failed: %s", str(exc)[:140])
+    finally:
+        _WEBHOOK_LAST_DISCOVERY = time.monotonic()
+        _WEBHOOK_DISCOVERY_BUSY = False
+
+
+def _schedule_live_discovery(force: bool = False):
+    global _WEBHOOK_DISCOVERY_BUSY
+    due = force or (time.monotonic() - _WEBHOOK_LAST_DISCOVERY > 45)
+    if not due or _WEBHOOK_DISCOVERY_BUSY:
+        return
+    _WEBHOOK_DISCOVERY_BUSY = True
+    threading.Thread(
+        target=_background_live_discovery,
+        daemon=True,
+        name="ibetin-roanuz-live-discovery",
+    ).start()
+
+
 def _fast_matches(mode: str):
     source = "Roanuz V5 primary"
 
     if mode == "live":
+        pushed = _webhook_live_rows()
+        if pushed:
+            _schedule_live_discovery()
+            live = [
+                m for m in (_normalize_live_row(x) for x in pushed)
+                if v21._display_ok(m)
+            ]
+            if live:
+                logger.info("IBETIN V23 live coverage feed source=Roanuz webhook matches=%s", len(live))
+                return live[:40], "Roanuz webhook"
+        global _WEBHOOK_REST_FALLBACK_COUNT
+        _WEBHOOK_REST_FALLBACK_COUNT += 1
         try:
             raw = v20._roanuz_featured_raw()
             selected_raw = _webhook_live_rows()
@@ -1106,6 +1302,8 @@ def _startup_self_test() -> None:
         logger.exception("IBETIN V23 self-test FAILED: %s", exc)
 
 
+_init_webhook_state_store()
+_restore_webhook_state()
 _live_classifier_self_test()
 _startup_self_test()
 logger.info(

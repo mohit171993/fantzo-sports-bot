@@ -793,6 +793,7 @@ async def configure_telegram_ui(application) -> None:
 
     phone_verify.ensure_tables()
     ibetin_reports.ensure_tables()
+    ibetin_reports.log_admin_diagnostics()
     reset_count = phone_verify.apply_requested_reset()
     if reset_count:
         logger.info("IBETIN Live Line verification reset applied rows=%s", reset_count)

@@ -641,6 +641,168 @@ def _page_v38_match_pulse() -> str:
     return html
 
 
+IBETIN_V39_FAVOURITES_PATH = "/admin/ibetin-v39-favourites"
+
+IBETIN_V39_FAVOURITES_CSS = r"""
+/* V39 MY MATCHES / FAVOURITES PREVIEW */
+body:before{content:"V39 MY MATCHES"!important;background:#8a5cf6!important}
+.v39FavBar{display:flex;align-items:center;gap:8px;margin:9px 0 10px;overflow-x:auto;scrollbar-width:none}
+.v39FavBar::-webkit-scrollbar{display:none}
+.v39FavFilter{flex:0 0 auto;border:1px solid #1a4667;background:#071827;color:#8da8be;border-radius:999px;padding:8px 11px;font-size:8px;font-weight:1000;letter-spacing:.45px}
+.v39FavFilter.on{border-color:#5d9cff;background:#0b3157;color:#fff}
+.v39FavCount{display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;margin-left:4px;border-radius:999px;background:#163f62;color:#cce9ff;font-size:7px}
+.match{position:relative!important}
+.v39FavBtn{border:0;background:transparent;color:#698aa6;font-size:17px;line-height:1;padding:2px 5px;margin-left:auto;margin-right:4px;cursor:pointer}
+.v39FavBtn.on{color:#ffd85e;text-shadow:0 0 14px rgba(255,216,94,.24)}
+.v39DetailFav{width:100%;height:42px;margin:0 0 10px;border:1px solid #1a4c70;border-radius:12px;background:#071a2d;color:#9dc2de;font-size:9px;font-weight:1000;letter-spacing:.45px}
+.v39DetailFav.on{border-color:#c2a33e;background:linear-gradient(135deg,#382f11,#211c0d);color:#ffe582}
+.v39Empty{padding:28px 18px;text-align:center;border:1px dashed #1a4565;border-radius:16px;background:#061522;color:#7897af;font-size:10px;line-height:1.6}
+.v39Empty b{display:block;color:#fff;font-size:14px;margin-bottom:5px}
+"""
+
+IBETIN_V39_FAVOURITES_JS = r"""
+<script>
+(function(){
+  const V39_STORE='ibetin_live_line_favourites_v1';
+  let v39FavOnly=false;
+
+  function readFavs(){
+    try{
+      const raw=JSON.parse(localStorage.getItem(V39_STORE)||'[]');
+      return new Set(Array.isArray(raw)?raw.map(String):[]);
+    }catch(e){return new Set()}
+  }
+  let v39Favs=readFavs();
+
+  function saveFavs(){
+    try{localStorage.setItem(V39_STORE,JSON.stringify(Array.from(v39Favs)))}catch(e){}
+  }
+  function isFavourite(key){return !!key&&v39Favs.has(String(key))}
+  function currentFavCount(){
+    return (Array.isArray(allMatches)?allMatches:[]).filter(m=>isFavourite(matchKey(m))).length;
+  }
+  function ensureFavBar(){
+    const home=document.getElementById('home');
+    const tools=home?.querySelector('.tools');
+    if(!tools||document.getElementById('v39FavBar'))return;
+    tools.insertAdjacentHTML('afterend',
+      '<div class="v39FavBar" id="v39FavBar">'
+      +'<button class="v39FavFilter on" data-fav-view="all">ALL MATCHES</button>'
+      +'<button class="v39FavFilter" data-fav-view="mine">★ MY MATCHES <span class="v39FavCount" id="v39FavCount">0</span></button>'
+      +'</div>'
+    );
+    document.getElementById('v39FavBar').onclick=function(e){
+      const b=e.target.closest('[data-fav-view]');if(!b)return;
+      v39FavOnly=b.dataset.favView==='mine';
+      document.querySelectorAll('.v39FavFilter').forEach(x=>x.classList.toggle('on',x===b));
+      render();
+    };
+  }
+  function updateFavCount(){
+    const el=document.getElementById('v39FavCount');
+    if(el)el.textContent=String(currentFavCount());
+  }
+
+  window.toggleFavourite=function(key){
+    key=String(key||'');if(!key)return;
+    if(v39Favs.has(key))v39Favs.delete(key);else v39Favs.add(key);
+    saveFavs();
+    try{
+      if(document.getElementById('home')?.style.display!=='none')render();
+      else if(detailData)drawDetail();
+    }catch(e){}
+  };
+
+  const v39BaseCard=card;
+  card=function(m){
+    const key=matchKey(m),saved=isFavourite(key);
+    let html=v39BaseCard(m);
+    const marker='<span class="badge ';
+    const fav='<button class="v39FavBtn '+(saved?'on':'')+'" data-fav-key="'+esc(key)+'" '
+      +'aria-label="'+(saved?'Remove from My Matches':'Add to My Matches')+'" '
+      +'onclick="event.stopPropagation();toggleFavourite(this.dataset.favKey)">★</button>';
+    if(html.includes(marker))html=html.replace(marker,fav+marker);
+    return html;
+  };
+
+  const v39BaseRender=render;
+  render=function(){
+    ensureFavBar();
+    const original=allMatches;
+    const indexed=(Array.isArray(original)?original:[]).map((m,i)=>({m,i,f:isFavourite(matchKey(m))}));
+    let ordered=indexed.sort((a,b)=>(Number(b.f)-Number(a.f))||(a.i-b.i)).map(x=>x.m);
+    if(v39FavOnly)ordered=ordered.filter(m=>isFavourite(matchKey(m)));
+    allMatches=ordered;
+    try{
+      v39BaseRender();
+      if(v39FavOnly && !ordered.length){
+        const list=document.getElementById('list');
+        if(list)list.innerHTML='<div class="v39Empty"><b>★ My Matches is empty</b>Tap the star on any match to keep it here.</div>';
+      }
+      updateFavCount();
+    }finally{
+      allMatches=original;
+    }
+  };
+
+  const v39BaseDrawDetail=drawDetail;
+  drawDetail=function(){
+    v39BaseDrawDetail();
+    try{
+      const m=detailData?.match||{},key=matchKey(m);if(!key)return;
+      const back=document.querySelector('#detail .back');
+      if(back && !document.getElementById('v39DetailFav')){
+        const saved=isFavourite(key);
+        back.insertAdjacentHTML('afterend',
+          '<button id="v39DetailFav" class="v39DetailFav '+(saved?'on':'')+'" data-fav-key="'+esc(key)+'" '
+          +'onclick="event.stopPropagation();toggleFavourite(this.dataset.favKey)">'
+          +(saved?'★ SAVED TO MY MATCHES':'☆ SAVE TO MY MATCHES')+'</button>'
+        );
+      }
+    }catch(e){console.error('IBETIN V39 detail favourite',e)}
+  };
+
+  try{ensureFavBar();render()}catch(e){console.error('IBETIN V39 favourites',e)}
+  window.__IBETIN_V39_FAVOURITES__=true;
+})();
+</script>
+"""
+
+
+def _page_v39_favourites() -> str:
+    html = _page_v38_match_pulse()
+    html = html.replace("<title>IBETIN Live Line · Match Pulse V38</title>", "<title>IBETIN Live Line · My Matches V39</title>", 1)
+    html = html.replace("</style>", IBETIN_V39_FAVOURITES_CSS + "\n</style>", 1)
+    html = html.replace("</body>", IBETIN_V39_FAVOURITES_JS + "\n</body>", 1)
+    return html
+
+
+def _preview_v39_url() -> str:
+    root = v23.os.getenv("TRACKING_BASE_URL", "").strip().rstrip("/") or "https://ibetin-app-production.up.railway.app"
+    return f"{root}{IBETIN_V39_FAVOURITES_PATH}?{v23.urlencode({'t': v23.liveline._token(), 'v': '20260918-v39-favourites'})}"
+
+
+def _install_v39_favourites_route() -> None:
+    handler_cls = v23.liveline.base.ibetin_start.ibetin_entry.analytics.TrackingHandler
+    if getattr(handler_cls, "_ibetin_v39_favourites_installed", False):
+        return
+    previous_get = handler_cls.do_GET
+
+    def routed_get(self):
+        parsed = v23.urlparse(self.path)
+        if parsed.path == IBETIN_V39_FAVOURITES_PATH:
+            if not v23.liveline._authorized(self.path):
+                v23.liveline._send_html(self, 403, "<h3>IBETIN Live Line preview link is invalid.</h3>")
+                return
+            v23.liveline._send_html(self, 200, _page_v39_favourites())
+            return
+        previous_get(self)
+
+    handler_cls.do_GET = routed_get
+    handler_cls._ibetin_v39_favourites_installed = True
+    logger.info("IBETIN V39 favourites preview route installed at %s", IBETIN_V39_FAVOURITES_PATH)
+
+
 def _preview_v38_url() -> str:
     root = v23.os.getenv("TRACKING_BASE_URL", "").strip().rstrip("/") or "https://ibetin-app-production.up.railway.app"
     return f"{root}{IBETIN_V38_MATCH_PULSE_PATH}?{v23.urlencode({'t': v23.liveline._token(), 'v': '20260918-v38-pulse'})}"
@@ -753,14 +915,14 @@ async def _previewui_command(update, context):
         await message.reply_text("Open this preview from a private chat with the bot.")
         return
     await message.reply_text(
-        "⚡ <b>IBETIN LIVE LINE · MATCH PULSE V38</b>\n\n"
-        "Testing the new 5-second match view on top of the approved Live Line experience. "
-        "Production LIVE remains on approved V35 until you approve V38.",
+        "★ <b>IBETIN LIVE LINE · MY MATCHES V39</b>\n\n"
+        "V39 adds persistent favourites and a personalised My Matches view on top of Match Pulse V38. "
+        "Production LIVE remains on approved V35 until you approve this preview.",
         parse_mode="HTML",
         reply_markup=v23.liveline.InlineKeyboardMarkup(
             [[v23.liveline.InlineKeyboardButton(
-                "⚡ OPEN MATCH PULSE V38",
-                web_app=v23.liveline.WebAppInfo(url=_preview_v38_url()),
+                "★ OPEN MY MATCHES V39",
+                web_app=v23.liveline.WebAppInfo(url=_preview_v39_url()),
             )]]
         ),
         disable_web_page_preview=True,
@@ -787,6 +949,7 @@ _install_v35_preview_route()
 _install_v36_brand_preview_route()
 _install_v37_promo_preview_route()
 _install_v38_match_pulse_route()
+_install_v39_favourites_route()
 _install_v35_preview_command()
 
 # Promote the approved V35 UI to the production Live route.

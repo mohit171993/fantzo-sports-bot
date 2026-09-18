@@ -59,14 +59,13 @@ def business_reply_text() -> str:
 def business_keyboard(customer_id: int = 0) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
-            [_button("⚡ OPEN IBETIN", "home")],
+            [_button("🚀 JOIN IBETIN", "home")],
+            [_button("🏏 WATCH IBETIN LIVE LINE", "liveline")],
             [
-                _button("🔴 LIVE NOW", "live"),
-                _button("📰 NEWS", "news"),
-            ],
-            [
-                _button("🔔 MATCH ALERTS", "alerts"),
-                _button("🛟 SUPPORT", "support"),
+                TelegramInlineKeyboardButton(
+                    "📢 JOIN CHANNEL",
+                    url="https://t.me/ibetinoffcial",
+                )
             ],
         ]
     )

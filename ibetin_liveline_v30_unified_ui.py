@@ -418,15 +418,12 @@ body:before{content:"V37 PROMO PREVIEW";position:fixed;right:10px;top:8px;z-inde
 IBETIN_V37_PROMO_JS = r"""
 <script>
 (function(){
-  const IBETIN_LIVE_CRICKET_URL='https://ibetin.com/live/cricket';
+  const IBETIN_LIVE_CRICKET_URL='https://ibetin.com/live/cricket?utm_source=telegram&utm_medium=miniapp&utm_campaign=ibetin_liveline';
   function openIbetinLive(){
     try{
-      if(window.Telegram&&Telegram.WebApp&&typeof Telegram.WebApp.openLink==='function'){
-        Telegram.WebApp.openLink(IBETIN_LIVE_CRICKET_URL);
-        return;
-      }
+      sessionStorage.setItem('ibetin_liveline_return',location.href);
     }catch(e){}
-    window.open(IBETIN_LIVE_CRICKET_URL,'_blank','noopener');
+    location.assign(IBETIN_LIVE_CRICKET_URL);
   }
   window.openIbetinLive=openIbetinLive;
 
@@ -508,7 +505,7 @@ def _page_v37_promo_preview() -> str:
 
 def _preview_v37_url() -> str:
     root = v23.os.getenv("TRACKING_BASE_URL", "").strip().rstrip("/") or "https://ibetin-app-production.up.railway.app"
-    return f"{root}{IBETIN_V37_PROMO_PREVIEW_PATH}?{v23.urlencode({'t': v23.liveline._token(), 'v': '20260918-v37-promo3'})}"
+    return f"{root}{IBETIN_V37_PROMO_PREVIEW_PATH}?{v23.urlencode({'t': v23.liveline._token(), 'v': '20260918-v37-miniapp'})}"
 
 
 def _install_v37_promo_preview_route() -> None:

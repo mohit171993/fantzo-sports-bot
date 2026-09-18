@@ -1,8 +1,8 @@
-"""Mandatory Indian mobile capture before public Fantzo Live TV access.
+"""Telegram-contact verification gate for public Fantzo Live TV.
 
-The gate is intentionally isolated from the Live TV engine. It intercepts only
-public Live TV entry points, stores a normalized Indian mobile number, and then
-hands control back to the existing tested Live TV flow.
+A user is considered verified only when Telegram supplies a Contact whose
+contact.user_id exactly matches the requesting Telegram user and whose phone
+number is a valid Indian +91 mobile number. Typed numbers never unlock Live TV.
 """
 
 from __future__ import annotations
@@ -12,17 +12,14 @@ import re
 from datetime import datetime, timezone
 
 from telegram import (
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
     KeyboardButton,
     ReplyKeyboardMarkup,
     ReplyKeyboardRemove,
     Update,
 )
-from telegram.ext import ContextTypes, MessageHandler, filters
+from telegram.ext import ApplicationHandlerStop, MessageHandler, filters
 
 import bot_tracked as tracked
-import fantzo_autoreply
 
 logger = logging.getLogger(__name__)
 core = tracked.app.core
@@ -72,31 +69,29 @@ def normalize_indian_mobile(value: str) -> tuple[str, str] | None:
     elif len(digits) == 11 and digits.startswith("0"):
         digits = digits[1:]
 
-    if len(digits) != 10:
-        return None
-
-    if digits[0] not in {"6", "7", "8", "9"}:
+    if len(digits) != 10 or digits[0] not in {"6", "7", "8", "9"}:
         return None
 
     return f"+91{digits}", digits
 
 
 def is_registered(user_id: int) -> bool:
+    """Only a Telegram self-contact share counts as verified."""
     ensure_tables()
     with core.db() as conn:
         row = conn.execute(
-            "SELECT 1 FROM live_tv_mobile_users WHERE user_id=? LIMIT 1",
+            """
+            SELECT 1
+            FROM live_tv_mobile_users
+            WHERE user_id=? AND capture_method='telegram_contact'
+            LIMIT 1
+            """,
             (int(user_id),),
         ).fetchone()
     return bool(row)
 
 
-def save_mobile(
-    user_id: int,
-    value: str,
-    source: str,
-    capture_method: str,
-) -> tuple[str, str]:
+def save_verified_contact(user_id: int, value: str, source: str) -> tuple[str, str]:
     normalized = normalize_indian_mobile(value)
     if not normalized:
         raise ValueError("A valid Indian mobile number is required")
@@ -121,7 +116,7 @@ def save_mobile(
             ON CONFLICT(user_id) DO UPDATE SET
                 mobile_e164=excluded.mobile_e164,
                 mobile_national=excluded.mobile_national,
-                capture_method=excluded.capture_method,
+                capture_method='telegram_contact',
                 source=excluded.source,
                 updated_at=excluded.updated_at,
                 last_live_tv_at=excluded.last_live_tv_at
@@ -130,7 +125,7 @@ def save_mobile(
                 int(user_id),
                 e164,
                 national,
-                str(capture_method or "manual")[:32],
+                "telegram_contact",
                 str(source or "live_tv")[:64],
                 created_at,
                 now,
@@ -145,27 +140,25 @@ def touch_live_tv_access(user_id: int) -> None:
     ensure_tables()
     with core.db() as conn:
         conn.execute(
-            "UPDATE live_tv_mobile_users SET last_live_tv_at=?, updated_at=? WHERE user_id=?",
+            """
+            UPDATE live_tv_mobile_users
+            SET last_live_tv_at=?, updated_at=?
+            WHERE user_id=? AND capture_method='telegram_contact'
+            """,
             (_now_iso(), _now_iso(), int(user_id)),
         )
 
 
-def _share_keyboard() -> ReplyKeyboardMarkup:
+def _verify_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
-        [[KeyboardButton("📱 SHARE INDIAN MOBILE", request_contact=True)]],
+        [[KeyboardButton("📱 VERIFY & CONTINUE", request_contact=True)]],
         resize_keyboard=True,
         one_time_keyboard=True,
-        input_field_placeholder="Share or type your Indian mobile number",
+        input_field_placeholder="Tap VERIFY & CONTINUE",
     )
 
 
-def _continue_keyboard() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        [[InlineKeyboardButton("📺 CONTINUE TO LIVE TV", callback_data="live_tv_status")]]
-    )
-
-
-async def _prompt_mobile(update: Update, context: ContextTypes.DEFAULT_TYPE, source: str) -> None:
+async def _prompt_mobile(update: Update, context, source: str) -> None:
     user = update.effective_user
     if not user:
         return
@@ -178,67 +171,25 @@ async def _prompt_mobile(update: Update, context: ContextTypes.DEFAULT_TYPE, sou
 
     if query:
         try:
-            await query.answer("Indian mobile number required")
+            await query.answer("Telegram mobile verification required")
         except Exception:
             pass
 
     if message:
         await message.reply_text(
-            "📱 <b>INDIAN MOBILE REQUIRED</b>\n"
+            "📱 <b>VERIFY MOBILE TO WATCH LIVE TV</b>\n"
             "━━━━━━━━━━━━━━━━━━\n\n"
-            "To access <b>Fantzo Live TV</b>, please provide a valid Indian mobile number.\n\n"
-            "Tap <b>SHARE INDIAN MOBILE</b> below, or type your 10-digit Indian mobile number in this chat.\n\n"
-            "Accepted: <code>9876543210</code> or <code>+919876543210</code>.\n"
-            "Your number is stored for Live TV access and admin reporting.",
+            "Fantzo Live TV requires a verified Indian mobile number.\n\n"
+            "Tap <b>📱 VERIFY & CONTINUE</b> below. Telegram will share the "
+            "mobile number linked to your own Telegram account.\n\n"
+            "Only an Indian <b>+91</b> mobile number is accepted. "
+            "Typed numbers are not accepted.",
             parse_mode="HTML",
-            reply_markup=_share_keyboard(),
+            reply_markup=_verify_keyboard(),
         )
 
 
-async def _finish_capture(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
-    phone_value: str,
-    capture_method: str,
-) -> bool:
-    user = update.effective_user
-    message = update.effective_message
-    if not user or not message:
-        return False
-
-    normalized = normalize_indian_mobile(phone_value)
-    if not normalized:
-        await message.reply_text(
-            "⚠️ <b>Please enter a valid Indian mobile number.</b>\n\n"
-            "It must be a 10-digit mobile number starting with 6, 7, 8 or 9.\n"
-            "Example: <code>9876543210</code>",
-            parse_mode="HTML",
-            reply_markup=_share_keyboard(),
-        )
-        return True
-
-    source = str(context.user_data.get(_PENDING_SOURCE_KEY) or "live_tv")
-    e164, _ = save_mobile(user.id, phone_value, source, capture_method)
-
-    context.user_data.pop(_PENDING_KEY, None)
-    context.user_data.pop(_PENDING_SOURCE_KEY, None)
-
-    masked = e164[:3] + "••••••" + e164[-4:]
-    await message.reply_text(
-        f"✅ <b>Mobile number saved</b>\n\n"
-        f"Registered number: <code>{masked}</code>\n"
-        "You can now access Fantzo Live TV.",
-        parse_mode="HTML",
-        reply_markup=ReplyKeyboardRemove(),
-    )
-    await message.reply_text(
-        "📺 Tap below to continue.",
-        reply_markup=_continue_keyboard(),
-    )
-    return True
-
-
-async def contact_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def contact_handler(update: Update, context) -> None:
     user = update.effective_user
     message = update.effective_message
     if not user or not message or not message.contact:
@@ -248,20 +199,72 @@ async def contact_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         return
 
     contact = message.contact
-    if contact.user_id and int(contact.user_id) != int(user.id):
+
+    # Telegram self-contact verification: user_id must be present and must
+    # exactly match the Telegram account requesting Live TV.
+    if contact.user_id is None or int(contact.user_id) != int(user.id):
         await message.reply_text(
-            "⚠️ Please share <b>your own</b> Telegram contact using the button below.",
+            "⚠️ <b>Verification failed.</b>\n\n"
+            "Please use the <b>📱 VERIFY & CONTINUE</b> button and share "
+            "the mobile number linked to your own Telegram account.",
             parse_mode="HTML",
-            reply_markup=_share_keyboard(),
+            reply_markup=_verify_keyboard(),
         )
         return
 
-    await _finish_capture(
-        update,
-        context,
+    normalized = normalize_indian_mobile(contact.phone_number or "")
+    if not normalized:
+        await message.reply_text(
+            "⚠️ <b>An Indian mobile number is required.</b>\n\n"
+            "The mobile number linked to this Telegram account is not a valid "
+            "Indian +91 mobile number, so Live TV cannot be unlocked.",
+            parse_mode="HTML",
+            reply_markup=_verify_keyboard(),
+        )
+        return
+
+    source = str(context.user_data.get(_PENDING_SOURCE_KEY) or "live_tv")
+    e164, _ = save_verified_contact(
+        user.id,
         contact.phone_number or "",
-        "telegram_contact",
+        source,
     )
+
+    context.user_data.pop(_PENDING_KEY, None)
+    context.user_data.pop(_PENDING_SOURCE_KEY, None)
+
+    masked = e164[:3] + "••••••" + e164[-4:]
+    await message.reply_text(
+        "✅ <b>Telegram mobile verified</b>\n\n"
+        f"Verified number: <code>{masked}</code>\n"
+        "Opening Fantzo Live TV…",
+        parse_mode="HTML",
+        reply_markup=ReplyKeyboardRemove(),
+    )
+
+    # Continue immediately into the already-tested Live TV status screen.
+    import fantzo_business_flow_fix as live_flow
+
+    await live_flow.send_live_tv_status_from_start(update, context)
+
+
+async def pending_text_handler(update: Update, context) -> None:
+    """Do not let typed numbers substitute for Telegram contact verification."""
+    user = update.effective_user
+    message = update.effective_message
+    if not user or not message or not message.text:
+        return
+    if not context.user_data.get(_PENDING_KEY):
+        return
+
+    await message.reply_text(
+        "🔐 <b>Telegram verification is required.</b>\n\n"
+        "Typed mobile numbers cannot unlock Live TV. "
+        "Please tap <b>📱 VERIFY & CONTINUE</b> below.",
+        parse_mode="HTML",
+        reply_markup=_verify_keyboard(),
+    )
+    raise ApplicationHandlerStop
 
 
 def _source_from_start_arg(arg: str) -> str:
@@ -281,7 +284,6 @@ def install() -> None:
 
     original_start = tracked.app.start
     original_router = tracked.app.core.callback_router
-    original_auto_reply = fantzo_autoreply.auto_reply
 
     async def gated_start(update, context):
         user = update.effective_user
@@ -308,36 +310,12 @@ def install() -> None:
 
         await original_router(update, context)
 
-    async def auto_reply_with_mobile_capture(update, context):
-        user = update.effective_user
-        message = update.effective_message
-
-        if (
-            user
-            and message
-            and message.text
-            and context.user_data.get(_PENDING_KEY)
-        ):
-            text = message.text.strip()
-            if text.lower() in {"cancel", "stop"}:
-                context.user_data.pop(_PENDING_KEY, None)
-                context.user_data.pop(_PENDING_SOURCE_KEY, None)
-                await message.reply_text(
-                    "Mobile registration cancelled.",
-                    reply_markup=ReplyKeyboardRemove(),
-                )
-                return
-
-            await _finish_capture(update, context, text, "manual")
-            return
-
-        await original_auto_reply(update, context)
-
     tracked.app.start = gated_start
     tracked.app.core.callback_router = gated_router
-    fantzo_autoreply.auto_reply = auto_reply_with_mobile_capture
 
-    logger.info("Fantzo Live TV mobile gate installed: Indian mobile required")
+    logger.info(
+        "Fantzo Live TV mobile gate installed: Telegram self-contact + Indian +91 required"
+    )
 
 
 def register_handlers(application) -> None:
@@ -346,9 +324,13 @@ def register_handlers(application) -> None:
         return
     _handlers_registered = True
 
-    # Negative group runs before the normal direct-message handlers.
+    # Negative group runs before the normal direct-message auto-reply handlers.
     application.add_handler(
         MessageHandler(filters.CONTACT, contact_handler),
         group=-10,
     )
-    logger.info("Fantzo Live TV mobile contact handler registered")
+    application.add_handler(
+        MessageHandler(filters.TEXT & ~filters.COMMAND, pending_text_handler),
+        group=-10,
+    )
+    logger.info("Fantzo Telegram-only mobile verification handlers registered")

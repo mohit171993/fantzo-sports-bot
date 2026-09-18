@@ -14,6 +14,9 @@ PUBLIC_BASE_URL = (
     or "https://ibetin-app-production.up.railway.app"
 )
 LIVE_LINE_URL = os.getenv("IBETIN_LIVE_LINE_URL", f"{PUBLIC_BASE_URL}/liveline").strip()
+CREATIVE_UNLOCK_CODE = os.getenv(
+    "IBETIN_CREATIVE_UNLOCK_CODE", "IBETIN-LIVE-7429"
+).strip()
 
 
 def ensure_tables() -> None:
@@ -36,9 +39,55 @@ def ensure_tables() -> None:
         )
 
 
+def _creative_admin_id():
+    try:
+        with core.db() as conn:
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)"
+            )
+            row = conn.execute(
+                "SELECT value FROM settings WHERE key = 'creative_admin_user_id'"
+            ).fetchone()
+        return int(row["value"]) if row and row["value"] else None
+    except Exception:
+        return None
+
+
 def _is_admin(update) -> bool:
     user = update.effective_user
-    return bool(user and user.id == core.ADMIN_USER_ID)
+    if not user:
+        return False
+    if user.id == core.ADMIN_USER_ID:
+        return True
+    return user.id == _creative_admin_id()
+
+
+async def creativeunlock_command(update, context) -> None:
+    user = update.effective_user
+    message = update.effective_message
+    if not user or not message:
+        return
+    code = (context.args[0] if context.args else "").strip()
+    if not code or code != CREATIVE_UNLOCK_CODE:
+        await message.reply_text("Invalid creative-manager unlock code.")
+        return
+    with core.db() as conn:
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)"
+        )
+        conn.execute(
+            """
+            INSERT INTO settings(key, value)
+            VALUES('creative_admin_user_id', ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+            """,
+            (str(user.id),),
+        )
+    await message.reply_text(
+        "✅ <b>Creative manager unlocked for this Telegram account.</b>\n\n"
+        "Now send /bulkcreatives and upload all banners.",
+        parse_mode="HTML",
+    )
 
 
 def _pool_from(message, width: int = 0, height: int = 0, filename: str = "") -> str:
@@ -331,6 +380,7 @@ def install(application) -> None:
     ensure_tables()
 
     # Negative group ensures uploads are captured before the legacy single-banner handler.
+    application.add_handler(CommandHandler("creativeunlock", creativeunlock_command), group=-5)
     application.add_handler(CommandHandler("bulkcreatives", bulkcreatives_command), group=-5)
     application.add_handler(CommandHandler("done", done_command), group=-5)
     application.add_handler(CommandHandler("creativepool", creativepool_command), group=-5)

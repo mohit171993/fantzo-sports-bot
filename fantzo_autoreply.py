@@ -3,12 +3,18 @@ import os
 import re
 from urllib.parse import quote
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import InlineKeyboardButton, InlineKeyboardButton as TelegramInlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
 import bot as core
 
 logger = logging.getLogger(__name__)
+
+IBETIN_LIVE_LINE_URL = os.getenv(
+    "IBETIN_LIVE_LINE_URL",
+    "https://ibetin-app-production.up.railway.app/liveline",
+).strip()
+IBETIN_CHANNEL_URL = "https://t.me/ibetinoffcial"
 SETTING_KEY = "auto_reply_enabled"
 
 IBETIN_HOME_URL = os.getenv("IBETIN_HOME_URL", "https://ibetin.com").strip().rstrip("/")
@@ -128,14 +134,13 @@ def standard_reply() -> str:
 def standard_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
-            [InlineKeyboardButton("⚡ OPEN IBETIN", url=_hub_url("home"))],
+            [InlineKeyboardButton("🚀 JOIN IBETIN", url=_hub_url("home"))],
+            [InlineKeyboardButton("🏏 WATCH IBETIN LIVE LINE", url=IBETIN_LIVE_LINE_URL)],
             [
-                InlineKeyboardButton("🔴 LIVE NOW", url=_hub_url("live")),
-                InlineKeyboardButton("📰 NEWS", url=_news_url()),
-            ],
-            [
-                InlineKeyboardButton("🔔 MATCH ALERTS", url=_hub_url("alerts")),
-                InlineKeyboardButton("🛟 SUPPORT", url=_hub_url("support")),
+                TelegramInlineKeyboardButton(
+                    "📢 JOIN CHANNEL",
+                    url=IBETIN_CHANNEL_URL,
+                )
             ],
         ]
     )

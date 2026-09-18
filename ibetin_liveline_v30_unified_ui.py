@@ -331,6 +331,92 @@ def _page_v35_production() -> str:
     return html
 
 
+IBETIN_V36_BRAND_PREVIEW_PATH = "/admin/ibetin-v36-brand-preview"
+
+IBETIN_V36_BRAND_CSS = r"""
+/* V36 IBETIN.COM BRAND PREVIEW ONLY */
+.brand b{font-size:20px!important;letter-spacing:.35px!important}
+.brand b .dotcom{color:#2fb7ff;font-weight:1000}
+.brand span{font-size:9px!important;letter-spacing:1.2px!important;font-weight:900!important;color:#9fc0db!important}
+.mark{position:relative!important;background:linear-gradient(145deg,#ffe071,#ffb319)!important;box-shadow:0 8px 22px rgba(255,180,25,.20)!important}
+.mark:after{content:".COM";position:absolute;right:-8px;bottom:-5px;background:#0b6ee0;color:#fff;font-size:6px;line-height:1;font-weight:1000;padding:4px 5px;border-radius:6px;border:2px solid #06182b}
+.liveDot{font-size:9px!important;letter-spacing:.5px!important}
+.top{padding-top:16px!important}
+.ibBrandSig{margin:4px 16px 16px;padding:12px 14px;border:1px solid #143d5b;border-radius:14px;background:linear-gradient(135deg,rgba(9,37,66,.78),rgba(5,22,39,.82));display:flex;align-items:center;justify-content:space-between;gap:10px}
+.ibBrandSig b{font-size:12px;color:#fff;letter-spacing:.5px}.ibBrandSig span{font-size:8px;color:#7fa4c3;letter-spacing:.8px;font-weight:900}
+.loading:after{content:"IBETIN.COM";display:block;margin-top:7px;color:#3fb5ff;font-size:8px;font-weight:1000;letter-spacing:1.5px}
+.match{position:relative}.match:after{content:"IBETIN.COM";position:absolute;right:10px;bottom:7px;font-size:6px;font-weight:1000;letter-spacing:1px;color:rgba(111,164,206,.35);pointer-events:none}
+.scorehero:before{content:"IBETIN.COM LIVE";display:block;padding:7px 14px;background:linear-gradient(90deg,rgba(16,135,255,.12),rgba(22,210,137,.08));border-bottom:1px solid #153e5e;color:#69c8ff;font-size:7px;font-weight:1000;letter-spacing:1.2px}
+body:before{content:"BRAND PREVIEW";position:fixed;right:10px;top:8px;z-index:9999;background:#0a76df;color:#fff;font-size:7px;font-weight:1000;letter-spacing:1px;padding:5px 8px;border-radius:999px;pointer-events:none}
+"""
+
+
+def _page_v36_brand_preview() -> str:
+    html = _page_v35_production()
+    html = html.replace("<title>IBETIN Live Cricket</title>", "<title>IBETIN.COM · Live Sports</title>", 1)
+    html = html.replace(
+        '<div class="brand"><div class="mark">I</div><div><b>IBETIN</b><span>LIVE CRICKET</span></div></div><div class="liveDot">● LIVE</div>',
+        '<div class="brand"><div class="mark">I</div><div><b>IBETIN<span class="dotcom">.COM</span></b><span>LIVE SPORTS</span></div></div><div class="liveDot">● LIVE NOW</div>',
+        1,
+    )
+    html = html.replace(
+        'placeholder="Search match, team or tournament"',
+        'placeholder="Search IBETIN Sports"',
+        1,
+    )
+    html = html.replace(
+        '<div id="status" class="status">Loading live cricket…</div>',
+        '<div id="status" class="status">IBETIN.COM is loading live cricket…</div>',
+        1,
+    )
+    html = html.replace(
+        '<nav class="bottom">',
+        '<div class="ibBrandSig"><b>IBETIN.COM</b><span>LIVE SPORTS · FAST SCORES</span></div><nav class="bottom">',
+        1,
+    )
+    html = html.replace(
+        "tg.setHeaderColor('#071a34');tg.setBackgroundColor('#eef3f8')",
+        "tg.setHeaderColor('#020814');tg.setBackgroundColor('#020814')",
+        1,
+    )
+    html = html.replace(
+        "Unable to load match details.",
+        "IBETIN.COM could not load this match right now.",
+    )
+    html = html.replace(
+        "</style>",
+        IBETIN_V36_BRAND_CSS + "\n</style>",
+        1,
+    )
+    return html
+
+
+def _preview_v36_url() -> str:
+    root = v23.os.getenv("TRACKING_BASE_URL", "").strip().rstrip("/") or "https://ibetin-app-production.up.railway.app"
+    return f"{root}{IBETIN_V36_BRAND_PREVIEW_PATH}?{v23.urlencode({'t': v23.liveline._token(), 'v': '20260918-v36-brand'})}"
+
+
+def _install_v36_brand_preview_route() -> None:
+    handler_cls = v23.liveline.base.ibetin_start.ibetin_entry.analytics.TrackingHandler
+    if getattr(handler_cls, "_ibetin_v36_brand_preview_installed", False):
+        return
+    previous_get = handler_cls.do_GET
+
+    def routed_get(self):
+        parsed = v23.urlparse(self.path)
+        if parsed.path == IBETIN_V36_BRAND_PREVIEW_PATH:
+            if not v23.liveline._authorized(self.path):
+                v23.liveline._send_html(self, 403, "<h3>IBETIN.COM preview link is invalid.</h3>")
+                return
+            v23.liveline._send_html(self, 200, _page_v36_brand_preview())
+            return
+        previous_get(self)
+
+    handler_cls.do_GET = routed_get
+    handler_cls._ibetin_v36_brand_preview_installed = True
+    logger.info("IBETIN V36 brand preview route installed at %s", IBETIN_V36_BRAND_PREVIEW_PATH)
+
+
 def _preview_v35_url() -> str:
     root = v23.os.getenv("TRACKING_BASE_URL", "").strip().rstrip("/") or "https://ibetin-app-production.up.railway.app"
     return f"{root}{IBETIN_V35_PREVIEW_PATH}?{v23.urlencode({'t': v23.liveline._token(), 'v': '20260918-v35-approved'})}"
@@ -371,8 +457,8 @@ async def _previewui_command(update, context):
         parse_mode="HTML",
         reply_markup=v23.liveline.InlineKeyboardMarkup(
             [[v23.liveline.InlineKeyboardButton(
-                "🎨 OPEN PREMIUM PREVIEW",
-                web_app=v23.liveline.WebAppInfo(url=_preview_v35_url()),
+                "🌐 OPEN IBETIN.COM PREVIEW",
+                web_app=v23.liveline.WebAppInfo(url=_preview_v36_url()),
             )]]
         ),
         disable_web_page_preview=True,
@@ -396,6 +482,7 @@ def _install_v35_preview_command() -> None:
 
 
 _install_v35_preview_route()
+_install_v36_brand_preview_route()
 _install_v35_preview_command()
 
 # Promote the approved V35 UI to the production Live route.

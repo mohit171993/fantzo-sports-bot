@@ -34,6 +34,7 @@ _IBETIN_APP_BASE_URL = (
 IBETIN_LIVE_LINE_URL = os.getenv(
     "IBETIN_LIVE_LINE_URL", f"{_IBETIN_APP_BASE_URL}/liveline"
 ).strip()
+LIVELINE_CHANNEL_CAMPAIGN_KEY = "liveline-v40-launch-20260918"
 SPORTS_BOT_URL = os.getenv("IBETIN_SPORTS_BOT_URL", IBETIN_HOME_URL).strip()
 
 
@@ -52,6 +53,16 @@ def ensure_tables() -> None:
                 opted_out INTEGER NOT NULL DEFAULT 0,
                 updated_at TEXT NOT NULL,
                 PRIMARY KEY(source, user_id)
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS channel_campaigns (
+                campaign_key TEXT PRIMARY KEY,
+                sent_at TEXT,
+                message_id INTEGER,
+                status TEXT NOT NULL
             )
             """
         )
@@ -342,6 +353,84 @@ async def run_due_reminders(application) -> None:
             _mark_send(str(row["source"]), int(row["user_id"]), stage, campaign_key, "failed")
 
 
+async def send_liveline_channel_launch(application) -> bool:
+    """Send the V40 Live Line launch post once to the IBETIN channel."""
+    ensure_tables()
+    with core.db() as conn:
+        existing = conn.execute(
+            "SELECT status FROM channel_campaigns WHERE campaign_key = ?",
+            (LIVELINE_CHANNEL_CAMPAIGN_KEY,),
+        ).fetchone()
+    if existing and str(existing["status"]) == "sent":
+        logger.info("IBETIN Live Line channel launch already sent campaign=%s", LIVELINE_CHANNEL_CAMPAIGN_KEY)
+        return True
+
+    text = (
+        "🏏 <b>IBETIN LIVE LINE IS LIVE</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
+        "Follow cricket live inside Telegram with IBETIN Live Line.\n\n"
+        "⚡ Fast live score updates\n"
+        "📊 Match Pulse & scorecards\n"
+        "⭐ Save your favourite matches\n"
+        "🗓 Upcoming fixtures & results\n\n"
+        "Tap below to open Live Line."
+    )
+    markup = InlineKeyboardMarkup(
+        [[
+            TelegramInlineKeyboardButton(
+                "🏏 OPEN IBETIN LIVE LINE",
+                url=business.telegram_mini_app_url("liveline"),
+            )
+        ]]
+    )
+
+    try:
+        msg = await application.bot.send_message(
+            chat_id="@ibetinoffcial",
+            text=text,
+            parse_mode="HTML",
+            reply_markup=markup,
+            disable_web_page_preview=True,
+        )
+        with core.db() as conn:
+            conn.execute(
+                """
+                INSERT INTO channel_campaigns(campaign_key, sent_at, message_id, status)
+                VALUES (?, ?, ?, 'sent')
+                ON CONFLICT(campaign_key) DO UPDATE SET
+                    sent_at = excluded.sent_at,
+                    message_id = excluded.message_id,
+                    status = 'sent'
+                """,
+                (LIVELINE_CHANNEL_CAMPAIGN_KEY, _now_iso(), int(msg.message_id)),
+            )
+        logger.info(
+            "IBETIN Live Line channel launch sent channel=@ibetinoffcial message_id=%s campaign=%s",
+            msg.message_id,
+            LIVELINE_CHANNEL_CAMPAIGN_KEY,
+        )
+        return True
+    except Exception as exc:
+        with core.db() as conn:
+            conn.execute(
+                """
+                INSERT INTO channel_campaigns(campaign_key, sent_at, message_id, status)
+                VALUES (?, ?, NULL, 'failed')
+                ON CONFLICT(campaign_key) DO UPDATE SET
+                    sent_at = excluded.sent_at,
+                    status = 'failed'
+                """,
+                (LIVELINE_CHANNEL_CAMPAIGN_KEY, _now_iso()),
+            )
+        logger.warning("IBETIN Live Line channel launch failed: %s", str(exc)[:180])
+        return False
+
+
+async def _send_liveline_channel_launch_after_start(application) -> None:
+    await asyncio.sleep(8)
+    await send_liveline_channel_launch(application)
+
+
 async def reminder_loop(application) -> None:
     ensure_tables()
     await asyncio.sleep(20)
@@ -365,6 +454,10 @@ def start_background_loop(application) -> None:
     )
     application.bot_data["ibetin_match_alert_task"] = asyncio.create_task(
         match_alerts.match_alert_loop(application), name="ibetin-match-alerts"
+    )
+    application.bot_data["ibetin_liveline_channel_launch_task"] = asyncio.create_task(
+        _send_liveline_channel_launch_after_start(application),
+        name="ibetin-liveline-channel-launch",
     )
     logger.info("IBETIN reminder and real-time match-alert workers started")
 

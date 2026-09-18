@@ -141,6 +141,7 @@ _ROANUZ_WEBHOOK_LOCK = threading.RLock()
 _ROANUZ_WEBHOOK_TTL = 6 * 60 * 60
 _WEBHOOK_SUBSCRIBE_ATTEMPTS = {}
 _WEBHOOK_UNSUBSCRIBE_ATTEMPTS = {}
+_WEBHOOK_CONFIRMED_KEYS = set()
 _WEBHOOK_SUBSCRIBE_LOCK = threading.RLock()
 _WEBHOOK_ACCEPTED_COUNT = 0
 _WEBHOOK_REST_FALLBACK_COUNT = 0
@@ -236,8 +237,40 @@ def _webhook_health_snapshot():
         "acceptedPushes": _WEBHOOK_ACCEPTED_COUNT,
         "restFallbacks": _WEBHOOK_REST_FALLBACK_COUNT,
         "subscriptionsOk": _WEBHOOK_SUBSCRIBE_OK_COUNT,
+        "confirmedSubscriptions": len(_WEBHOOK_CONFIRMED_KEYS),
         "unsubscriptionsOk": _WEBHOOK_UNSUBSCRIBE_OK_COUNT,
     }
+
+
+def _roanuz_subscription_error_code(response) -> str:
+    try:
+        payload = response.json()
+    except Exception:
+        return ""
+
+    found = ""
+
+    def walk(value):
+        nonlocal found
+        if found:
+            return
+        if isinstance(value, dict):
+            for k, v in value.items():
+                lk = str(k).lower()
+                if lk in {"code", "error_code", "errorcode"} and isinstance(v, str) and v.startswith("P-"):
+                    found = v.strip()
+                    return
+                walk(v)
+                if found:
+                    return
+        elif isinstance(value, list):
+            for child in value:
+                walk(child)
+                if found:
+                    return
+
+    walk(payload)
+    return found
 
 
 def _unsubscribe_webhook_key(key: str):
@@ -285,6 +318,7 @@ def _schedule_webhook_unsubscribe(key: str):
 
 
 def _subscribe_webhook_key(key: str):
+    global _WEBHOOK_SUBSCRIBE_OK_COUNT
     key = str(key or "").strip()
     if not key:
         return
@@ -300,12 +334,22 @@ def _subscribe_webhook_key(key: str):
                 headers={"rs-token": token, "Accept": "application/json"},
                 json={"method": "web_hook"},
             )
-        if 200 <= response.status_code < 300:
-            global _WEBHOOK_SUBSCRIBE_OK_COUNT
+        error_code = _roanuz_subscription_error_code(response)
+        if 200 <= response.status_code < 300 or (response.status_code == 400 and error_code == "P-400-4"):
             _WEBHOOK_SUBSCRIBE_OK_COUNT += 1
-            logger.info("IBETIN Roanuz webhook subscription OK key=%s http=%s", key, response.status_code)
+            with _WEBHOOK_SUBSCRIBE_LOCK:
+                _WEBHOOK_CONFIRMED_KEYS.add(key)
+            if error_code == "P-400-4":
+                logger.info("IBETIN Roanuz webhook subscription already active key=%s code=%s", key, error_code)
+            else:
+                logger.info("IBETIN Roanuz webhook subscription OK key=%s http=%s", key, response.status_code)
         else:
-            logger.warning("IBETIN Roanuz webhook subscription pending key=%s http=%s", key, response.status_code)
+            logger.warning(
+                "IBETIN Roanuz webhook subscription pending key=%s http=%s code=%s",
+                key,
+                response.status_code,
+                error_code or "unknown",
+            )
     except Exception as exc:
         logger.warning("IBETIN Roanuz webhook subscription failed key=%s: %s", key, str(exc)[:140])
 
@@ -316,6 +360,8 @@ def _schedule_webhook_subscription(key: str):
         return
     now = time.monotonic()
     with _WEBHOOK_SUBSCRIBE_LOCK:
+        if key in _WEBHOOK_CONFIRMED_KEYS:
+            return
         last = _WEBHOOK_SUBSCRIBE_ATTEMPTS.get(key, 0)
         if now - last < 10 * 60:
             return
@@ -373,6 +419,11 @@ def _accept_roanuz_webhook(payload):
         else:
             _ROANUZ_WEBHOOK_MATCHES[key] = (time.monotonic(), node)
     _WEBHOOK_ACCEPTED_COUNT += 1
+    with _WEBHOOK_SUBSCRIBE_LOCK:
+        if terminal:
+            _WEBHOOK_CONFIRMED_KEYS.discard(key)
+        else:
+            _WEBHOOK_CONFIRMED_KEYS.add(key)
     _persist_webhook_state(key, node, terminal=terminal)
     if terminal:
         _schedule_webhook_unsubscribe(key)

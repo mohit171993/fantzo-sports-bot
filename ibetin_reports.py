@@ -578,3 +578,43 @@ def log_admin_diagnostics() -> None:
         )
     except Exception:
         logger.exception("IBETIN admin diagnostic failed")
+
+
+async def push_report_center_to_unlocked_admin(application) -> None:
+    """Send the report center once to the persistently unlocked operator."""
+    admin_id = _setting_user_id("creative_admin_user_id")
+    if not admin_id:
+        return
+
+    marker = f"report_center_push_v1:{admin_id}"
+    try:
+        with core.db() as conn:
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)"
+            )
+            sent = conn.execute(
+                "SELECT value FROM settings WHERE key = ?",
+                (marker,),
+            ).fetchone()
+        if sent:
+            return
+
+        await application.bot.send_message(
+            chat_id=int(admin_id),
+            text=(
+                "✅ <b>IBETIN ADMIN ACCESS ENABLED</b>\n\n"
+                + _overview_text()
+            ),
+            parse_mode="HTML",
+            reply_markup=report_menu(),
+            disable_web_page_preview=True,
+        )
+
+        with core.db() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO settings(key, value) VALUES(?, ?)",
+                (marker, core.now_iso()),
+            )
+        logger.info("IBETIN report center pushed to unlocked admin")
+    except Exception:
+        logger.exception("Could not push IBETIN report center to unlocked admin")

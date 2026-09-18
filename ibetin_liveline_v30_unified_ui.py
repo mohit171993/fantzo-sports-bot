@@ -197,6 +197,68 @@ body{padding-bottom:calc(105px + env(safe-area-inset-bottom))!important}
 .notice,.inning,.ball,.moreItem,.playerCard{background:#081a2c!important;border-color:#173e5d!important;color:#bad0e2!important}.playerName,.inningTeam,.inningScore,.moreItem,.kv b{color:#fff!important}.metric{background:#0b2a49!important;color:#a9c3d9!important}.ballChip{background:#244764!important;color:#fff!important}.ballChip.boundary{background:#1398ef!important}.ballChip.six{background:#7650e3!important}.ballChip.wicket{background:#e94d68!important}
 .bottom{background:rgba(2,11,23,.98)!important;border:1px solid #153854!important;box-shadow:0 18px 40px rgba(0,0,0,.42)!important}.bottom .on{background:linear-gradient(180deg,rgba(27,137,255,.24),rgba(11,76,139,.16))!important}
 body:before{content:"PREVIEW";position:fixed;right:10px;top:8px;z-index:9999;background:#7b43f6;color:#fff;font-size:8px;font-weight:1000;letter-spacing:1px;padding:5px 8px;border-radius:999px;pointer-events:none}
+.previewHomeOdds{padding:12px 13px 13px;border-top:1px solid #153d5d;background:#051522}
+.previewOddsTitle{font-size:9px;font-weight:1000;color:#8fb1cc;letter-spacing:.7px;margin-bottom:8px}
+.previewHomeGrid,.previewBhavGrid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.previewPrice{border-radius:14px;padding:12px 13px;border:1px solid #25a5ff;background:linear-gradient(135deg,#0b79e7,#083f86);min-width:0}
+.previewPrice.green{border-color:#31df90;background:linear-gradient(135deg,#11a868,#075b3c)}
+.previewPrice small{display:block;color:#d8edff;font-size:9px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.previewPrice strong{display:block;color:#fff;font-size:28px;line-height:1;margin-top:6px;font-weight:1000;font-variant-numeric:tabular-nums}
+.previewBhav{margin-top:2px}
+.previewBhavHead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}
+.previewBhavHead b{font-size:17px;color:#fff}.previewBhavHead span{font-size:9px;color:#31baff;font-weight:1000}
+.previewHist{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid #17496d;border-radius:12px;overflow:hidden;margin-top:9px}
+.previewHist div{padding:8px 4px;text-align:center;background:#08223c;border-right:1px solid #17496d}.previewHist div:last-child{border-right:0}
+.previewHist span{display:block;color:#7f9db7;font-size:7px;font-weight:900}.previewHist b{display:block;color:#fff;font-size:13px;margin-top:3px;font-variant-numeric:tabular-nums}.previewHist .cur b{color:#2db8ff}
+.previewSessionTitle{font-size:10px;font-weight:1000;color:#35b9ff;margin:13px 0 7px}
+.previewSessionStrip{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none}.previewSessionStrip::-webkit-scrollbar{display:none}
+.previewSessionCard{flex:0 0 min(76vw,250px);padding:11px;border-radius:13px;background:linear-gradient(135deg,#0b468f,#092855);border:1px solid #397fd7}
+.previewSessionCard:nth-child(even){background:linear-gradient(135deg,#5a2bad,#2d1a64);border-color:#9c68ff}
+.previewSessionCard>b{font-size:11px;color:#fff}.previewSessionVals{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.previewSessionVals span{padding:5px 7px;border-radius:8px;background:rgba(255,255,255,.08);font-size:8px;color:#c6d9ea}.previewSessionVals b{color:#fff;font-size:12px;margin-left:3px}
+.previewMarketList{display:grid;gap:8px}.previewMarketRow{background:#081a2c;border:1px solid #17405f;border-radius:12px;padding:11px}
+.previewMarketRow>b{display:block;color:#fff;font-size:11px;margin-bottom:7px}.previewMarketVals{display:flex;gap:8px;flex-wrap:wrap;color:#a8c1d6;font-size:10px}.previewMarketVals strong{color:#fff}
+
+"""
+
+
+IBETIN_V35_MARKET_JS = r"""
+<script>
+(function(){
+  function previewPriceFmt(v){
+    if(v===null||v===undefined||v==='')return '—';
+    const n=Number(v);
+    return Number.isFinite(n)?esc(n.toFixed(2)):esc(v);
+  }
+  function previewLineFmt(v){
+    if(v===null||v===undefined||v==='')return '—';
+    const n=Number(v);
+    if(!Number.isFinite(n))return esc(v);
+    if(Number.isInteger(n))return esc(String(n));
+    return esc(String(Math.round((n+Number.EPSILON)*100)/100));
+  }
+  homeOddsHtml=function(m){
+    if(mode!=='live')return'';
+    const c=bhavCache.get(matchKey(m));if(!c?.data)return'';
+    const market=findMatchMarket(c.data);if(!market)return'';
+    const vs=values(market).slice(0,2);
+    return `<div class="previewHomeOdds"><div class="previewOddsTitle">MATCH ODDS</div><div class="previewHomeGrid">${vs.map((x,i)=>`<div class="previewPrice ${i===1?'green':''}"><small>${esc(x.label||'Selection')}</small><strong>${previewPriceFmt(x.odd)}</strong></div>`).join('')}</div></div>`;
+  };
+  quickMarketHtml=function(j){
+    if(!j)return'';
+    const main=findMatchMarket(j);if(!main)return'';
+    const mv=values(main).slice(0,2),sessions=sessionMarkets(j,main);
+    const current=mv[0]?.odd;
+    return `<div class="previewBhav"><div class="previewBhavHead"><b>↗ LIVE BHAV</b><span>LIVE MARKET</span></div><div class="previewBhavGrid">${mv.map((v,i)=>`<div class="previewPrice ${i===1?'green':''}"><small>${esc(v.label||'Selection')}</small><strong>${previewPriceFmt(v.odd)}</strong></div>`).join('')}</div><div class="previewHist"><div><span>OPEN</span><b>—</b></div><div><span>MIN</span><b>—</b></div><div><span>MAX</span><b>—</b></div><div class="cur"><span>CURRENT</span><b>${previewPriceFmt(current)}</b></div></div>${sessions.length?`<div class="previewSessionTitle">SESSION MARKET</div><div class="previewSessionStrip">${sessions.map(e=>`<div class="previewSessionCard"><b>${esc(e.market||'Session')}</b><div class="previewSessionVals">${values(e).slice(0,4).map(v=>`<span>${esc(v.label||'Line')} <b>${previewLineFmt(v.odd)}</b></span>`).join('')}</div></div>`).join('')}</div>`:''}</div>`;
+  };
+  fullBhavHtml=function(j){
+    const es=entries(j);if(!es.length)return'<div class="notice">Live BHAV is not available for this match right now.</div>';
+    return `<div class="previewMarketList">${es.map(e=>{const session=/over|session|runs|line|total|fancy|innings/i.test(String(e?.market||''));return `<div class="previewMarketRow"><b>${esc(e.market||'Market')}</b><div class="previewMarketVals">${values(e).map(v=>`<span>${esc(v.label||'Selection')} <strong>${session?previewLineFmt(v.odd):previewPriceFmt(v.odd)}</strong></span>`).join('')}</div></div>`}).join('')}</div>`;
+  };
+  try{if(allMatches?.length)render();if(detailData)drawDetail();}catch(e){console.error('IBETIN preview renderer',e)}
+  window.__IBETIN_V35_MARKET_RENDERER__=true;
+})();
+</script>
 """
 
 
@@ -204,6 +266,7 @@ def _page_v35_preview() -> str:
     html = _page_v30()
     html = html.replace("<title>IBETIN Live Cricket</title>", "<title>IBETIN Premium UI Preview</title>", 1)
     html = html.replace("</style>", IBETIN_V35_PREVIEW_CSS + "\n</style>", 1)
+    html = html.replace("</body>", IBETIN_V35_MARKET_JS + "\n</body>", 1)
     return html
 
 

@@ -287,7 +287,7 @@ def install() -> None:
         user = update.effective_user
         arg = context.args[0].lower() if context.args else ""
 
-        if user and user.id != core.ADMIN_USER_ID and arg in LIVE_TV_START_ARGS:
+        if user and arg in LIVE_TV_START_ARGS:
             if not is_registered(user.id):
                 await _prompt_mobile(update, context, _source_from_start_arg(arg))
                 return
@@ -300,7 +300,7 @@ def install() -> None:
         user = update.effective_user
         action = str(query.data or "") if query else ""
 
-        if user and user.id != core.ADMIN_USER_ID and action == "live_tv_status":
+        if user and action == "live_tv_status":
             if not is_registered(user.id):
                 await _prompt_mobile(update, context, "bot_live_tv")
                 return

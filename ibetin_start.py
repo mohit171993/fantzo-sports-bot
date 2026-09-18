@@ -277,7 +277,9 @@ def run_navigation_self_test() -> None:
                 if button.web_app is None:
                     errors.append(f"direct-autoreply/{button.text}: expected web_app")
 
-    business_markup = business.business_keyboard(123456789)
+    # Use customer_id=0 so the self-test always exercises the unverified path
+    # regardless of persistent production verification rows.
+    business_markup = business.business_keyboard(0)
     business_buttons = _buttons(business_markup)
     business_count = len(business_buttons)
     if business_count != 3:

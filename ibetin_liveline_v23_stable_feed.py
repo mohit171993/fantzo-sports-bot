@@ -137,6 +137,50 @@ _TOSS_WORDS = ("won the toss", "toss won", "elected to bat", "elected to bowl", 
 _ROANUZ_WEBHOOK_MATCHES = {}
 _ROANUZ_WEBHOOK_LOCK = threading.RLock()
 _ROANUZ_WEBHOOK_TTL = 6 * 60 * 60
+_WEBHOOK_SUBSCRIBE_ATTEMPTS = {}
+_WEBHOOK_SUBSCRIBE_LOCK = threading.RLock()
+
+
+def _subscribe_webhook_key(key: str):
+    key = str(key or "").strip()
+    if not key:
+        return
+    try:
+        project = os.getenv("ROANUZ_PROJECT_KEY", "").strip()
+        if not project:
+            return
+        token = v20.admin._roanuz_auth()
+        url = f"https://api.sports.roanuz.com/v5/cricket/{project}/match/{key}/subscribe/"
+        with v20.admin.httpx.Client(timeout=12.0, follow_redirects=True) as client:
+            response = client.post(
+                url,
+                headers={"rs-token": token, "Accept": "application/json"},
+                json={"method": "web_hook"},
+            )
+        if 200 <= response.status_code < 300:
+            logger.info("IBETIN Roanuz webhook subscription OK key=%s http=%s", key, response.status_code)
+        else:
+            logger.warning("IBETIN Roanuz webhook subscription pending key=%s http=%s", key, response.status_code)
+    except Exception as exc:
+        logger.warning("IBETIN Roanuz webhook subscription failed key=%s: %s", key, str(exc)[:140])
+
+
+def _schedule_webhook_subscription(key: str):
+    key = str(key or "").strip()
+    if not key:
+        return
+    now = time.monotonic()
+    with _WEBHOOK_SUBSCRIBE_LOCK:
+        last = _WEBHOOK_SUBSCRIBE_ATTEMPTS.get(key, 0)
+        if now - last < 10 * 60:
+            return
+        _WEBHOOK_SUBSCRIBE_ATTEMPTS[key] = now
+    threading.Thread(
+        target=_subscribe_webhook_key,
+        args=(key,),
+        daemon=True,
+        name=f"ibetin-roanuz-webhook-sub-{key[-10:]}",
+    ).start()
 
 
 def _webhook_candidate(node):
@@ -533,6 +577,8 @@ def _roanuz_toss_promotions():
         key = v20._match_key(raw)
         if not key:
             continue
+        # Subscribe before toss so the webhook can deliver the toss transition.
+        _schedule_webhook_subscription(key)
 
         # List-level toss/status may already be enough.
         if _is_live_coverage_match(raw):
@@ -573,7 +619,10 @@ def _fast_matches(mode: str):
         try:
             raw = v20._roanuz_featured_raw()
             selected_raw = _webhook_live_rows()
-            selected_raw.extend(x for x in raw if isinstance(x, dict) and _is_live_coverage_match(x))
+            featured_live = [x for x in raw if isinstance(x, dict) and _is_live_coverage_match(x)]
+            for item in featured_live:
+                _schedule_webhook_subscription(v20._match_key(item))
+            selected_raw.extend(featured_live)
             selected_raw.extend(_roanuz_toss_promotions())
             selected_raw = _dedupe_matches(selected_raw)
             live = [

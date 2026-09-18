@@ -16,6 +16,7 @@ import bot as core
 import fantzo_business as business
 import ibetin_hub as hub
 import ibetin_match_alerts as match_alerts
+import ibetin_phone_verify as phone_verify
 
 logger = logging.getLogger(__name__)
 APP_TZ = ZoneInfo("Asia/Dubai")
@@ -181,7 +182,7 @@ def _due_stage(row, now_utc: datetime):
     return stage + 1 if elapsed >= thresholds[stage] else None
 
 
-def _copy_for(interest: str, stage: int, source: str):
+def _copy_for(interest: str, stage: int, source: str, user_id: int = 0):
     if interest == "cricket":
         subject = "🏏 IBETIN Live Line is ready"
         detail = "Open Live Line for live cricket scores, Match Pulse, scorecards, fixtures and results."
@@ -213,7 +214,10 @@ def _copy_for(interest: str, stage: int, source: str):
                 [
                     TelegramInlineKeyboardButton(
                         "🏏 OPEN LIVE LINE",
-                        url=IBETIN_LIVE_LINE_MINI_APP_URL,
+                        url=(
+                            phone_verify.live_line_url(user_id, IBETIN_LIVE_LINE_URL)
+                            if user_id else IBETIN_LIVE_LINE_URL
+                        ),
                     )
                 ],
                 [
@@ -238,7 +242,12 @@ def _copy_for(interest: str, stage: int, source: str):
                 [
                     TelegramInlineKeyboardButton(
                         "🏏 OPEN LIVE LINE",
-                        web_app=WebAppInfo(url=IBETIN_LIVE_LINE_URL),
+                        web_app=WebAppInfo(
+                            url=(
+                                phone_verify.live_line_url(user_id, IBETIN_LIVE_LINE_URL)
+                                if user_id else IBETIN_LIVE_LINE_URL
+                            )
+                        ),
                     )
                 ],
                 [
@@ -283,7 +292,12 @@ def _mark_send(source: str, user_id: int, stage: int, campaign_key: str, status:
 
 
 async def _send_with_retry(bot, row, stage: int) -> bool:
-    text, markup = _copy_for(str(row["interest"]), stage, str(row["source"]))
+    text, markup = _copy_for(
+        str(row["interest"]),
+        stage,
+        str(row["source"]),
+        int(row["user_id"]),
+    )
     kwargs = {
         "chat_id": int(row["user_id"]),
         "text": text,

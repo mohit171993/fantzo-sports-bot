@@ -66,7 +66,11 @@ def _expect_business_mini_app_links(
         if button.web_app is not None:
             errors.append(f"{name}/{button.text}: Business message cannot use web_app")
         if not button.url:
-            errors.append(f"{name}/{button.text}: missing Telegram Mini App deep link")
+            errors.append(f"{name}/{button.text}: missing URL")
+            continue
+        if "JOIN CHANNEL" in (button.text or "").upper():
+            if "t.me/ibetinoffcial" not in button.url:
+                errors.append(f"{name}/{button.text}: wrong channel URL")
             continue
         start = _business_start(button.url)
         if not start:
@@ -246,8 +250,8 @@ def run_navigation_self_test() -> None:
         "business-autoreply",
         business.business_keyboard(123456789),
         errors,
-        expected_count=5,
-        expected_sections={"home", "live", "news", "alerts", "support"},
+        expected_count=3,
+        expected_sections={"home", "liveline"},
     )
 
     _, business_reminder = reminders._copy_for("general", 1, "business_dm")

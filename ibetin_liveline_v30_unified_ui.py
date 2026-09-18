@@ -405,7 +405,13 @@ IBETIN_V37_PROMO_CSS = r"""
 .ibPromoTitle{font-size:14px;font-weight:1000;color:#fff;margin-bottom:4px}.ibPromoCopy{font-size:9px;line-height:1.45;color:#91abc2}
 .ibPromoBtn{width:100%;margin-top:10px;height:44px;border:0;border-radius:12px;background:linear-gradient(135deg,#1496ff,#0d68d4);color:#fff;font-size:11px;font-weight:1000;letter-spacing:.4px}
 .ibPromoLegal{margin-top:7px;font-size:7px;line-height:1.4;color:#6f8ca5;text-align:center}
+.ibHomePromo{display:block;width:100%;border:0;border-top:1px solid #17405f;background:#061a2d;color:#58bdff;text-align:left;padding:9px 13px;font-size:9px;font-weight:1000;letter-spacing:.2px}
+.ibHomePromo small{float:right;color:#6689a6;font-size:7px;font-weight:900}
+.ibQuickPromo{display:flex;align-items:center;justify-content:space-between;gap:9px;margin-top:9px;padding:9px 10px;border:1px solid #1b5a82;border-radius:11px;background:linear-gradient(135deg,#09284a,#071a30)}
+.ibQuickPromo div{min-width:0}.ibQuickPromo b{display:block;color:#fff;font-size:10px}.ibQuickPromo span{display:block;color:#7fa1bd;font-size:7px;margin-top:2px}
+.ibQuickPromo button{flex:0 0 auto;border:0;border-radius:9px;background:#0f82e9;color:#fff;padding:8px 10px;font-size:8px;font-weight:1000}
 .ibPowered{margin:2px 16px 14px;text-align:center;color:#6f8da7;font-size:7px;font-weight:900;letter-spacing:1px}
+.detail{padding-bottom:calc(240px + env(safe-area-inset-bottom))!important}
 body:before{content:"V37 PROMO PREVIEW";position:fixed;right:10px;top:8px;z-index:9999;background:#0d73d7;color:#fff;font-size:7px;font-weight:1000;letter-spacing:.9px;padding:5px 8px;border-radius:999px;pointer-events:none}
 """
 
@@ -424,6 +430,20 @@ IBETIN_V37_PROMO_JS = r"""
   }
   window.openIbetinLive=openIbetinLive;
 
+  const v37BaseHomeOddsHtml=homeOddsHtml;
+  homeOddsHtml=function(m){
+    const base=v37BaseHomeOddsHtml(m);
+    if(mode!=='live'||!base)return base;
+    return base+'<button class="ibHomePromo" onclick="event.stopPropagation();openIbetinLive()">More live markets on ibetin.com → <small>18+</small></button>';
+  };
+
+  function quickPromoHtml(){
+    return '<div class="ibQuickPromo" id="ibetinQuickPromo">'
+      +'<div><b>More live markets on ibetin.com</b><span>18+ · Please gamble responsibly</span></div>'
+      +'<button onclick="openIbetinLive()">VIEW →</button>'
+      +'</div>';
+  }
+
   function promoHtml(){
     return '<div class="ibPromoCard" id="ibetinPromoCard">'
       +'<div class="ibPromoTop"><div class="ibPromoBrand">IBETIN<span>.COM</span></div><div class="ibPromoPill">18+ · BET RESPONSIBLY</div></div>'
@@ -439,13 +459,20 @@ IBETIN_V37_PROMO_JS = r"""
     v37BaseDrawDetail();
     try{
       const q=document.getElementById('quickMarket');
-      if(q && !document.getElementById('ibetinPromoCard')){
-        q.insertAdjacentHTML('afterend',promoHtml());
+      if(q){
+        const grid=q.querySelector('.previewBhavGrid');
+        if(grid && !document.getElementById('ibetinQuickPromo')){
+          grid.insertAdjacentHTML('afterend',quickPromoHtml());
+        }
+        if(!document.getElementById('ibetinPromoCard')){
+          q.insertAdjacentHTML('afterend',promoHtml());
+        }
       }
     }catch(e){console.error('IBETIN V37 promo card',e)}
   };
 
   try{
+    if(allMatches?.length)render();
     if(detailData)drawDetail();
   }catch(e){}
   window.__IBETIN_V37_PROMO__=true;
@@ -474,7 +501,7 @@ def _page_v37_promo_preview() -> str:
 
 def _preview_v37_url() -> str:
     root = v23.os.getenv("TRACKING_BASE_URL", "").strip().rstrip("/") or "https://ibetin-app-production.up.railway.app"
-    return f"{root}{IBETIN_V37_PROMO_PREVIEW_PATH}?{v23.urlencode({'t': v23.liveline._token(), 'v': '20260918-v37-promo'})}"
+    return f"{root}{IBETIN_V37_PROMO_PREVIEW_PATH}?{v23.urlencode({'t': v23.liveline._token(), 'v': '20260918-v37-promo2'})}"
 
 
 def _install_v37_promo_preview_route() -> None:
@@ -558,9 +585,9 @@ async def _previewui_command(update, context):
         await message.reply_text("Open this preview from a private chat with the bot.")
         return
     await message.reply_text(
-        "🎨 <b>IBETIN PREMIUM UI · PREVIEW</b>\n\n"
-        "This is an isolated design preview using the stable V30 live data/API. "
-        "The production LIVE Mini App is unchanged.",
+        "⚡ <b>IBETIN LIVE LINE · V37 PROMO PREVIEW</b>\n\n"
+        "Live Line stays the free sports utility. ibetin.com appears as the parent brand and betting destination. "
+        "Production LIVE remains on approved V35 until you approve this version.",
         parse_mode="HTML",
         reply_markup=v23.liveline.InlineKeyboardMarkup(
             [[v23.liveline.InlineKeyboardButton(

@@ -1,7 +1,8 @@
 import logging
 import os
+from io import BytesIO
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo, InputFile
 from telegram.ext import CommandHandler, MessageHandler, filters
 from telegram.error import BadRequest, Forbidden
 
@@ -14,7 +15,7 @@ PUBLIC_BASE_URL = (
     or "https://ibetin-app-production.up.railway.app"
 )
 LIVE_LINE_URL = os.getenv("IBETIN_LIVE_LINE_URL", f"{PUBLIC_BASE_URL}/liveline").strip()
-TEST_CAMPAIGN_KEY = "liveline-creative-test-mohit-97saxena-20260918"
+TEST_CAMPAIGN_KEY = "liveline-inline-photo-test-mohit-97saxena-20260918-v2"
 CREATIVE_UNLOCK_CODE = os.getenv("IBETIN_CREATIVE_UNLOCK_CODE", "").strip()
 
 
@@ -372,6 +373,66 @@ def _latest_test_creative():
         ).fetchone()
 
 
+async def _send_creative_as_photo(bot, creative, kwargs):
+    """Always render an uploaded image as a native Telegram photo.
+
+    If the creative was originally uploaded as a document, download it once,
+    re-send it as a photo, then cache Telegram's new photo file_id for reuse.
+    """
+    creative_id = int(creative["id"])
+    media_type = str(creative["media_type"] or "")
+    file_id = str(creative["file_id"])
+
+    if media_type == "photo":
+        return await bot.send_photo(photo=file_id, **kwargs)
+
+    tg_file = await bot.get_file(file_id)
+    buffer = BytesIO()
+    await tg_file.download_to_memory(out=buffer)
+    buffer.seek(0)
+
+    filename = str(creative["filename"] or "").strip() or "ibetin-live-line.jpg"
+    message = await bot.send_photo(
+        photo=InputFile(buffer, filename=filename),
+        **kwargs,
+    )
+
+    try:
+        if message.photo:
+            normalized = message.photo[-1]
+            with core.db() as conn:
+                conn.execute(
+                    """
+                    UPDATE creative_assets
+                    SET file_id = ?,
+                        file_unique_id = ?,
+                        media_type = 'photo',
+                        width = ?,
+                        height = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        normalized.file_id,
+                        normalized.file_unique_id,
+                        int(normalized.width or 0),
+                        int(normalized.height or 0),
+                        creative_id,
+                    ),
+                )
+            logger.info(
+                "IBETIN creative normalized to Telegram photo creative_id=%s",
+                creative_id,
+            )
+    except Exception as exc:
+        logger.warning(
+            "IBETIN creative photo normalization cache failed id=%s error=%s",
+            creative_id,
+            str(exc)[:140],
+        )
+
+    return message
+
+
 async def _send_test_to_business_target(bot, target, creative) -> bool:
     if not target or not target["business_connection_id"]:
         return False
@@ -392,12 +453,7 @@ async def _send_test_to_business_target(bot, target, creative) -> bool:
         "parse_mode": "HTML",
         "reply_markup": markup,
     }
-    if str(creative["media_type"]) == "document":
-        kwargs["document"] = str(creative["file_id"])
-        await bot.send_document(**kwargs)
-    else:
-        kwargs["photo"] = str(creative["file_id"])
-        await bot.send_photo(**kwargs)
+    await _send_creative_as_photo(bot, creative, kwargs)
     return True
 
 
@@ -420,12 +476,7 @@ async def _send_test_to_bot_target(bot, target, creative) -> bool:
         "parse_mode": "HTML",
         "reply_markup": markup,
     }
-    if str(creative["media_type"]) == "document":
-        kwargs["document"] = str(creative["file_id"])
-        await bot.send_document(**kwargs)
-    else:
-        kwargs["photo"] = str(creative["file_id"])
-        await bot.send_photo(**kwargs)
+    await _send_creative_as_photo(bot, creative, kwargs)
     return True
 
 

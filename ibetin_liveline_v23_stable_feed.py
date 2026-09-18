@@ -1,6 +1,8 @@
 import logging
 import os
 import re
+import threading
+import time
 from datetime import datetime, timezone
 from urllib.parse import parse_qs, urlencode, urlparse
 
@@ -131,6 +133,165 @@ _LIVE_INTERRUPT_WORDS = (
     "match delayed", "play stopped", "interrupted",
 )
 _TOSS_WORDS = ("won the toss", "toss won", "elected to bat", "elected to bowl", "opted to bat", "opted to bowl")
+
+_ROANUZ_WEBHOOK_MATCHES = {}
+_ROANUZ_WEBHOOK_LOCK = threading.RLock()
+_ROANUZ_WEBHOOK_TTL = 6 * 60 * 60
+
+
+def _webhook_candidate(node):
+    best = None
+    best_score = -1
+
+    def walk(value):
+        nonlocal best, best_score
+        if isinstance(value, dict):
+            key = v20._match_key(value)
+            if key:
+                score = 0
+                if isinstance(value.get("teams"), (dict, list)):
+                    score += 3
+                if isinstance(value.get("play"), dict):
+                    score += 4
+                if value.get("toss") not in (None, "", {}, []):
+                    score += 2
+                if v20._status(value):
+                    score += 1
+                if score > best_score:
+                    best, best_score = value, score
+            for child in value.values():
+                walk(child)
+        elif isinstance(value, list):
+            for child in value:
+                walk(child)
+
+    walk(node)
+    return best if isinstance(best, dict) else None
+
+
+def _accept_roanuz_webhook(payload):
+    node = _webhook_candidate(payload)
+    if not node:
+        return ""
+    key = v20._match_key(node)
+    if not key:
+        return ""
+    with _ROANUZ_WEBHOOK_LOCK:
+        _ROANUZ_WEBHOOK_MATCHES[key] = (time.monotonic(), node)
+    logger.info(
+        "IBETIN Roanuz webhook cached key=%s state=%s toss=%s",
+        key,
+        _norm_live_state(v20._status(node)),
+        _toss_done(node),
+    )
+    return key
+
+
+def _webhook_raw(key: str):
+    key = str(key or "").strip()
+    if not key:
+        return None
+    with _ROANUZ_WEBHOOK_LOCK:
+        item = _ROANUZ_WEBHOOK_MATCHES.get(key)
+    if not item:
+        return None
+    ts, node = item
+    if time.monotonic() - ts > _ROANUZ_WEBHOOK_TTL:
+        with _ROANUZ_WEBHOOK_LOCK:
+            _ROANUZ_WEBHOOK_MATCHES.pop(key, None)
+        return None
+    return node if isinstance(node, dict) else None
+
+
+def _webhook_live_rows():
+    now = time.monotonic()
+    rows = []
+    stale = []
+    with _ROANUZ_WEBHOOK_LOCK:
+        items = list(_ROANUZ_WEBHOOK_MATCHES.items())
+    for key, (ts, node) in items:
+        if now - ts > _ROANUZ_WEBHOOK_TTL:
+            stale.append(key)
+            continue
+        if isinstance(node, dict) and _is_live_coverage_match(node):
+            rows.append(node)
+    if stale:
+        with _ROANUZ_WEBHOOK_LOCK:
+            for key in stale:
+                _ROANUZ_WEBHOOK_MATCHES.pop(key, None)
+    return rows
+
+
+def _team_name_for_toss(match, winner):
+    if isinstance(winner, dict):
+        return str(winner.get("name") or winner.get("short_name") or winner.get("shortName") or "").strip()
+    winner = str(winner or "").strip()
+    if not winner or not isinstance(match, dict):
+        return winner
+    teams = match.get("teams")
+    candidates = []
+    if isinstance(teams, dict):
+        candidates = list(teams.items())
+    elif isinstance(teams, list):
+        candidates = [(str(i), t) for i, t in enumerate(teams)]
+    for slot, team in candidates:
+        if not isinstance(team, dict):
+            continue
+        ids = {
+            str(slot),
+            str(team.get("key") or ""),
+            str(team.get("id") or ""),
+            str(team.get("code") or ""),
+            str(team.get("short_name") or team.get("shortName") or ""),
+        }
+        if winner in ids:
+            return str(team.get("name") or team.get("short_name") or team.get("shortName") or winner).strip()
+    return winner
+
+
+def _toss_display(match) -> str:
+    if not isinstance(match, dict):
+        return ""
+    toss = match.get("toss")
+    if isinstance(toss, dict):
+        winner = (
+            toss.get("winner")
+            or toss.get("team")
+            or toss.get("won_by")
+            or toss.get("wonBy")
+            or toss.get("winner_key")
+            or toss.get("winnerKey")
+        )
+        decision = (
+            toss.get("decision")
+            or toss.get("choice")
+            or toss.get("elected")
+            or toss.get("opted")
+        )
+        winner_name = _team_name_for_toss(match, winner)
+        decision_text = str(decision or "").strip().lower()
+        if winner_name and decision_text:
+            return f"{winner_name} won the toss · chose to {decision_text}"
+        if winner_name:
+            return f"{winner_name} won the toss · awaiting first ball"
+        if decision_text:
+            return f"Toss completed · chose to {decision_text} · awaiting first ball"
+    if _toss_done(match):
+        return "Toss completed · awaiting first ball"
+    return ""
+
+
+def _normalize_live_row(raw):
+    match = v20._normalize_roanuz_match(raw)
+    if not isinstance(match, dict):
+        return {}
+    if _toss_done(raw) and not _match_has_score(raw):
+        match["liveStage"] = "toss"
+        toss_text = _toss_display(raw)
+        current = str(match.get("report") or "").strip().casefold().replace("_", " ")
+        if toss_text and current in ("", "pre match", "pre-match", "pre_match", "scheduled", "upcoming"):
+            match["report"] = toss_text
+    return match
 
 
 def _norm_live_state(value) -> str:
@@ -411,11 +572,12 @@ def _fast_matches(mode: str):
     if mode == "live":
         try:
             raw = v20._roanuz_featured_raw()
-            selected_raw = [x for x in raw if isinstance(x, dict) and _is_live_coverage_match(x)]
+            selected_raw = _webhook_live_rows()
+            selected_raw.extend(x for x in raw if isinstance(x, dict) and _is_live_coverage_match(x))
             selected_raw.extend(_roanuz_toss_promotions())
             selected_raw = _dedupe_matches(selected_raw)
             live = [
-                m for m in (v20._normalize_roanuz_match(x) for x in selected_raw)
+                m for m in (_normalize_live_row(x) for x in selected_raw)
                 if v21._display_ok(m)
             ]
             if live:
@@ -477,6 +639,9 @@ def _fast_matches(mode: str):
 def _match_payload(key: str):
     if not v21._valid_key(key):
         raise ValueError("Invalid match key")
+    pushed = _webhook_raw(key)
+    if isinstance(pushed, dict):
+        return {"source": "Roanuz webhook", "match": pushed}, pushed
     payload = v20.admin._roanuz_get(f"match/{key}/", ttl=15)
     node = v20._find_match_dict(payload, key)
     if not isinstance(node, dict):
@@ -831,6 +996,21 @@ ui_start.reminders.start_background_loop = ui_start._original_start_background_l
 logger.info("IBETIN obsolete startup follow-up trial disabled; reminder worker remains active")
 
 
+def _live_classifier_self_test() -> None:
+    cases = {
+        "before_toss": ({"state": "scheduled"}, False),
+        "toss_done": ({"state": "pre_match", "toss": {"winner": "a", "decision": "bowl"}}, True),
+        "normal_live": ({"state": "in_play"}, True),
+        "rain_after_start": ({"state": "rain_delay", "score": "12/0"}, True),
+        "stumps": ({"state": "stumps", "score": "250/6"}, False),
+        "completed": ({"state": "completed", "score": "250/6"}, False),
+    }
+    failures = [name for name, (sample, expected) in cases.items() if _is_live_coverage_match(sample) is not expected]
+    if failures:
+        raise RuntimeError("live classifier cases failed: " + ", ".join(failures))
+    logger.info("IBETIN V23 live-classifier self-test PASS cases=%s", ",".join(cases))
+
+
 def _startup_self_test() -> None:
     try:
         page = _page()
@@ -849,13 +1029,17 @@ def _startup_self_test() -> None:
         score = _score_summary(key)
         detail = _match_detail_v23(key)
         score_ok = bool(score.get("homeScore") or score.get("awayScore"))
+        toss_ok = bool((detail.get("roanuz") or {}).get("toss")) if isinstance(detail, dict) else False
+        coverage_ok = score_ok or toss_ok
         detail_ok = isinstance(detail.get("statistics"), list) and isinstance(detail.get("timeline"), list)
-        level = logger.info if page_ok and score_ok and detail_ok else logger.error
+        level = logger.info if page_ok and coverage_ok and detail_ok else logger.error
         level(
-            "IBETIN V23 self-test %s page_ok=%s score_ok=%s detail_ok=%s source=%s matches=%s key=%s score=%s/%s info=%s/%s innings=%s balls=%s state=%s report=%s",
-            "PASS" if page_ok and score_ok and detail_ok else "FAILED",
+            "IBETIN V23 self-test %s page_ok=%s coverage_ok=%s score_ok=%s toss_ok=%s detail_ok=%s source=%s matches=%s key=%s score=%s/%s info=%s/%s innings=%s balls=%s state=%s report=%s",
+            "PASS" if page_ok and coverage_ok and detail_ok else "FAILED",
             page_ok,
+            coverage_ok,
             score_ok,
+            toss_ok,
             detail_ok,
             source,
             len(rows),
@@ -873,9 +1057,10 @@ def _startup_self_test() -> None:
         logger.exception("IBETIN V23 self-test FAILED: %s", exc)
 
 
+_live_classifier_self_test()
 _startup_self_test()
 logger.info(
-    "IBETIN V23 installed: stable Roanuz feed + embedded scorecard/balls + numeric fallback detail + deduped hydration + mobile UI polish"
+    "IBETIN V23 installed: stable Roanuz feed + webhook cache + toss-stage coverage + embedded scorecard/balls + numeric fallback detail + deduped hydration + mobile UI polish"
 )
 
 if __name__ == "__main__":

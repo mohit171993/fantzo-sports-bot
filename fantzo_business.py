@@ -11,6 +11,7 @@ from telegram.ext import ContextTypes
 
 import bot as core
 import fantzo_autoreply
+import ibetin_phone_verify as phone_verify
 
 logger = logging.getLogger(__name__)
 
@@ -55,12 +56,14 @@ def telegram_mini_app_url(section: str = "home") -> str:
 def _business_url(section: str = "home", customer_id: int = 0) -> str:
     section = (section or "home").strip().lower()
     if section == "liveline":
+        if customer_id:
+            return phone_verify.live_line_url(customer_id, LIVE_LINE_DIRECT_URL)
         return LIVE_LINE_DIRECT_URL
     return telegram_mini_app_url(section)
 
 
-def _button(label: str, section: str) -> TelegramInlineKeyboardButton:
-    return TelegramInlineKeyboardButton(label, url=_business_url(section))
+def _button(label: str, section: str, customer_id: int = 0) -> TelegramInlineKeyboardButton:
+    return TelegramInlineKeyboardButton(label, url=_business_url(section, customer_id))
 
 
 def business_reply_text() -> str:
@@ -70,8 +73,8 @@ def business_reply_text() -> str:
 def business_keyboard(customer_id: int = 0) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
-            [_button("🚀 JOIN IBETIN", "home")],
-            [_button("🏏 WATCH IBETIN LIVE LINE", "liveline")],
+            [_button("🚀 JOIN IBETIN", "home", customer_id)],
+            [_button("🏏 WATCH IBETIN LIVE LINE", "liveline", customer_id)],
             [
                 TelegramInlineKeyboardButton(
                     "📢 JOIN CHANNEL",
@@ -258,11 +261,11 @@ def _contains(text: str, words) -> bool:
     return any(re.search(rf"\b{re.escape(word)}\b", text) for word in words)
 
 
-def classify_business_dm(text: str):
+def classify_business_dm(text: str, customer_id: int = 0):
     t = " ".join((text or "").lower().strip().split())
 
     if _contains(t, ["hi", "hello", "hey", "hii", "hola", "namaste"]):
-        return "greeting", WELCOME_REPLY, business_keyboard()
+        return "greeting", WELCOME_REPLY, business_keyboard(customer_id)
 
     if _contains(t, ["cricket", "ipl", "t20", "odi", "test", "wicket", "football", "soccer", "goal", "match", "score", "sports"]):
         return (
@@ -323,7 +326,7 @@ def classify_business_dm(text: str):
     return (
         "general",
         "🤖 <b>IBETIN Assistant</b>\n\nYou can ask about live sports, cricket, football, news, match alerts, payments or support.",
-        business_keyboard(),
+        business_keyboard(customer_id),
     )
 
 
@@ -437,7 +440,7 @@ async def business_auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
         return
 
-    category, reply, markup = classify_business_dm(text)
+    category, reply, markup = classify_business_dm(text, customer_id)
     _touch_business_reminder(customer_id, connection_id, category)
 
     try:

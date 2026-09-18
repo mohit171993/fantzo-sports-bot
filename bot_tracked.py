@@ -41,6 +41,13 @@ IBETIN_PAYMENT_URL = os.getenv(
 IBETIN_SUPPORT_URL = os.getenv(
     "IBETIN_SUPPORT_URL", f"{IBETIN_HOME_URL}/information/contacts"
 ).strip()
+_IBETIN_APP_BASE_URL = (
+    os.getenv("TRACKING_BASE_URL", "").strip().rstrip("/")
+    or "https://ibetin-app-production.up.railway.app"
+)
+IBETIN_LIVE_LINE_URL = os.getenv(
+    "IBETIN_LIVE_LINE_URL", f"{_IBETIN_APP_BASE_URL}/liveline"
+).strip()
 
 # =========================================================
 # LIVE TV SETTINGS
@@ -66,6 +73,7 @@ def _install_ibetin_hub_copy() -> None:
                 "━━━━━━━━━━━━━━━━━━\n\n"
                 "Quick access without a crowded menu.\n\n"
                 "🚀 Join IBETIN Mini App\n"
+                "🏏 Live Line\n"
                 "🔴 Live now\n"
                 "🏆 Sports\n"
                 "📰 Sports News\n"
@@ -102,6 +110,7 @@ def _install_ibetin_hub_copy() -> None:
                 "━━━━━━━━━━━━━━━━━━\n\n"
                 "कम विकल्प, तेज़ access.\n\n"
                 "🚀 IBETIN Mini App\n"
+                "🏏 Live Line\n"
                 "🔴 Live\n"
                 "🏆 Sports\n"
                 "📰 Sports News\n"
@@ -254,6 +263,7 @@ reminders.InlineKeyboardButton = _mini_only_button
 def premium_main_keyboard() -> InlineKeyboardMarkup:
     rows = [
         [hub_button("🚀 JOIN IBETIN", "home")],
+        [site_button("🏏 LIVE LINE", IBETIN_LIVE_LINE_URL)],
         [
             site_button("🔴 LIVE NOW", IBETIN_LIVE_URL),
             site_button("🏆 SPORTS", IBETIN_SPORTS_URL),

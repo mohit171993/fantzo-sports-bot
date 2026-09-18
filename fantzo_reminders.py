@@ -209,7 +209,7 @@ def _copy_for(interest: str, stage: int, source: str):
                 [
                     TelegramInlineKeyboardButton(
                         "🏏 OPEN LIVE LINE",
-                        url=business.telegram_mini_app_url("liveline"),
+                        url=IBETIN_LIVE_LINE_URL,
                     )
                 ],
                 [
@@ -379,7 +379,7 @@ async def send_liveline_channel_launch(application) -> bool:
         [[
             TelegramInlineKeyboardButton(
                 "🏏 OPEN IBETIN LIVE LINE",
-                url=business.telegram_mini_app_url("liveline"),
+                url=IBETIN_LIVE_LINE_URL,
             )
         ]]
     )

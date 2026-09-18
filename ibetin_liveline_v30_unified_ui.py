@@ -1577,7 +1577,9 @@ def _install_public_liveline_routes() -> None:
         if parsed.path == IBETIN_PUBLIC_LIVELINE_PATH:
             user_id, token, verified = _liveline_verified(self, parsed)
             if not verified:
-                v23.liveline._send_html(self, 401, _liveline_verification_page(token))
+                # Render the verification gate normally; protected data endpoints
+                # remain hard-blocked with 401 until the mobile is verified.
+                v23.liveline._send_html(self, 200, _liveline_verification_page(token))
                 return
 
             # A signed access token may arrive in the DM/bot button. Convert it

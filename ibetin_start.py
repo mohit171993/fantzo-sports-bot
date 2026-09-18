@@ -271,24 +271,65 @@ def run_navigation_self_test() -> None:
                 if button.web_app is None:
                     errors.append(f"direct-autoreply/{button.text}: expected web_app")
 
-    business_count = _expect_business_mini_app_links(
-        "business-autoreply",
-        business.business_keyboard(123456789),
-        errors,
-        expected_count=3,
-        expected_sections={"home", "liveline"},
-    )
+    business_markup = business.business_keyboard(123456789)
+    business_buttons = _buttons(business_markup)
+    business_count = len(business_buttons)
+    if business_count != 3:
+        errors.append(f"business-autoreply: expected 3 buttons, got {business_count}")
+    else:
+        labels = {str(button.text or "") for button in business_buttons}
+        expected_labels = {
+            "🚀 JOIN IBETIN",
+            "🏏 WATCH IBETIN LIVE LINE",
+            "📢 JOIN CHANNEL",
+        }
+        if labels != expected_labels:
+            errors.append(
+                f"business-autoreply: labels mismatch expected={sorted(expected_labels)} got={sorted(labels)}"
+            )
+        for button in business_buttons:
+            text = str(button.text or "")
+            if "JOIN CHANNEL" in text:
+                if not button.url or "t.me/ibetinoffcial" not in button.url:
+                    errors.append("business-autoreply/JOIN CHANNEL: wrong Telegram channel URL")
+                if button.web_app is not None:
+                    errors.append("business-autoreply/JOIN CHANNEL: Business message cannot use web_app")
+            elif "WATCH IBETIN LIVE LINE" in text:
+                if not button.url or "/liveline" not in button.url or "ibetin-app-production.up.railway.app" not in button.url:
+                    errors.append("business-autoreply/WATCH LIVE LINE: must point directly to V40 /liveline")
+                if button.web_app is not None:
+                    errors.append("business-autoreply/WATCH LIVE LINE: Business message cannot use web_app")
+            elif "JOIN IBETIN" in text:
+                if _business_start(button.url or "") != "home":
+                    errors.append("business-autoreply/JOIN IBETIN: must launch startapp=home")
+                if button.web_app is not None:
+                    errors.append("business-autoreply/JOIN IBETIN: Business message cannot use web_app")
 
     _, business_reminder = reminders._copy_for("general", 1, "business_dm")
     business_reminder_buttons = _buttons(business_reminder)
     business_reminder_count = len(business_reminder_buttons)
-    if business_reminder_count != 1:
-        errors.append(f"business-reminder: expected 1 launcher, got {business_reminder_count}")
-    elif _business_start(business_reminder_buttons[0].url or "") != "home":
-        errors.append("business-reminder: must launch Telegram Main Mini App startapp=home")
+    if business_reminder_count != 3:
+        errors.append(f"business-reminder: expected 3 buttons, got {business_reminder_count}")
+    else:
+        if not any("OPEN LIVE LINE" in str(b.text or "") for b in business_reminder_buttons):
+            errors.append("business-reminder: missing OPEN LIVE LINE")
+        if not any("JOIN IBETIN" in str(b.text or "") for b in business_reminder_buttons):
+            errors.append("business-reminder: missing JOIN IBETIN")
+        channel = next((b for b in business_reminder_buttons if "JOIN CHANNEL" in str(b.text or "")), None)
+        if not channel or not channel.url or "t.me/ibetinoffcial" not in channel.url:
+            errors.append("business-reminder: missing/wrong JOIN CHANNEL")
 
     _, bot_reminder = reminders._copy_for("general", 1, "bot")
-    bot_reminder_count = _expect_webapps("direct-reminder", bot_reminder, errors)
+    bot_reminder_buttons = _buttons(bot_reminder)
+    bot_reminder_count = len(bot_reminder_buttons)
+    if not bot_reminder_buttons:
+        errors.append("direct-reminder: no buttons")
+    for button in bot_reminder_buttons:
+        if "JOIN CHANNEL" in str(button.text or "").upper():
+            if not button.url or "t.me/ibetinoffcial" not in button.url:
+                errors.append("direct-reminder/JOIN CHANNEL: wrong Telegram channel URL")
+        elif button.web_app is None:
+            errors.append(f"direct-reminder/{button.text}: expected web_app button")
 
     alert_count = 0
     alert_count += _expect_webapps("match-alert-live", match_alerts._markup("started"), errors)

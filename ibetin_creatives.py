@@ -439,7 +439,7 @@ async def _send_test_to_business_target(bot, target, creative) -> bool:
     markup = InlineKeyboardMarkup(
         [[InlineKeyboardButton(
             "🏏 OPEN IBETIN LIVE LINE",
-            url="https://t.me/Ibtnofficialbot?startapp=liveline",
+            url=LIVE_LINE_URL,
         )]]
     )
     caption = (

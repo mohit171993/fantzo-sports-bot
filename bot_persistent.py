@@ -307,17 +307,11 @@ def run() -> None:
             quick_menu,
         )
     )
-    app.add_handler(
-        MessageHandler(
-            filters.UpdateType.MESSAGE & filters.TEXT & ~filters.COMMAND,
-            fantzo_autoreply.auto_reply,
-        )
-    )
     app.add_handler(MessageHandler(filters.UpdateType.MESSAGE & filters.PHOTO, banner_upload))
     app.add_handler(CallbackQueryHandler(core.callback_router))
 
     logger.info(
-        "Starting IBETIN Premium Sports Hub with direct-chat and Telegram Business DM auto reply"
+        "Starting IBETIN Premium Sports Hub: main bot menu + Telegram Business DM auto reply"
     )
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 

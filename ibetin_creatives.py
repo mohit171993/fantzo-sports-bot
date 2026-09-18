@@ -14,9 +14,7 @@ PUBLIC_BASE_URL = (
     or "https://ibetin-app-production.up.railway.app"
 )
 LIVE_LINE_URL = os.getenv("IBETIN_LIVE_LINE_URL", f"{PUBLIC_BASE_URL}/liveline").strip()
-CREATIVE_UNLOCK_CODE = os.getenv(
-    "IBETIN_CREATIVE_UNLOCK_CODE", "IBETIN-LIVE-7429"
-).strip()
+CREATIVE_UNLOCK_CODE = os.getenv("IBETIN_CREATIVE_UNLOCK_CODE", "").strip()
 
 
 def ensure_tables() -> None:
@@ -68,7 +66,7 @@ async def creativeunlock_command(update, context) -> None:
     if not user or not message:
         return
     code = (context.args[0] if context.args else "").strip()
-    if not code or code != CREATIVE_UNLOCK_CODE:
+    if not CREATIVE_UNLOCK_CODE or not code or code != CREATIVE_UNLOCK_CODE:
         await message.reply_text("Invalid creative-manager unlock code.")
         return
     with core.db() as conn:

@@ -37,6 +37,9 @@ API_PATH = v23.liveline.LIVELINE_API_PATH
 ROANUZ_WEBHOOK_PATH = "/roanuz/match/feed/v1/"
 IBETIN_LIVE_STREAM_PATH = "/admin/ibetin-live-stream"
 IBETIN_LIVE_HEALTH_PATH = "/admin/ibetin-live-health"
+IBETIN_PUBLIC_LIVELINE_PATH = "/liveline"
+IBETIN_PUBLIC_LIVELINE_API_PATH = "/liveline/api"
+IBETIN_PUBLIC_LIVE_STREAM_PATH = "/liveline/stream"
 
 _live_event_condition = threading.Condition()
 _live_event_seq = 0
@@ -97,8 +100,8 @@ def _install_live_stream_routes() -> None:
             self.wfile.write(raw)
             return
 
-        if parsed.path == IBETIN_LIVE_STREAM_PATH:
-            if not v23.liveline._authorized(self.path):
+        if parsed.path in {IBETIN_LIVE_STREAM_PATH, IBETIN_PUBLIC_LIVE_STREAM_PATH}:
+            if parsed.path == IBETIN_LIVE_STREAM_PATH and not v23.liveline._authorized(self.path):
                 self.send_response(403)
                 self.end_headers()
                 return
@@ -1402,6 +1405,54 @@ def _page_v40_visual_polish() -> str:
     return html
 
 
+def _page_v40_public() -> str:
+    html = _page_v40_visual_polish()
+    html = html.replace(
+        "<title>IBETIN Live Line · Visual Polish V40</title>",
+        "<title>IBETIN Live Line</title>",
+        1,
+    )
+    html = html.replace(API_PATH, IBETIN_PUBLIC_LIVELINE_API_PATH)
+    html = html.replace(
+        "const IBETIN_LIVE_STREAM='/admin/ibetin-live-stream?t='+encodeURIComponent(TOKEN);",
+        "const IBETIN_LIVE_STREAM='/liveline/stream';",
+        1,
+    )
+    html = html.replace(
+        "if(v40EventSource||!TOKEN||typeof EventSource==='undefined')return;",
+        "if(v40EventSource||typeof EventSource==='undefined')return;",
+        1,
+    )
+    return html
+
+
+def _install_public_liveline_routes() -> None:
+    handler_cls = v23.liveline.base.ibetin_start.ibetin_entry.analytics.TrackingHandler
+    if getattr(handler_cls, "_ibetin_public_liveline_installed", False):
+        return
+
+    previous_get = handler_cls.do_GET
+
+    def routed_get(self):
+        parsed = v23.urlparse(self.path)
+        if parsed.path == IBETIN_PUBLIC_LIVELINE_PATH:
+            v23.liveline._send_html(self, 200, _page_v40_public())
+            return
+        if parsed.path == IBETIN_PUBLIC_LIVELINE_API_PATH:
+            v23.liveline._api(self)
+            return
+        previous_get(self)
+
+    handler_cls.do_GET = routed_get
+    handler_cls._ibetin_public_liveline_installed = True
+    logger.info(
+        "IBETIN public Live Line installed page=%s api=%s stream=%s",
+        IBETIN_PUBLIC_LIVELINE_PATH,
+        IBETIN_PUBLIC_LIVELINE_API_PATH,
+        IBETIN_PUBLIC_LIVE_STREAM_PATH,
+    )
+
+
 def _preview_v40_url() -> str:
     root = v23.os.getenv("TRACKING_BASE_URL", "").strip().rstrip("/") or "https://ibetin-app-production.up.railway.app"
     return f"{root}{IBETIN_V40_VISUAL_POLISH_PATH}?{v23.urlencode({'t': v23.liveline._token(), 'v': '20260918-v40-sse-health'})}"
@@ -1604,6 +1655,7 @@ _install_v37_promo_preview_route()
 _install_v38_match_pulse_route()
 _install_v39_favourites_route()
 _install_v40_visual_polish_route()
+_install_public_liveline_routes()
 _install_v35_preview_command()
 
 # Promote the approved V40 UI to the production Live route.

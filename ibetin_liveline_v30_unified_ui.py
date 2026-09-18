@@ -3,10 +3,30 @@ import hmac
 import json
 import logging
 import os
+import shutil
 import threading
 import time
 import zlib
 from urllib.parse import urlparse
+
+# Use Railway persistent storage whenever the volume is mounted. This executes
+# before the bot/data modules import DB_PATH, so all SQLite users share one file.
+_IBETIN_PERSIST_DIR = "/app/ibetin_bot_persistent"
+_IBETIN_PERSIST_DB = os.path.join(_IBETIN_PERSIST_DIR, "ibetin_bot.db")
+_IBETIN_LEGACY_DB = os.getenv("DB_PATH", "").strip() or "/app/ibetin_bot.db"
+if os.path.isdir(_IBETIN_PERSIST_DIR):
+    try:
+        os.makedirs(_IBETIN_PERSIST_DIR, exist_ok=True)
+        if (
+            os.path.exists(_IBETIN_LEGACY_DB)
+            and not os.path.exists(_IBETIN_PERSIST_DB)
+            and os.path.abspath(_IBETIN_LEGACY_DB) != os.path.abspath(_IBETIN_PERSIST_DB)
+        ):
+            shutil.copy2(_IBETIN_LEGACY_DB, _IBETIN_PERSIST_DB)
+        os.environ["DB_PATH"] = _IBETIN_PERSIST_DB
+        logging.getLogger(__name__).info("IBETIN persistent DB mount detected path=%s", _IBETIN_PERSIST_DB)
+    except Exception as exc:
+        logging.getLogger(__name__).warning("IBETIN persistent DB bootstrap failed: %s", str(exc)[:140])
 
 import ibetin_liveline_v25_fast_cache as v25
 
@@ -47,7 +67,7 @@ def _live_health_payload():
             "clients": _live_sse_clients,
             "eventSeq": _live_event_seq,
         },
-        "productionRenderer": "V35",
+        "productionRenderer": "V40",
         "previewRenderer": "V40",
     }
 
@@ -1548,7 +1568,7 @@ async def _previewui_command(update, context):
     await message.reply_text(
         "✨ <b>IBETIN LIVE LINE · V40 VISUAL POLISH</b>\n\n"
         "Same V39 features, with a cleaner premium hierarchy, tighter Match Pulse, native favourites and calmer promotion. "
-        "Production LIVE remains on approved V35 until you approve V40.",
+        "V40 is now the production LIVE renderer. This command opens the same V40 build for direct verification.",
         parse_mode="HTML",
         reply_markup=v23.liveline.InlineKeyboardMarkup(
             [[v23.liveline.InlineKeyboardButton(
@@ -1586,10 +1606,10 @@ _install_v39_favourites_route()
 _install_v40_visual_polish_route()
 _install_v35_preview_command()
 
-# Promote the approved V35 UI to the production Live route.
-v23._page = _page_v35_production
-v23.liveline._page = _page_v35_production
-logger.info("IBETIN V35 promoted to production Live route; V30 remains rollback baseline")
+# Promote the approved V40 UI to the production Live route.
+v23._page = _page_v40_visual_polish
+v23.liveline._page = _page_v40_visual_polish
+logger.info("IBETIN V40 promoted to production Live route; V35 and V30 remain rollback baselines")
 
 app = v25.app
 

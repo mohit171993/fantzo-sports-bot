@@ -115,6 +115,18 @@ def ensure_tables() -> None:
         )
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS business_customers (
+                connection_id TEXT NOT NULL,
+                customer_id INTEGER NOT NULL,
+                username TEXT DEFAULT '',
+                first_name TEXT DEFAULT '',
+                last_seen TEXT NOT NULL,
+                PRIMARY KEY (connection_id, customer_id)
+            )
+            """
+        )
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS business_welcomes (
                 connection_id TEXT NOT NULL,
                 customer_id INTEGER NOT NULL,
@@ -160,6 +172,31 @@ def _owner_user_id(connection_id: str):
             (connection_id,),
         ).fetchone()
     return int(row["owner_user_id"]) if row and row["owner_user_id"] is not None else None
+
+
+def _save_business_customer(connection_id: str, user) -> None:
+    if not connection_id or not user:
+        return
+    ensure_tables()
+    with core.db() as conn:
+        conn.execute(
+            """
+            INSERT INTO business_customers(
+                connection_id, customer_id, username, first_name, last_seen
+            ) VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(connection_id, customer_id) DO UPDATE SET
+                username = excluded.username,
+                first_name = excluded.first_name,
+                last_seen = excluded.last_seen
+            """,
+            (
+                connection_id,
+                int(user.id),
+                str(user.username or ""),
+                str(user.first_name or ""),
+                core.now_iso(),
+            ),
+        )
 
 
 def _has_been_welcomed(connection_id: str, customer_id: int) -> bool:
@@ -333,6 +370,8 @@ async def business_auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
 
     customer_id = message.from_user.id if message.from_user else 0
+    if customer_id and connection_id and message.from_user:
+        _save_business_customer(connection_id, message.from_user)
 
     if customer_id and connection_id and not _has_been_welcomed(connection_id, customer_id):
         await _reply_with_retry(message, WELCOME_REPLY, business_keyboard(customer_id))

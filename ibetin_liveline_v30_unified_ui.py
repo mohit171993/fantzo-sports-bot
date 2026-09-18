@@ -319,9 +319,21 @@ def _page_v35_preview() -> str:
     return html
 
 
+IBETIN_V35_PREVIEW_BADGE_CSS = 'body:before{content:"PREVIEW";position:fixed;right:10px;top:8px;z-index:9999;background:#7b43f6;color:#fff;font-size:8px;font-weight:1000;letter-spacing:1px;padding:5px 8px;border-radius:999px;pointer-events:none}'
+
+
+def _page_v35_production() -> str:
+    html = _page_v30()
+    live_css = IBETIN_V35_PREVIEW_CSS.replace(IBETIN_V35_PREVIEW_BADGE_CSS, "")
+    html = html.replace("<title>IBETIN Live Cricket</title>", "<title>IBETIN Live Cricket</title>", 1)
+    html = html.replace("</style>", live_css + "\n</style>", 1)
+    html = html.replace("</body>", IBETIN_V35_MARKET_JS + "\n</body>", 1)
+    return html
+
+
 def _preview_v35_url() -> str:
     root = v23.os.getenv("TRACKING_BASE_URL", "").strip().rstrip("/") or "https://ibetin-app-production.up.railway.app"
-    return f"{root}{IBETIN_V35_PREVIEW_PATH}?{v23.urlencode({'t': v23.liveline._token(), 'v': '20260918-v35-navfix'})}"
+    return f"{root}{IBETIN_V35_PREVIEW_PATH}?{v23.urlencode({'t': v23.liveline._token(), 'v': '20260918-v35-approved'})}"
 
 
 def _install_v35_preview_route() -> None:
@@ -385,7 +397,11 @@ def _install_v35_preview_command() -> None:
 
 _install_v35_preview_route()
 _install_v35_preview_command()
-logger.info("IBETIN V35 preview installed without replacing production V30 page")
+
+# Promote the approved V35 UI to the production Live route.
+v23._page = _page_v35_production
+v23.liveline._page = _page_v35_production
+logger.info("IBETIN V35 promoted to production Live route; V30 remains rollback baseline")
 
 app = v25.app
 

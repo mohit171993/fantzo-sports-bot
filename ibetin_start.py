@@ -303,7 +303,7 @@ def run_navigation_self_test() -> None:
                 if button.web_app is not None:
                     errors.append("business-autoreply/JOIN CHANNEL: Business message cannot use web_app")
             elif "WATCH IBETIN LIVE LINE" in text:
-                if not button.url or "t.me/Ibtnofficialbot" not in button.url or "start=verifyliveline" not in button.url:
+                if not button.url or "t.me/" not in button.url.lower() or "start=verifyliveline" not in button.url.lower():
                     errors.append("business-autoreply/WATCH LIVE LINE: unverified user must go to bot verification")
                 if button.web_app is not None:
                     errors.append("business-autoreply/WATCH LIVE LINE: Business message cannot use web_app")

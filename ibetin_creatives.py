@@ -14,11 +14,24 @@ PUBLIC_BASE_URL = (
     or "https://ibetin-app-production.up.railway.app"
 )
 LIVE_LINE_URL = os.getenv("IBETIN_LIVE_LINE_URL", f"{PUBLIC_BASE_URL}/liveline").strip()
+TEST_CAMPAIGN_KEY = "liveline-creative-test-mohit-97saxena-20260918"
 CREATIVE_UNLOCK_CODE = os.getenv("IBETIN_CREATIVE_UNLOCK_CODE", "").strip()
 
 
 def ensure_tables() -> None:
     with core.db() as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS creative_test_sends (
+                campaign_key TEXT PRIMARY KEY,
+                target_username TEXT NOT NULL,
+                target_user_id INTEGER,
+                creative_id INTEGER,
+                sent_at TEXT,
+                status TEXT NOT NULL
+            )
+            """
+        )
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS creative_assets (
@@ -371,6 +384,91 @@ async def senddmtest_command(update, context) -> None:
         await message.reply_text(f"⚠️ Test send failed: {str(exc)[:160]}")
 
 
+async def _startup_creative_status_and_test(application) -> None:
+    # Give the bot a few seconds to finish Telegram startup before diagnostics/test send.
+    import asyncio
+    await asyncio.sleep(6)
+    try:
+        c = counts()
+        logger.info(
+            "IBETIN creative pools ready channel=%s dm=%s reminder=%s",
+            c["channel"], c["dm"], c["reminder"],
+        )
+
+        target = _find_target_username("mohit_97saxena")
+        if not target:
+            logger.info("IBETIN creative test target not found username=mohit_97saxena")
+            return
+
+        ensure_tables()
+        with core.db() as conn:
+            existing = conn.execute(
+                "SELECT status FROM creative_test_sends WHERE campaign_key = ?",
+                (TEST_CAMPAIGN_KEY,),
+            ).fetchone()
+        if existing and str(existing["status"]) == "sent":
+            logger.info("IBETIN creative DM test already sent campaign=%s", TEST_CAMPAIGN_KEY)
+            return
+
+        creative = _latest_test_creative()
+        if not creative:
+            logger.info("IBETIN creative DM test skipped: no uploaded creative")
+            return
+
+        markup = InlineKeyboardMarkup(
+            [[InlineKeyboardButton(
+                "🏏 OPEN IBETIN LIVE LINE",
+                web_app=WebAppInfo(url=LIVE_LINE_URL),
+            )]]
+        )
+        caption = (
+            "🏏 <b>IBETIN LIVE LINE</b>\n\n"
+            "Live cricket scores, Match Pulse, scorecards, fixtures and results — inside Telegram."
+        )
+        kwargs = {
+            "chat_id": int(target["user_id"]),
+            "caption": caption,
+            "parse_mode": "HTML",
+            "reply_markup": markup,
+        }
+        if str(creative["media_type"]) == "document":
+            kwargs["document"] = str(creative["file_id"])
+            msg = await application.bot.send_document(**kwargs)
+        else:
+            kwargs["photo"] = str(creative["file_id"])
+            msg = await application.bot.send_photo(**kwargs)
+
+        with core.db() as conn:
+            conn.execute(
+                """
+                INSERT INTO creative_test_sends(
+                    campaign_key, target_username, target_user_id,
+                    creative_id, sent_at, status
+                ) VALUES (?, ?, ?, ?, ?, 'sent')
+                ON CONFLICT(campaign_key) DO UPDATE SET
+                    target_user_id = excluded.target_user_id,
+                    creative_id = excluded.creative_id,
+                    sent_at = excluded.sent_at,
+                    status = 'sent'
+                """,
+                (
+                    TEST_CAMPAIGN_KEY,
+                    str(target["username"] or "mohit_97saxena"),
+                    int(target["user_id"]),
+                    int(creative["id"]),
+                    core.now_iso(),
+                ),
+            )
+        logger.info(
+            "IBETIN creative DM test sent username=%s creative_id=%s message_id=%s",
+            str(target["username"] or "mohit_97saxena"),
+            int(creative["id"]),
+            int(msg.message_id),
+        )
+    except Exception as exc:
+        logger.warning("IBETIN startup creative test failed: %s", str(exc)[:180])
+
+
 def install(application) -> None:
     if application.bot_data.get("ibetin_creative_manager_installed"):
         return
@@ -390,5 +488,10 @@ def install(application) -> None:
             creative_upload,
         ),
         group=-5,
+    )
+    import asyncio
+    application.bot_data["ibetin_creative_startup_test_task"] = asyncio.create_task(
+        _startup_creative_status_and_test(application),
+        name="ibetin-creative-startup-test",
     )
     logger.info("IBETIN creative manager installed: bulk upload + pools + DM test")

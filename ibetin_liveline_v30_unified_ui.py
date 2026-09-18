@@ -887,8 +887,92 @@ button:active{opacity:.86}
 .bottom{left:18px!important;right:18px!important;border-radius:16px!important;padding:5px!important;box-shadow:0 12px 30px rgba(0,0,0,.34)!important}
 .bottom button{height:44px!important;font-size:7px!important}
 .bottom b{font-size:15px!important}
+
+/* Empty-live state with useful upcoming matches */
+.v40LiveEmpty{padding:22px 14px 14px;text-align:center;border:1px dashed #19405e;border-radius:15px;background:#061522}
+.v40LiveEmpty b{display:block;color:#fff;font-size:14px}.v40LiveEmpty span{display:block;color:#7897af;font-size:8px;margin-top:5px}
+.v40Coming{margin-top:12px}
+.v40ComingHead{display:flex;align-items:center;justify-content:space-between;margin:0 2px 7px}
+.v40ComingHead b{font-size:9px;color:#cbe4f8;letter-spacing:.8px}.v40ComingHead button{border:0;background:transparent;color:#58b9ff;font-size:7px;font-weight:1000}
+.v40ComingCard{width:100%;border:1px solid #173f5e;border-radius:13px;background:#061827;color:#fff;padding:10px 11px;margin-bottom:7px;text-align:left}
+.v40ComingTop{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.v40ComingLeague{font-size:7px;color:#6f91ac;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.v40ComingTime{font-size:7px;color:#f0c25b;font-weight:900;white-space:nowrap}
+.v40ComingTeams{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px}
+.v40ComingTeam{font-size:10px;font-weight:900;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.v40ComingVs{font-size:7px;color:#627f98;font-weight:1000}
+.v40ComingNote{margin-top:7px;padding-top:7px;border-top:1px solid #12364f;color:#84a3bb;font-size:7px;line-height:1.35}
 """
 
+
+IBETIN_V40_COMING_UP_JS = r"""
+<script>
+(function(){
+  let v40UpcomingCache=null,v40UpcomingAt=0,v40UpcomingBusy=false;
+
+  function v40Time(m){
+    const v=m?.startTime||m?.startDate;
+    if(!v)return 'UPCOMING';
+    try{
+      let x=v;
+      if(typeof v==='string'&&/^\d+(\.\d+)?$/.test(v))x=Number(v)*1000;
+      else if(typeof v==='number'&&v<1000000000000)x=v*1000;
+      const d=new Date(x);
+      if(Number.isNaN(d.getTime()))return 'UPCOMING';
+      return d.toLocaleString([],{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+    }catch(e){return 'UPCOMING'}
+  }
+  function v40ComingCard(m){
+    const key=matchKey(m),note=m.report||prettyState(m.state)||'Scheduled';
+    return '<button class="v40ComingCard" data-coming-key="'+esc(key)+'">'
+      +'<div class="v40ComingTop"><span class="v40ComingLeague">'+esc((m.format||'CRICKET')+' · '+league(m))+'</span><span class="v40ComingTime">'+esc(v40Time(m))+'</span></div>'
+      +'<div class="v40ComingTeams"><span class="v40ComingTeam">'+esc(m.home?.name||'Team A')+'</span><span class="v40ComingVs">VS</span><span class="v40ComingTeam" style="text-align:right">'+esc(m.away?.name||'Team B')+'</span></div>'
+      +(note?'<div class="v40ComingNote">'+esc(note)+'</div>':'')
+      +'</button>';
+  }
+  async function v40FetchUpcoming(){
+    if(v40UpcomingBusy)return v40UpcomingCache||[];
+    if(v40UpcomingCache&&Date.now()-v40UpcomingAt<30000)return v40UpcomingCache;
+    v40UpcomingBusy=true;
+    try{
+      const j=await api({action:'matches',mode:'upcoming'});
+      v40UpcomingCache=Array.isArray(j.matches)?j.matches.slice(0,4):[];
+      v40UpcomingAt=Date.now();
+      return v40UpcomingCache;
+    }catch(e){return v40UpcomingCache||[]}
+    finally{v40UpcomingBusy=false}
+  }
+  async function v40EmptyLive(){
+    if(mode!=='live'||!Array.isArray(allMatches)||allMatches.length)return;
+    const search=(document.getElementById('search')?.value||'').trim();
+    if(search)return;
+    const list=document.getElementById('list');if(!list)return;
+    const rows=await v40FetchUpcoming();
+    if(mode!=='live'||allMatches.length)return;
+    list.innerHTML='<div class="v40LiveEmpty"><b>No live matches right now</b><span>We will move a match here as soon as the toss is completed.</span></div>'
+      +(rows.length?'<div class="v40Coming"><div class="v40ComingHead"><b>COMING UP</b><button id="v40ViewUpcoming">VIEW ALL →</button></div>'+rows.map(v40ComingCard).join('')+'</div>':'');
+    list.querySelectorAll('[data-coming-key]').forEach(el=>el.onclick=()=>openMatch(el.dataset.comingKey));
+    const all=document.getElementById('v40ViewUpcoming');
+    if(all)all.onclick=()=>{const t=document.querySelector('.tab[data-mode="upcoming"]');if(t)t.click()};
+  }
+
+  const v40BaseRender=render;
+  render=function(){
+    v40BaseRender();
+    if(mode==='live'&&allMatches.length===0)setTimeout(v40EmptyLive,0);
+  };
+
+  const v40BaseLoad=load;
+  load=async function(nextMode=mode,force=false){
+    const out=await v40BaseLoad(nextMode,force);
+    if(mode==='live'&&allMatches.length===0)await v40EmptyLive();
+    return out;
+  };
+
+  setTimeout(v40EmptyLive,350);
+  setTimeout(v40EmptyLive,1400);
+  window.__IBETIN_V40_COMING_UP__=true;
+})();
+</script>
+"""
 
 def _page_v40_visual_polish() -> str:
     html = _page_v39_favourites()
@@ -904,12 +988,13 @@ def _page_v40_visual_polish() -> str:
         1,
     )
     html = html.replace("</style>", IBETIN_V40_VISUAL_POLISH_CSS + "\n</style>", 1)
+    html = html.replace("</body>", IBETIN_V40_COMING_UP_JS + "\n</body>", 1)
     return html
 
 
 def _preview_v40_url() -> str:
     root = v23.os.getenv("TRACKING_BASE_URL", "").strip().rstrip("/") or "https://ibetin-app-production.up.railway.app"
-    return f"{root}{IBETIN_V40_VISUAL_POLISH_PATH}?{v23.urlencode({'t': v23.liveline._token(), 'v': '20260918-v40-polish'})}"
+    return f"{root}{IBETIN_V40_VISUAL_POLISH_PATH}?{v23.urlencode({'t': v23.liveline._token(), 'v': '20260918-v40-live-rules'})}"
 
 
 def _install_v40_visual_polish_route() -> None:

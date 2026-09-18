@@ -56,9 +56,9 @@ def telegram_mini_app_url(section: str = "home") -> str:
 def _business_url(section: str = "home", customer_id: int = 0) -> str:
     section = (section or "home").strip().lower()
     if section == "liveline":
-        if customer_id:
+        if customer_id and phone_verify.is_verified(customer_id):
             return phone_verify.live_line_url(customer_id, LIVE_LINE_DIRECT_URL)
-        return LIVE_LINE_DIRECT_URL
+        return phone_verify.verification_bot_url()
     return telegram_mini_app_url(section)
 
 

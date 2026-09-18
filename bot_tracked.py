@@ -18,6 +18,7 @@ import fantzo_analytics as analytics
 import fantzo_live_tv
 import fantzo_reminders as reminders
 import ibetin_hub as hub
+import ibetin_creatives
 import ibetin_news as news
 import private_apk_upload
 import trial_live_tv
@@ -601,6 +602,7 @@ async def configure_telegram_ui(application) -> None:
 
     reminders.ensure_tables()
     reminders.start_background_loop(application)
+    ibetin_creatives.install(application)
 
 
 app.configure_telegram_ui = configure_telegram_ui

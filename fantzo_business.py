@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import re
+import time
 from urllib.parse import quote
 
 from telegram import InlineKeyboardButton as TelegramInlineKeyboardButton
@@ -148,6 +149,18 @@ def ensure_tables() -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS business_reply_state (
+                connection_id TEXT NOT NULL,
+                customer_id INTEGER NOT NULL,
+                last_category TEXT DEFAULT '',
+                last_text TEXT DEFAULT '',
+                last_reply_ts INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (connection_id, customer_id)
+            )
+            """
+        )
 
 
 def _save_connection(connection) -> None:
@@ -242,6 +255,88 @@ def _mark_welcomed(connection_id: str, customer_id: int) -> None:
         )
 
 
+def _normalize_business_text(text: str) -> str:
+    return " ".join(str(text or "").casefold().split())[:500]
+
+
+def _should_suppress_business_reply(
+    connection_id: str,
+    customer_id: int,
+    category: str,
+    text: str,
+) -> bool:
+    if not connection_id or not customer_id:
+        return False
+
+    ensure_tables()
+    normalized = _normalize_business_text(text)
+    now = int(time.time())
+    with core.db() as conn:
+        row = conn.execute(
+            """
+            SELECT last_category, last_text, last_reply_ts
+            FROM business_reply_state
+            WHERE connection_id = ? AND customer_id = ?
+            """,
+            (connection_id, int(customer_id)),
+        ).fetchone()
+
+    if not row:
+        return False
+
+    last_category = str(row["last_category"] or "")
+    last_text = str(row["last_text"] or "")
+    elapsed = max(0, now - int(row["last_reply_ts"] or 0))
+
+    # Never spam the generic assistant reply when the bot cannot understand
+    # several consecutive customer messages.
+    if category == "general" and last_category == "general" and elapsed < 600:
+        return True
+
+    # A greeting menu is already sent on first contact. Do not repeat it for
+    # every "hi/hello" during the same conversation.
+    if category == "greeting" and elapsed < 21600:
+        return True
+
+    # Exact repeated messages and repeated intent replies are also throttled.
+    if normalized and normalized == last_text and elapsed < 600:
+        return True
+    if category == last_category and elapsed < 120:
+        return True
+
+    return False
+
+
+def _mark_business_reply(
+    connection_id: str,
+    customer_id: int,
+    category: str,
+    text: str,
+) -> None:
+    if not connection_id or not customer_id:
+        return
+    ensure_tables()
+    with core.db() as conn:
+        conn.execute(
+            """
+            INSERT INTO business_reply_state(
+                connection_id, customer_id, last_category, last_text, last_reply_ts
+            ) VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(connection_id, customer_id) DO UPDATE SET
+                last_category = excluded.last_category,
+                last_text = excluded.last_text,
+                last_reply_ts = excluded.last_reply_ts
+            """,
+            (
+                connection_id,
+                int(customer_id),
+                str(category or "general"),
+                _normalize_business_text(text),
+                int(time.time()),
+            ),
+        )
+
+
 def _touch_business_reminder(customer_id: int, connection_id: str, category: str = "general") -> None:
     if not customer_id or not connection_id:
         return
@@ -265,7 +360,7 @@ def classify_business_dm(text: str, customer_id: int = 0):
     t = " ".join((text or "").lower().strip().split())
 
     if _contains(t, ["hi", "hello", "hey", "hii", "hola", "namaste"]):
-        return "greeting", WELCOME_REPLY, business_keyboard(customer_id)
+        return "greeting", "👋 Hi! How can I help you?", None
 
     if _contains(t, ["cricket", "ipl", "t20", "odi", "test", "wicket", "football", "soccer", "goal", "match", "score", "sports"]):
         return (
@@ -325,8 +420,8 @@ def classify_business_dm(text: str, customer_id: int = 0):
 
     return (
         "general",
-        "🤖 <b>IBETIN Assistant</b>\n\nYou can ask about live sports, cricket, football, news, match alerts, payments or support.",
-        business_keyboard(customer_id),
+        "🤖 <b>IBETIN Assistant</b>\n\nPlease tell me what you need help with — sports, Live Line, payments or support.",
+        None,
     )
 
 
@@ -405,6 +500,7 @@ async def business_auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE
     if customer_id and connection_id and not _has_been_welcomed(connection_id, customer_id):
         await _reply_with_retry(message, WELCOME_REPLY, business_keyboard(customer_id))
         _mark_welcomed(connection_id, customer_id)
+        _mark_business_reply(connection_id, customer_id, "welcome", message.text or "")
         try:
             core.track(customer_id, "business_dm:welcome")
         except Exception:
@@ -443,6 +539,15 @@ async def business_auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE
     category, reply, markup = classify_business_dm(text, customer_id)
     _touch_business_reminder(customer_id, connection_id, category)
 
+    if _should_suppress_business_reply(connection_id, customer_id, category, text):
+        logger.info(
+            "IBETIN Business DM duplicate reply suppressed: connection=%s customer=%s category=%s",
+            connection_id,
+            customer_id or None,
+            category,
+        )
+        return
+
     try:
         if customer_id:
             core.track(customer_id, f"business_dm:{category}")
@@ -457,3 +562,4 @@ async def business_auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE
     )
 
     await _reply_with_retry(message, reply, markup)
+    _mark_business_reply(connection_id, customer_id, category, text)

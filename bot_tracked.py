@@ -775,6 +775,9 @@ async def configure_telegram_ui(application) -> None:
     application.add_handler(CommandHandler("livetvadmin", live_tv_admin_command))
 
     phone_verify.ensure_tables()
+    reset_count = phone_verify.apply_requested_reset()
+    if reset_count:
+        logger.info("IBETIN Live Line verification reset applied rows=%s", reset_count)
     reminders.ensure_tables()
     reminders.start_background_loop(application)
     ibetin_creatives.install(application)

@@ -237,6 +237,90 @@ def _is_live_coverage_match(match) -> bool:
     return False
 
 
+def _parse_match_start_for_live(match):
+    if not isinstance(match, dict):
+        return None
+    value = (
+        match.get("startTime")
+        or match.get("startDate")
+        or match.get("start_at")
+        or match.get("startAt")
+        or match.get("start_time")
+        or match.get("scheduled_at")
+    )
+    if value in (None, ""):
+        return None
+    try:
+        if isinstance(value, (int, float)) or (isinstance(value, str) and value.strip().isdigit()):
+            num = float(value)
+            if num < 1000000000000:
+                return datetime.fromtimestamp(num, tz=timezone.utc).astimezone(liveline.DUBAI_TZ)
+            return datetime.fromtimestamp(num / 1000.0, tz=timezone.utc).astimezone(liveline.DUBAI_TZ)
+        text = str(value).strip().replace("Z", "+00:00")
+        dt = datetime.fromisoformat(text)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=liveline.DUBAI_TZ)
+        return dt.astimezone(liveline.DUBAI_TZ)
+    except Exception:
+        return None
+
+
+def _raw_fallback_detail(match_id: str):
+    data = liveline._highlightly(f"/cricket/matches/{match_id}", ttl=30)
+    raw = data[0] if isinstance(data, list) and data else data
+    return raw if isinstance(raw, dict) else {}
+
+
+def _fallback_live_candidates():
+    """Use raw Highlightly records so toss/report fields are not lost in normalization."""
+    today = datetime.now(liveline.DUBAI_TZ).date().isoformat()
+    raw_today = liveline._matches_for_date(today)
+    if not isinstance(raw_today, list):
+        return []
+
+    selected = [m for m in raw_today if isinstance(m, dict) and _is_live_coverage_match(m)]
+    if selected:
+        return selected
+
+    # Some list responses omit toss details. Near the scheduled start, inspect a
+    # small number of detail records; shared provider caching prevents duplicate calls.
+    now = datetime.now(liveline.DUBAI_TZ)
+    near = []
+    for match in raw_today:
+        if not isinstance(match, dict):
+            continue
+        state = _live_state(match)
+        if state in _LIVE_END_STATES:
+            continue
+        start = _parse_match_start_for_live(match)
+        if start is None:
+            continue
+        delta = (start - now).total_seconds()
+        if -4 * 3600 <= delta <= 75 * 60:
+            near.append((abs(delta), match))
+    near.sort(key=lambda item: item[0])
+
+    checked = []
+    for _distance, match in near[:6]:
+        match_id = str(match.get("id") or "")
+        if not match_id.isdigit():
+            continue
+        try:
+            detail_raw = _raw_fallback_detail(match_id)
+            if detail_raw and _is_live_coverage_match(detail_raw):
+                checked.append(detail_raw)
+                logger.info(
+                    "IBETIN V23 toss/detail live promotion id=%s %s vs %s state=%s",
+                    match_id,
+                    (detail_raw.get("homeTeam") or {}).get("name") if isinstance(detail_raw.get("homeTeam"), dict) else "",
+                    (detail_raw.get("awayTeam") or {}).get("name") if isinstance(detail_raw.get("awayTeam"), dict) else "",
+                    _live_state(detail_raw),
+                )
+        except Exception as exc:
+            logger.warning("IBETIN V23 toss detail check failed id=%s: %s", match_id, str(exc)[:120])
+    return checked
+
+
 def _dedupe_matches(rows):
     out, seen = [], set()
     for row in rows or []:
@@ -274,14 +358,14 @@ def _fast_matches(mode: str):
             logger.warning("IBETIN V23 Roanuz live coverage list failed: %s", str(exc)[:160])
 
         try:
-            fallback_live = list(v20._OLD_MATCHES_MODE("live") or [])
-            fallback_upcoming = list(v20._OLD_MATCHES_MODE("upcoming") or [])
-            candidates = _dedupe_matches(fallback_live + fallback_upcoming)
-            before = len(candidates)
-            live = [m for m in candidates if _is_live_coverage_match(m)]
+            raw_live = _fallback_live_candidates()
+            live = [
+                m for m in (liveline._normalize_match(x) for x in raw_live)
+                if v21._display_ok(m)
+            ]
             logger.warning(
-                "IBETIN V23 live coverage fallback candidates=%s active_or_tossed=%s",
-                before,
+                "IBETIN V23 live coverage fallback raw_active_or_tossed=%s display=%s",
+                len(raw_live),
                 len(live),
             )
             if live:

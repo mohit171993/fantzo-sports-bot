@@ -264,7 +264,7 @@ reminders.InlineKeyboardButton = _mini_only_button
 def premium_main_keyboard() -> InlineKeyboardMarkup:
     rows = [
         [hub_button("🚀 JOIN IBETIN", "home")],
-        [site_button("🏏 LIVE LINE", IBETIN_LIVE_LINE_URL)],
+        [site_button("🏏 WATCH IBETIN LIVE LINE", IBETIN_LIVE_LINE_URL)],
         [
             site_button("🔴 LIVE NOW", IBETIN_LIVE_URL),
             site_button("🏆 SPORTS", IBETIN_SPORTS_URL),

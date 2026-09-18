@@ -215,8 +215,11 @@ def _copy_for(interest: str, stage: int, source: str, user_id: int = 0):
                     TelegramInlineKeyboardButton(
                         "🏏 OPEN LIVE LINE",
                         url=(
-                            phone_verify.live_line_url(user_id, IBETIN_LIVE_LINE_URL)
-                            if user_id else IBETIN_LIVE_LINE_URL
+                            (
+                                phone_verify.live_line_url(user_id, IBETIN_LIVE_LINE_URL)
+                                if user_id and phone_verify.is_verified(user_id)
+                                else phone_verify.verification_bot_url()
+                            )
                         ),
                     )
                 ],

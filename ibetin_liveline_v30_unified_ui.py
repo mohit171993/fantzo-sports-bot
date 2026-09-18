@@ -196,6 +196,12 @@ body{padding-bottom:calc(105px + env(safe-area-inset-bottom))!important}
 .dtab{background:#0a2139!important;color:#9eb7cd!important;border-color:#173f5f!important}.dtab.on{background:linear-gradient(135deg,#1594ff,#1268e7)!important;color:#fff!important;border-color:#2ca9ff!important}
 .notice,.inning,.ball,.moreItem,.playerCard{background:#081a2c!important;border-color:#173e5d!important;color:#bad0e2!important}.playerName,.inningTeam,.inningScore,.moreItem,.kv b{color:#fff!important}.metric{background:#0b2a49!important;color:#a9c3d9!important}.ballChip{background:#244764!important;color:#fff!important}.ballChip.boundary{background:#1398ef!important}.ballChip.six{background:#7650e3!important}.ballChip.wicket{background:#e94d68!important}
 .bottom{background:rgba(2,11,23,.98)!important;border:1px solid #153854!important;box-shadow:0 18px 40px rgba(0,0,0,.42)!important}.bottom .on{background:linear-gradient(180deg,rgba(27,137,255,.24),rgba(11,76,139,.16))!important}
+/* V35 NAV CLEARANCE FIX */
+.main{padding-bottom:calc(185px + env(safe-area-inset-bottom))!important}
+.detail{padding-bottom:calc(185px + env(safe-area-inset-bottom))!important}
+.bottom{left:16px!important;right:16px!important;bottom:calc(8px + env(safe-area-inset-bottom))!important;padding:6px!important;border-radius:18px!important}
+.bottom button{height:48px!important;font-size:8px!important}
+.bottom b{font-size:17px!important;margin-bottom:1px!important}
 body:before{content:"PREVIEW";position:fixed;right:10px;top:8px;z-index:9999;background:#7b43f6;color:#fff;font-size:8px;font-weight:1000;letter-spacing:1px;padding:5px 8px;border-radius:999px;pointer-events:none}
 .previewHomeOdds{padding:12px 13px 13px;border-top:1px solid #153d5d;background:#051522}
 .previewOddsTitle{font-size:9px;font-weight:1000;color:#8fb1cc;letter-spacing:.7px;margin-bottom:8px}
@@ -315,7 +321,7 @@ def _page_v35_preview() -> str:
 
 def _preview_v35_url() -> str:
     root = v23.os.getenv("TRACKING_BASE_URL", "").strip().rstrip("/") or "https://ibetin-app-production.up.railway.app"
-    return f"{root}{IBETIN_V35_PREVIEW_PATH}?{v23.urlencode({'t': v23.liveline._token(), 'v': '20260918-v35-prefetch'})}"
+    return f"{root}{IBETIN_V35_PREVIEW_PATH}?{v23.urlencode({'t': v23.liveline._token(), 'v': '20260918-v35-navfix'})}"
 
 
 def _install_v35_preview_route() -> None:

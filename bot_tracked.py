@@ -22,6 +22,7 @@ import ibetin_hub as hub
 import ibetin_creatives
 import ibetin_news as news
 import ibetin_phone_verify as phone_verify
+import ibetin_reports
 import private_apk_upload
 import trial_live_tv
 
@@ -297,7 +298,7 @@ def premium_main_keyboard(user_id: int = 0) -> InlineKeyboardMarkup:
     ]
 
     if LIVE_TV_MODE == "public":
-        url = sky_admin_url()
+        url = fantzo_live_tv.minitv_url(user_id)
         if url:
             rows.insert(
                 3,
@@ -324,7 +325,7 @@ def premium_join_keyboard() -> InlineKeyboardMarkup:
     )
 
 
-def premium_explore_keyboard() -> InlineKeyboardMarkup:
+def premium_explore_keyboard(user_id: int = 0) -> InlineKeyboardMarkup:
     rows = [
         [hub_button("🌐 IBETIN MINI APP HOME", "home")],
         [
@@ -345,7 +346,7 @@ def premium_explore_keyboard() -> InlineKeyboardMarkup:
     ]
 
     if LIVE_TV_MODE == "public":
-        url = sky_admin_url()
+        url = fantzo_live_tv.minitv_url(user_id)
         if url:
             rows.insert(-1, [InlineKeyboardButton("📺 OPEN LIVE TV", web_app=WebAppInfo(url=url))])
 
@@ -645,6 +646,9 @@ app.core.help_command = help_command
 
 
 async def smart_callback_router(update, context) -> None:
+    if await ibetin_reports.handle_callback(update, context):
+        return
+
     query = update.callback_query
     if query and query.data == "liveline_access":
         try:
@@ -672,6 +676,7 @@ async def smart_admin(update, context) -> None:
         return
 
     await _original_admin(update, context)
+    await ibetin_reports.send_menu(update, context)
 
     if LIVE_TV_MODE not in {"admin", "public"}:
         return
@@ -743,6 +748,7 @@ async def configure_telegram_ui(application) -> None:
             BotCommand("team", "Open team search"),
             BotCommand("support", "Open Support Mini App"),
             BotCommand("help", "IBETIN Mini App menu"),
+            BotCommand("reports", "Admin report center"),
         ]
     )
 
@@ -758,6 +764,7 @@ async def configure_telegram_ui(application) -> None:
     application.add_handler(CommandHandler("live", live_command))
     application.add_handler(CommandHandler("support", support_command))
     application.add_handler(CommandHandler("liveline", liveline_command))
+    application.add_handler(CommandHandler("reports", ibetin_reports.reports_command))
     application.add_handler(
         MessageHandler(
             filters.UpdateType.MESSAGE & filters.CONTACT,
@@ -775,6 +782,7 @@ async def configure_telegram_ui(application) -> None:
     application.add_handler(CommandHandler("livetvadmin", live_tv_admin_command))
 
     phone_verify.ensure_tables()
+    ibetin_reports.ensure_tables()
     reset_count = phone_verify.apply_requested_reset()
     if reset_count:
         logger.info("IBETIN Live Line verification reset applied rows=%s", reset_count)

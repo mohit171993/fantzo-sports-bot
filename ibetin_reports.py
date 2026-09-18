@@ -37,11 +37,20 @@ def is_authorized_admin(user_id: int) -> bool:
         return False
     if not uid:
         return False
+
     if uid == int(core.ADMIN_USER_ID):
         return True
-    # The creative manager was already explicitly unlocked from Telegram.
-    # Reuse that persisted authorization for reports/admin instead of forcing
-    # the operator back to the original Telegram account.
+
+    env_admin = 0
+    try:
+        env_admin = int(os.getenv("IBETIN_REPORT_ADMIN_USER_ID", "0").strip() or "0")
+    except Exception:
+        env_admin = 0
+
+    if env_admin and uid == env_admin:
+        return True
+
+    # Backward-compatible persisted authorization.
     return uid in {
         x for x in (
             _setting_user_id("creative_admin_user_id"),

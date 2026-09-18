@@ -777,6 +777,150 @@ def _page_v39_favourites() -> str:
     return html
 
 
+IBETIN_V40_VISUAL_POLISH_PATH = "/admin/ibetin-v40-visual-polish"
+
+IBETIN_V40_VISUAL_POLISH_CSS = r"""
+/* V40 VISUAL REFINEMENT PREVIEW */
+body:before{content:"V40 POLISH"!important;background:#0f82e9!important;font-size:6px!important;padding:4px 7px!important;opacity:.92}
+
+/* Cleaner brand hierarchy */
+.top{padding:12px 15px 10px!important;box-shadow:0 8px 24px rgba(0,0,0,.22)!important}
+.brand b{font-size:19px!important;letter-spacing:.45px!important}
+.brand span{font-size:8px!important;letter-spacing:1px!important}
+.liveLineSub{font-size:6.5px!important;letter-spacing:.55px!important;margin-top:1px!important;color:#668cae!important}
+.liveDot{font-size:8px!important;padding:6px 8px!important}
+.ibPowered{display:none!important}
+
+/* Tighter navigation and search */
+.tabs{gap:6px!important;margin-top:10px!important}
+.tab{height:35px!important;border-radius:10px!important;font-size:8px!important;box-shadow:none!important}
+.main{padding-top:10px!important}
+.tools{gap:7px!important;margin-bottom:6px!important}
+.search,.refresh{height:42px!important;border-radius:12px!important}
+.status{font-size:8px!important;margin:6px 1px 8px!important}
+.v39FavBar{margin:5px 0 9px!important;gap:6px!important}
+.v39FavFilter{padding:7px 10px!important;font-size:7.5px!important;background:#061522!important}
+.v39FavFilter.on{background:#0a2a49!important;border-color:#3978ac!important;box-shadow:none!important}
+
+/* Match cards: flatter, more premium */
+.list{gap:9px!important}
+.league{margin:12px 2px 5px!important;font-size:8px!important;letter-spacing:.65px!important}
+.match{border:1px solid rgba(32,82,119,.72)!important;border-left:3px solid #278ee8!important;border-radius:15px!important;box-shadow:0 8px 22px rgba(0,0,0,.16)!important;overflow:hidden!important;transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease!important}
+.match.live{border-left-color:#ee5870!important}
+.match:active{transform:scale(.992)!important}
+.mh{padding:10px 11px 7px!important}
+.fmt{font-size:8px!important}
+.badge{font-size:7px!important;padding:5px 7px!important;border-radius:999px!important}
+.team{padding:7px 11px!important}
+.tn{font-size:11px!important}.sc{font-size:18px!important}.ta,.si{font-size:8px!important}
+.previewHomeOdds{padding:9px 11px 10px!important;background:rgba(3,15,27,.38)!important}
+.previewOddsTitle{font-size:7px!important;margin-bottom:6px!important;color:#7396b2!important}
+.previewHomeGrid{gap:7px!important}
+.previewPrice{padding:9px 10px!important;border-radius:11px!important}
+.previewPrice small{font-size:8px!important}.previewPrice strong{font-size:23px!important;margin-top:4px!important}
+.foot{padding:8px 11px 9px!important;font-size:8px!important}
+.ibHomePromo{padding:8px 11px!important;font-size:8px!important;background:#061522!important;color:#4ca9e8!important}
+
+/* Favourite star should feel native, not bolted on */
+.v39FavBtn{display:inline-flex!important;align-items:center!important;justify-content:center!important;width:27px!important;height:27px!important;border-radius:50%!important;background:rgba(255,255,255,.025)!important;border:1px solid transparent!important;font-size:14px!important;margin-left:auto!important;margin-right:3px!important;transition:transform .14s ease,background .14s ease,border-color .14s ease!important}
+.v39FavBtn:active{transform:scale(.84)!important}
+.v39FavBtn.on{background:rgba(255,214,74,.08)!important;border-color:rgba(255,214,74,.2)!important;color:#ffd75c!important;text-shadow:none!important}
+
+/* Match detail: score first, everything else quieter */
+.detail{padding-top:9px!important}
+.back{height:36px!important;padding:0 11px!important;border-radius:10px!important;font-size:8px!important}
+.v39DetailFav{height:36px!important;margin:0 0 8px!important;border-radius:10px!important;background:#061725!important;font-size:8px!important}
+.scorehero{border-radius:17px!important;box-shadow:0 10px 28px rgba(0,0,0,.2)!important}
+.scoretop{padding:9px 12px!important;font-size:7px!important}
+.scoremain{padding:15px 10px 13px!important}
+.sname{font-size:9px!important}.sval{font-size:30px!important;line-height:1!important;margin-top:4px!important}.vs{transform:scale(.88)!important}
+.report{padding:9px 11px!important;font-size:8px!important}
+
+/* Match Pulse becomes one compact information layer */
+.v38Pulse{margin:8px 0 9px!important;padding:10px!important;border-radius:14px!important;border-color:#153e5c!important;background:linear-gradient(180deg,#061827,#071d31)!important;box-shadow:none!important}
+.v38PulseHead{margin-bottom:7px!important}
+.v38PulseHead b{font-size:12px!important}.v38PulseHead span{font-size:6px!important;color:#528fb9!important}
+.v38PulseMetrics{gap:5px!important;margin-bottom:7px!important}
+.v38PulseMetric{padding:7px!important;border-radius:9px!important;background:#071522!important;border-color:#12354f!important}
+.v38PulseMetric span{font-size:6px!important}.v38PulseMetric b{font-size:13px!important}
+.v38Recent{padding:8px!important;border:0!important;border-top:1px solid #123750!important;border-radius:0!important;background:transparent!important}
+.v38RecentTop{margin-bottom:6px!important}.v38RecentTop b{font-size:8px!important}.v38RecentTop span{font-size:6px!important}
+.v38Ball{flex-basis:24px!important;width:24px!important;height:24px!important;font-size:8px!important}
+.v38PulseSummary{font-size:8px!important;margin-top:7px!important}
+.v38Latest{font-size:7.5px!important;margin-top:6px!important;padding-top:6px!important}
+.v38Pulse .playerStrip{margin-top:7px!important}
+.v38Pulse .playerCard{padding:8px!important}
+
+/* BHAV remains strong but visually connected to match */
+.quickMarket{margin-top:8px!important;padding:11px!important;border-radius:14px!important;box-shadow:none!important}
+.previewBhavHead{margin-bottom:7px!important}
+.previewBhavHead b{font-size:14px!important}.previewBhavHead span{font-size:7px!important}
+.previewBhavGrid{gap:7px!important}
+.quickMarket .previewPrice{padding:10px!important}
+.quickMarket .previewPrice strong{font-size:24px!important}
+.previewHist{margin-top:7px!important;border-radius:9px!important}
+.previewHist div{padding:6px 3px!important}
+.previewHist span{font-size:6px!important}.previewHist b{font-size:11px!important}
+
+/* Promotion is contextual, never louder than the cricket */
+.ibQuickPromo{margin-top:7px!important;padding:8px 9px!important;border-radius:9px!important;background:#071b2c!important;border-color:#17405b!important}
+.ibQuickPromo b{font-size:8.5px!important}.ibQuickPromo span{font-size:6.5px!important}
+.ibQuickPromo button{padding:7px 9px!important;font-size:7px!important;background:#0c6fc8!important}
+.ibPromoCard{display:none!important}
+
+/* Tabs/panels */
+.dtabs{gap:5px!important;margin:9px 0!important}
+.dtab{height:34px!important;border-radius:9px!important;font-size:7px!important}
+.panel{border-radius:14px!important;box-shadow:none!important}
+.ptitle{padding:10px 11px!important}.ptitle b{font-size:9px!important}
+.notice,.inning,.ball,.moreItem,.playerCard{border-color:#143a55!important;box-shadow:none!important}
+
+/* Motion: subtle only */
+@keyframes v40In{from{opacity:.35;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+.match,.scorehero,.v38Pulse,.quickMarket{animation:v40In .18s ease both}
+button{transition:transform .12s ease,opacity .12s ease!important}
+button:active{opacity:.86}
+
+/* Bottom nav stays clean on home, hidden by V38 on detail */
+.bottom{left:18px!important;right:18px!important;border-radius:16px!important;padding:5px!important;box-shadow:0 12px 30px rgba(0,0,0,.34)!important}
+.bottom button{height:44px!important;font-size:7px!important}
+.bottom b{font-size:15px!important}
+"""
+
+
+def _page_v40_visual_polish() -> str:
+    html = _page_v39_favourites()
+    html = html.replace("<title>IBETIN Live Line · My Matches V39</title>", "<title>IBETIN Live Line · Visual Polish V40</title>", 1)
+    html = html.replace("</style>", IBETIN_V40_VISUAL_POLISH_CSS + "\n</style>", 1)
+    return html
+
+
+def _preview_v40_url() -> str:
+    root = v23.os.getenv("TRACKING_BASE_URL", "").strip().rstrip("/") or "https://ibetin-app-production.up.railway.app"
+    return f"{root}{IBETIN_V40_VISUAL_POLISH_PATH}?{v23.urlencode({'t': v23.liveline._token(), 'v': '20260918-v40-polish'})}"
+
+
+def _install_v40_visual_polish_route() -> None:
+    handler_cls = v23.liveline.base.ibetin_start.ibetin_entry.analytics.TrackingHandler
+    if getattr(handler_cls, "_ibetin_v40_visual_polish_installed", False):
+        return
+    previous_get = handler_cls.do_GET
+
+    def routed_get(self):
+        parsed = v23.urlparse(self.path)
+        if parsed.path == IBETIN_V40_VISUAL_POLISH_PATH:
+            if not v23.liveline._authorized(self.path):
+                v23.liveline._send_html(self, 403, "<h3>IBETIN Live Line preview link is invalid.</h3>")
+                return
+            v23.liveline._send_html(self, 200, _page_v40_visual_polish())
+            return
+        previous_get(self)
+
+    handler_cls.do_GET = routed_get
+    handler_cls._ibetin_v40_visual_polish_installed = True
+    logger.info("IBETIN V40 visual polish preview route installed at %s", IBETIN_V40_VISUAL_POLISH_PATH)
+
+
 def _preview_v39_url() -> str:
     root = v23.os.getenv("TRACKING_BASE_URL", "").strip().rstrip("/") or "https://ibetin-app-production.up.railway.app"
     return f"{root}{IBETIN_V39_FAVOURITES_PATH}?{v23.urlencode({'t': v23.liveline._token(), 'v': '20260918-v39-favourites'})}"
@@ -915,14 +1059,14 @@ async def _previewui_command(update, context):
         await message.reply_text("Open this preview from a private chat with the bot.")
         return
     await message.reply_text(
-        "★ <b>IBETIN LIVE LINE · MY MATCHES V39</b>\n\n"
-        "V39 adds persistent favourites and a personalised My Matches view on top of Match Pulse V38. "
-        "Production LIVE remains on approved V35 until you approve this preview.",
+        "✨ <b>IBETIN LIVE LINE · V40 VISUAL POLISH</b>\n\n"
+        "Same V39 features, with a cleaner premium hierarchy, tighter Match Pulse, native favourites and calmer promotion. "
+        "Production LIVE remains on approved V35 until you approve V40.",
         parse_mode="HTML",
         reply_markup=v23.liveline.InlineKeyboardMarkup(
             [[v23.liveline.InlineKeyboardButton(
-                "★ OPEN MY MATCHES V39",
-                web_app=v23.liveline.WebAppInfo(url=_preview_v39_url()),
+                "✨ OPEN V40 POLISHED UI",
+                web_app=v23.liveline.WebAppInfo(url=_preview_v40_url()),
             )]]
         ),
         disable_web_page_preview=True,
@@ -950,6 +1094,7 @@ _install_v36_brand_preview_route()
 _install_v37_promo_preview_route()
 _install_v38_match_pulse_route()
 _install_v39_favourites_route()
+_install_v40_visual_polish_route()
 _install_v35_preview_command()
 
 # Promote the approved V35 UI to the production Live route.

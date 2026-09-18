@@ -113,6 +113,27 @@ def _normalize_with_play(node):
 v20._normalize_roanuz_match = _normalize_with_play
 
 
+_STRICT_ACTIVE_LIVE_STATES = {
+    "live", "in play", "inplay", "in-play", "playing", "started",
+    "in progress", "in_progress", "innings break", "innings_break",
+}
+
+
+def _fallback_is_actively_live(match) -> bool:
+    if not isinstance(match, dict):
+        return False
+    raw = (
+        match.get("state")
+        or match.get("status")
+        or match.get("matchStatus")
+        or match.get("match_status")
+        or ""
+    )
+    state = str(raw).strip().casefold().replace("-", " ")
+    state = " ".join(state.split())
+    return state in {s.replace("-", " ") for s in _STRICT_ACTIVE_LIVE_STATES}
+
+
 def _fast_matches(mode: str):
     source = "Roanuz V5 primary"
     try:
@@ -135,8 +156,19 @@ def _fast_matches(mode: str):
     try:
         fallback = v20._OLD_MATCHES_MODE(mode)
         if fallback:
-            logger.warning("IBETIN V23 display fallback mode=%s matches=%s", mode, len(fallback))
-            return fallback[:40], "Highlightly display fallback"
+            if mode == "live":
+                before = len(fallback)
+                fallback = [m for m in fallback if _fallback_is_actively_live(m)]
+                logger.warning(
+                    "IBETIN V23 strict live fallback filter before=%s active=%s",
+                    before,
+                    len(fallback),
+                )
+            if fallback:
+                logger.warning("IBETIN V23 display fallback mode=%s matches=%s", mode, len(fallback))
+                return fallback[:40], "Highlightly display fallback"
+            if mode == "live":
+                logger.info("IBETIN V23 display fallback has no actively live matches")
     except Exception as exc:
         logger.warning("IBETIN V23 fallback failed mode=%s: %s", mode, str(exc)[:160])
     return [], source

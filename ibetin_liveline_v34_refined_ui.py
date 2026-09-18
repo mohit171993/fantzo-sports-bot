@@ -46,12 +46,12 @@ V34_JS = r'''
         if(!raw || raw==='—' || raw==='-') return;
         if(!/^-?\d+(?:\.\d+)?$/.test(raw)) return;
         const n=Number(raw);
-        if(Number.isFinite(n)) el.textContent=n.toFixed(2);
+        if(Number.isFinite(n)){const out=n.toFixed(2);if(raw!==out)el.textContent=out;}
       });
     }catch(e){}
   }
   const oddsObserver=new MutationObserver(function(){IBETIN_V34_ODDS_PRECISION_FIX();});
-  oddsObserver.observe(document.documentElement,{subtree:true,childList:true,characterData:true});
+  oddsObserver.observe(document.documentElement,{subtree:true,childList:true});
   IBETIN_V34_ODDS_PRECISION_FIX();
   try{if(tg&&typeof tg.expand==='function')tg.expand();}catch(e){}
   try{if(tg&&typeof tg.onEvent==='function'){tg.onEvent('safeAreaChanged',syncSafe);tg.onEvent('contentSafeAreaChanged',syncSafe);tg.onEvent('fullscreenChanged',()=>{if(document.body.classList.contains('matchOpen'))safeWindowed();});}}catch(e){}

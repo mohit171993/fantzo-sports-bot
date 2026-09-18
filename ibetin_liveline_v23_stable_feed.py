@@ -335,6 +335,76 @@ def _dedupe_matches(rows):
     return out
 
 
+def _roanuz_toss_promotions():
+    """Promote near-start Roanuz fixture matches into LIVE once toss is confirmed."""
+    try:
+        fixtures = v20._roanuz_fixtures_raw()
+    except Exception as exc:
+        logger.warning("IBETIN V23 Roanuz fixture toss scan unavailable: %s", str(exc)[:140])
+        return []
+
+    now = datetime.now(liveline.DUBAI_TZ)
+    near = []
+    for raw in fixtures or []:
+        if not isinstance(raw, dict):
+            continue
+        state = _norm_live_state(v20._status(raw))
+        if state in _LIVE_END_STATES:
+            continue
+        start = _parse_match_start_for_live(raw)
+        if start is None:
+            # Raw Roanuz start field may use provider-specific names.
+            try:
+                raw_start = v20._start_time(raw)
+                probe = {"startTime": raw_start}
+                start = _parse_match_start_for_live(probe)
+            except Exception:
+                start = None
+        if start is None:
+            continue
+        delta = (start - now).total_seconds()
+        if -4 * 3600 <= delta <= 90 * 60:
+            near.append((abs(delta), raw))
+
+    near.sort(key=lambda item: item[0])
+    promoted = []
+    for _distance, raw in near[:8]:
+        key = v20._match_key(raw)
+        if not key:
+            continue
+
+        # List-level toss/status may already be enough.
+        if _is_live_coverage_match(raw):
+            promoted.append(raw)
+            logger.info(
+                "IBETIN V23 Roanuz toss promotion from fixture key=%s %s vs %s state=%s",
+                key,
+                (v20._normalize_roanuz_match(raw).get("home") or {}).get("name"),
+                (v20._normalize_roanuz_match(raw).get("away") or {}).get("name"),
+                _norm_live_state(v20._status(raw)),
+            )
+            continue
+
+        # Otherwise inspect match detail because fixtures can lag on toss.
+        try:
+            payload = v20.admin._roanuz_get(f"match/{key}/", ttl=20)
+            detail = v20._find_match_dict(payload, key)
+            if isinstance(detail, dict) and _is_live_coverage_match(detail):
+                promoted.append(detail)
+                nm = v20._normalize_roanuz_match(detail)
+                logger.info(
+                    "IBETIN V23 Roanuz toss/detail promotion key=%s %s vs %s state=%s",
+                    key,
+                    (nm.get("home") or {}).get("name"),
+                    (nm.get("away") or {}).get("name"),
+                    _norm_live_state(v20._status(detail)),
+                )
+        except Exception as exc:
+            logger.warning("IBETIN V23 Roanuz toss detail check failed key=%s: %s", key, str(exc)[:120])
+
+    return _dedupe_matches(promoted)
+
+
 def _fast_matches(mode: str):
     source = "Roanuz V5 primary"
 
@@ -342,6 +412,8 @@ def _fast_matches(mode: str):
         try:
             raw = v20._roanuz_featured_raw()
             selected_raw = [x for x in raw if isinstance(x, dict) and _is_live_coverage_match(x)]
+            selected_raw.extend(_roanuz_toss_promotions())
+            selected_raw = _dedupe_matches(selected_raw)
             live = [
                 m for m in (v20._normalize_roanuz_match(x) for x in selected_raw)
                 if v21._display_ok(m)

@@ -54,6 +54,15 @@ def ensure_tables() -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS business_verification_pending (
+                user_id INTEGER PRIMARY KEY,
+                requested_at TEXT NOT NULL,
+                source TEXT NOT NULL DEFAULT 'business_dm'
+            )
+            """
+        )
 
 
 def _save_connection(connection) -> None:
@@ -80,6 +89,23 @@ def _save_connection(connection) -> None:
             ),
         )
 
+
+
+def _mark_verification_pending(user_id: int) -> None:
+    if not user_id:
+        return
+    ensure_tables()
+    with core.db() as conn:
+        conn.execute(
+            """
+            INSERT INTO business_verification_pending(user_id, requested_at, source)
+            VALUES(?, ?, 'business_dm')
+            ON CONFLICT(user_id) DO UPDATE SET
+                requested_at=excluded.requested_at,
+                source='business_dm'
+            """,
+            (int(user_id), core.now_iso()),
+        )
 
 
 def _is_mobile_verified(user_id: int) -> bool:
@@ -396,6 +422,7 @@ async def business_auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE
                 _funnel_buttons("business_welcome"),
             )
         else:
+            _mark_verification_pending(customer_id)
             await _reply_with_retry(message, VERIFY_REPLY, _welcome_buttons())
 
         _mark_welcomed(connection_id, customer_id)
@@ -419,6 +446,7 @@ async def business_auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE
     # Keep Business users on the verification step until Telegram verification
     # succeeds. This prevents later DMs from exposing the normal funnel early.
     if customer_id and not _is_mobile_verified(customer_id):
+        _mark_verification_pending(customer_id)
         try:
             core.track(customer_id, "business_dm:verify_required")
         except Exception:

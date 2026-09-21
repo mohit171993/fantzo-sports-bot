@@ -1,8 +1,9 @@
-"""Telegram-contact verification gate for public Fantzo Live TV.
+"""One-time Telegram-contact verification for Fantzo users.
 
 A user is considered verified only when Telegram supplies a Contact whose
 contact.user_id exactly matches the requesting Telegram user. Any country's
-Telegram-linked phone number is accepted. Typed numbers never unlock Live TV.
+Telegram-linked phone number is accepted. Typed numbers never verify an account.
+The same verification is reused by the bot, Business DM handoff and Live TV.
 """
 
 from __future__ import annotations
@@ -26,8 +27,8 @@ core = tracked.app.core
 
 _installed = False
 _handlers_registered = False
-_PENDING_KEY = "fantzo_live_tv_mobile_pending"
-_PENDING_SOURCE_KEY = "fantzo_live_tv_mobile_source"
+_PENDING_KEY = "fantzo_mobile_verification_pending"
+_PENDING_SOURCE_KEY = "fantzo_mobile_verification_source"
 LIVE_TV_START_ARGS = {"livetv_business", "livetv_banner"}
 BUSINESS_VERIFY_START_ARG = "verify_business_dm"
 
@@ -277,9 +278,18 @@ async def _prompt_mobile(update: Update, context, source: str) -> None:
             "Before continuing from Fantzo Business DM, verify the mobile number "
             "linked to your Telegram account."
         )
+    elif source == "bot_start":
+        title = "📱 <b>VERIFY MOBILE TO CONTINUE</b>"
+        detail = (
+            "Before using Fantzo Bot, verify the mobile number linked to your "
+            "Telegram account. You only need to do this once."
+        )
     else:
-        title = "📱 <b>VERIFY MOBILE TO WATCH LIVE TV</b>"
-        detail = "Fantzo Live TV requires a verified Telegram-linked mobile number."
+        title = "📱 <b>VERIFY MOBILE TO CONTINUE</b>"
+        detail = (
+            "Verify the mobile number linked to your Telegram account. "
+            "Once verified, Fantzo and Live TV will use the same verification."
+        )
 
     await message.reply_text(
         f"{title}\n"
@@ -306,7 +316,7 @@ async def contact_handler(update: Update, context) -> None:
     contact = message.contact
 
     # Telegram self-contact verification: user_id must be present and must
-    # exactly match the Telegram account requesting Live TV.
+    # exactly match the Telegram account being verified.
     if contact.user_id is None or int(contact.user_id) != int(user.id):
         await message.reply_text(
             "⚠️ <b>Verification failed.</b>\n\n"
@@ -322,7 +332,7 @@ async def contact_handler(update: Update, context) -> None:
         await message.reply_text(
             "⚠️ <b>A valid Telegram-linked mobile number is required.</b>\n\n"
             "Telegram did not provide a usable phone number for this account, "
-            "so Live TV cannot be unlocked.",
+            "so verification cannot be completed.",
             parse_mode="HTML",
             reply_markup=_verify_keyboard(),
         )
@@ -369,6 +379,19 @@ async def contact_handler(update: Update, context) -> None:
         )
         return
 
+    if source == "bot_start":
+        await message.reply_text(
+            "✅ <b>Telegram mobile verified</b>\n\n"
+            f"Verified number: <code>{masked}</code>\n"
+            "Opening Fantzo…",
+            parse_mode="HTML",
+            reply_markup=ReplyKeyboardRemove(),
+        )
+        # The account is now verified, so the global /start gate falls through
+        # immediately to the normal existing Fantzo home flow.
+        await tracked.app.start(update, context)
+        return
+
     await message.reply_text(
         "✅ <b>Telegram mobile verified</b>\n\n"
         f"Verified number: <code>{masked}</code>\n"
@@ -377,7 +400,7 @@ async def contact_handler(update: Update, context) -> None:
         reply_markup=ReplyKeyboardRemove(),
     )
 
-    # Continue immediately into the already-tested Live TV status screen.
+    # Deep links/callbacks that specifically requested Live TV continue there.
     await live_flow.send_live_tv_status_from_start(update, context)
 
 
@@ -392,7 +415,7 @@ async def pending_text_handler(update: Update, context) -> None:
 
     await message.reply_text(
         "🔐 <b>Telegram verification is required.</b>\n\n"
-        "Typed mobile numbers cannot unlock Live TV. "
+        "Typed mobile numbers cannot verify your account. "
         "Please tap <b>📱 VERIFY & CONTINUE</b> below.",
         parse_mode="HTML",
         reply_markup=_verify_keyboard(),
@@ -474,6 +497,20 @@ def install() -> None:
                 await _prompt_mobile(update, context, _source_from_start_arg(arg))
                 return
             touch_live_tv_access(user.id)
+            await original_start(update, context)
+            return
+
+        # Global Fantzo onboarding gate: every normal /start from an unverified
+        # account must complete Telegram self-contact verification first.
+        if user and not is_registered(user.id):
+            try:
+                core.touch_user(update)
+                core.track(user.id, "mobile_verify:bot_start")
+            except Exception:
+                logger.exception("Could not track bot-start verification requirement")
+            track_verification_event(user.id, "bot_start", "prompt_from_start")
+            await _prompt_mobile(update, context, "bot_start")
+            return
 
         await original_start(update, context)
 
@@ -494,7 +531,7 @@ def install() -> None:
     tracked.app.core.callback_router = gated_router
 
     logger.info(
-        "Fantzo mobile verification installed: persistent Business DM handoff + Live TV gate; all countries accepted"
+        "Fantzo mobile verification installed: global bot gate + Business DM handoff + shared Live TV verification; all countries accepted"
     )
 
 
@@ -513,4 +550,4 @@ def register_handlers(application) -> None:
         MessageHandler(filters.TEXT & ~filters.COMMAND, pending_text_handler),
         group=-10,
     )
-    logger.info("Fantzo Telegram-only mobile verification handlers registered")
+    logger.info("Fantzo global Telegram-only mobile verification handlers registered")

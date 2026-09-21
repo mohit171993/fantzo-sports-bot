@@ -456,7 +456,7 @@ def crm_menu() -> InlineKeyboardMarkup:
         [
             [InlineKeyboardButton("🆕 UNASSIGNED / NEW", callback_data="reports:queue:new")],
             [
-                InlineKeyboardButton("⏰ DUE FOLLOW-UP", callback_data="reports:queue:due"),
+                InlineKeyboardButton("📞 FOLLOW-UP", callback_data="reports:queue:followup"),
                 InlineKeyboardButton("⭐ INTERESTED", callback_data="reports:queue:interested"),
             ],
             [

@@ -61,6 +61,30 @@ def is_authorized_admin(user_id: int) -> bool:
     }
 
 
+def notification_admin_user_id() -> int:
+    """Prefer the currently unlocked report/admin account for lead alerts."""
+    try:
+        env_admin = int(
+            os.getenv("IBETIN_REPORT_ADMIN_USER_ID", "0").strip() or "0"
+        )
+    except Exception:
+        env_admin = 0
+
+    for candidate in (
+        env_admin,
+        _setting_user_id("report_admin_user_id"),
+        _setting_user_id("creative_admin_user_id"),
+        int(core.ADMIN_USER_ID),
+    ):
+        try:
+            uid = int(candidate or 0)
+        except Exception:
+            uid = 0
+        if uid:
+            return uid
+    return int(core.ADMIN_USER_ID)
+
+
 def _table_exists(conn, table: str) -> bool:
     row = conn.execute(
         "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",

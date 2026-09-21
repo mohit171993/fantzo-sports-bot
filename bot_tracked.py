@@ -700,8 +700,13 @@ async def verified_ai_text_handler(update, context) -> None:
         logger.exception("Could not track IBETIN main-bot AI reply")
 
     logger.info("IBETIN main-bot AI reply sent user_id=%s", user.id)
+    support_markup = None
+    if ibetin_ai.is_off_topic(text) or ibetin_ai.needs_support_redirect(text):
+        support_markup = ibetin_ai.support_keyboard()
+
     await message.reply_text(
         ai_reply,
+        reply_markup=support_markup,
         disable_web_page_preview=True,
     )
 

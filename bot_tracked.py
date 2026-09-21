@@ -12,7 +12,7 @@ from telegram import (
     ReplyKeyboardRemove,
     WebAppInfo,
 )
-from telegram.ext import CommandHandler, MessageHandler, filters
+from telegram.ext import ApplicationHandlerStop, CommandHandler, MessageHandler, filters
 
 import bot_persistent as app
 import fantzo_analytics as analytics
@@ -464,38 +464,78 @@ async def smart_show_home(update, context) -> None:
 app.show_home = smart_show_home
 
 
-async def _prompt_mobile_verification(update, context) -> None:
+async def _prompt_mobile_verification(update, context, source: str = "bot_start") -> None:
     user = update.effective_user
     message = update.effective_message
     if not user or not message:
         return
 
+    source = str(source or "bot_start")[:64]
+
+    # Verification is account-level and one-time. If already verified, never
+    # ask again; continue directly to the requested destination.
     if phone_verify.is_verified(user.id):
-        await message.reply_text(
-            "✅ <b>Mobile number already verified.</b>\n\nOpen Live Line below.",
-            parse_mode="HTML",
-            reply_markup=InlineKeyboardMarkup(
-                [[InlineKeyboardButton(
-                    "🏏 OPEN IBETIN LIVE LINE",
-                    web_app=WebAppInfo(
-                        url=phone_verify.live_line_url(user.id, IBETIN_LIVE_LINE_URL)
-                    ),
-                )]]
-            ),
-        )
+        if source == "liveline":
+            await message.reply_text(
+                "🏏 <b>IBETIN LIVE LINE</b>\n\nOpen Live Line below.",
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup(
+                    [[InlineKeyboardButton(
+                        "🏏 OPEN IBETIN LIVE LINE",
+                        web_app=WebAppInfo(
+                            url=phone_verify.live_line_url(user.id, IBETIN_LIVE_LINE_URL)
+                        ),
+                    )]]
+                ),
+            )
+            return
+
+        if source == "business_dm":
+            import fantzo_business
+            await message.reply_text(
+                "✅ <b>Your Telegram mobile is already verified.</b>\n\n"
+                "Choose what you want to do next.",
+                parse_mode="HTML",
+                reply_markup=fantzo_business.business_keyboard(user.id),
+            )
+            return
+
+        await smart_start(update, context)
         return
 
+    context.user_data["ibetin_mobile_verify_pending"] = True
+    context.user_data["ibetin_mobile_verify_source"] = source
+
+    if source == "business_dm":
+        detail = (
+            "Before continuing from IBETIN Business DM, verify the mobile number "
+            "linked to your Telegram account."
+        )
+    elif source == "liveline":
+        detail = (
+            "Verify the mobile number linked to your Telegram account once. "
+            "After verification, Live Line will open without asking again."
+        )
+    else:
+        detail = (
+            "Before using IBETIN Bot, verify the mobile number linked to your "
+            "Telegram account. You only need to do this once."
+        )
+
     await message.reply_text(
-        "📱 <b>Mobile verification required</b>\n\n"
-        "To access IBETIN Live Line, share the mobile number linked to your Telegram account. "
-        "There is no country restriction.\n\n"
-        "Tap <b>📱 VERIFY MOBILE NUMBER</b> below.",
+        "📱 <b>VERIFY MOBILE TO CONTINUE</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
+        f"{detail}\n\n"
+        "Tap <b>📱 VERIFY & CONTINUE</b> below. Telegram will share the "
+        "mobile number linked to your own Telegram account.\n\n"
+        "Numbers from <b>any country</b> are accepted. "
+        "Typed numbers are not accepted.",
         parse_mode="HTML",
         reply_markup=ReplyKeyboardMarkup(
-            [[KeyboardButton("📱 VERIFY MOBILE NUMBER", request_contact=True)]],
+            [[KeyboardButton("📱 VERIFY & CONTINUE", request_contact=True)]],
             resize_keyboard=True,
             one_time_keyboard=True,
-            input_field_placeholder="Verify mobile number",
+            input_field_placeholder="Tap VERIFY & CONTINUE",
         ),
     )
 
@@ -507,49 +547,124 @@ async def mobile_contact_handler(update, context) -> None:
     if not user or not message or not contact:
         return
 
-    # Only accept Telegram's own-account contact share. A manually forwarded or
-    # different person's contact must never unlock Live Line.
-    if not contact.user_id or int(contact.user_id) != int(user.id):
+    # Only contacts requested by our verification flow are accepted.
+    if not context.user_data.get("ibetin_mobile_verify_pending"):
+        return
+
+    # Telegram self-contact verification: the contact must belong to the same
+    # Telegram user. Forwarded/other contacts never unlock IBETIN.
+    if contact.user_id is None or int(contact.user_id) != int(user.id):
         await message.reply_text(
-            "❌ Please use <b>📱 VERIFY MOBILE NUMBER</b> and share your own Telegram number.",
+            "⚠️ <b>Verification failed.</b>\n\n"
+            "Please tap <b>📱 VERIFY & CONTINUE</b> and share the mobile number "
+            "linked to your own Telegram account.",
             parse_mode="HTML",
+            reply_markup=ReplyKeyboardMarkup(
+                [[KeyboardButton("📱 VERIFY & CONTINUE", request_contact=True)]],
+                resize_keyboard=True,
+                one_time_keyboard=True,
+            ),
         )
         return
 
     if not phone_verify.verify_user(user.id, contact.phone_number):
         await message.reply_text(
-            "❌ Mobile verification failed. Please try again.",
+            "⚠️ <b>A valid Telegram-linked mobile number is required.</b>\n\n"
+            "Please tap <b>📱 VERIFY & CONTINUE</b> and try again.",
+            parse_mode="HTML",
+        )
+        return
+
+    source = str(
+        context.user_data.pop("ibetin_mobile_verify_source", "bot_start")
+        or "bot_start"
+    )
+    context.user_data.pop("ibetin_mobile_verify_pending", None)
+
+    phone = phone_verify.normalize_phone(contact.phone_number)
+    masked = phone
+    if len(phone) > 8:
+        masked = phone[:4] + "••••" + phone[-4:]
+
+    try:
+        app.core.touch_user(update)
+        app.core.track(user.id, f"mobile_verified:{source}")
+    except Exception:
+        logger.exception("Could not track IBETIN mobile verification")
+
+    logger.info("IBETIN mobile verified user_id=%s source=%s", user.id, source)
+    await message.reply_text(
+        "✅ <b>Telegram mobile verified</b>\n\n"
+        f"Verified number: <code>{masked}</code>\n"
+        "You will not be asked to verify again.",
+        parse_mode="HTML",
+        reply_markup=ReplyKeyboardRemove(),
+    )
+
+    if source == "liveline":
+        await message.reply_text(
+            "🏏 <b>IBETIN Live Line is ready.</b>",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton(
+                    "🏏 OPEN IBETIN LIVE LINE",
+                    web_app=WebAppInfo(
+                        url=phone_verify.live_line_url(user.id, IBETIN_LIVE_LINE_URL)
+                    ),
+                )]]
+            ),
+        )
+        await message.reply_text(
+            "Use <b>▶️ START</b> anytime to reopen the IBETIN menu.",
+            parse_mode="HTML",
             reply_markup=app.QUICK_MENU,
         )
         return
 
-    logger.info("IBETIN Live Line mobile verified user_id=%s", user.id)
+    if source == "business_dm":
+        import fantzo_business
+        await message.reply_text(
+            "Choose what you want to do next 👇",
+            reply_markup=fantzo_business.business_keyboard(user.id),
+        )
+        return
+
+    await app.show_home(update, context)
     await message.reply_text(
-        "✅ <b>Mobile number verified.</b>",
-        parse_mode="HTML",
-        reply_markup=ReplyKeyboardRemove(),
-    )
-    await message.reply_text(
-        "🏏 <b>IBETIN Live Line is unlocked.</b>\n\nTap below to continue.",
-        parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup(
-            [[InlineKeyboardButton(
-                "🏏 OPEN IBETIN LIVE LINE",
-                web_app=WebAppInfo(
-                    url=phone_verify.live_line_url(user.id, IBETIN_LIVE_LINE_URL)
-                ),
-            )]]
-        ),
-    )
-    await message.reply_text(
-        "Use <b>▶️ START</b> anytime to reopen the main menu.",
+        "⚡ <b>IBETIN quick access enabled</b>\n\n"
+        "Your mobile is verified once for IBETIN, including Live Line.",
         parse_mode="HTML",
         reply_markup=app.QUICK_MENU,
     )
 
 
+async def pending_verification_text_handler(update, context) -> None:
+    message = update.effective_message
+    if not message or not message.text:
+        return
+    if not context.user_data.get("ibetin_mobile_verify_pending"):
+        return
+
+    await message.reply_text(
+        "🔐 <b>Telegram verification is required.</b>\n\n"
+        "Typed mobile numbers cannot verify your account. "
+        "Please tap <b>📱 VERIFY & CONTINUE</b> below.",
+        parse_mode="HTML",
+        reply_markup=ReplyKeyboardMarkup(
+            [[KeyboardButton("📱 VERIFY & CONTINUE", request_contact=True)]],
+            resize_keyboard=True,
+            one_time_keyboard=True,
+        ),
+    )
+    raise ApplicationHandlerStop
+
+
 async def liveline_command(update, context) -> None:
-    await _prompt_mobile_verification(update, context)
+    user = update.effective_user
+    if user and phone_verify.is_verified(user.id):
+        await _prompt_mobile_verification(update, context, "liveline")
+        return
+    await _prompt_mobile_verification(update, context, "liveline")
 
 
 async def start_button_handler(update, context) -> None:
@@ -558,24 +673,44 @@ async def start_button_handler(update, context) -> None:
 
 async def smart_start(update, context) -> None:
     user = update.effective_user
+    message = update.effective_message
     arg = context.args[0].lower() if context.args else ""
 
-    if user and arg in {"verifyliveline", "liveline", "livelineverify"}:
-        await _prompt_mobile_verification(update, context)
+    if not user or not message:
         return
 
-    if user and arg == "stopreminders":
+    if arg == "stopreminders":
         reminders.set_opt_out("bot", user.id, True)
         reminders.set_opt_out("business_dm", user.id, True)
-        await update.effective_message.reply_text(
+        await message.reply_text(
             "🔕 <b>IBETIN reminders are OFF.</b>", parse_mode="HTML"
         )
         return
 
+    if arg in {"verify_business_dm", "business_verify"}:
+        await _prompt_mobile_verification(update, context, "business_dm")
+        return
+
+    if arg in {"verifyliveline", "liveline", "livelineverify"}:
+        await _prompt_mobile_verification(update, context, "liveline")
+        return
+
+    # Fantzo-style global onboarding gate: first IBETIN entry requires a
+    # Telegram self-contact verification. Once verified, all IBETIN features
+    # including Live Line reuse the same record and do not ask again.
+    if not phone_verify.is_verified(user.id):
+        try:
+            app.core.touch_user(update)
+            app.core.track(user.id, "mobile_verify:bot_start")
+        except Exception:
+            logger.exception("Could not track IBETIN bot-start verification")
+        await _prompt_mobile_verification(update, context, "bot_start")
+        return
+
     await app.show_home(update, context)
-    await update.effective_message.reply_text(
+    await message.reply_text(
         "⚡ <b>Mini App quick access enabled</b>\n\n"
-        "Use the button below anytime. Every IBETIN navigation button now stays inside Telegram.",
+        "Use the button below anytime. Your Telegram mobile is already verified.",
         parse_mode="HTML",
         reply_markup=app.QUICK_MENU,
     )
@@ -779,7 +914,15 @@ async def configure_telegram_ui(application) -> None:
         MessageHandler(
             filters.UpdateType.MESSAGE & filters.CONTACT,
             mobile_contact_handler,
-        )
+        ),
+        group=-10,
+    )
+    application.add_handler(
+        MessageHandler(
+            filters.UpdateType.MESSAGE & filters.TEXT & ~filters.COMMAND,
+            pending_verification_text_handler,
+        ),
+        group=-10,
     )
     application.add_handler(
         MessageHandler(

@@ -516,34 +516,22 @@ async def business_auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     if customer_id and not phone_verify.is_verified(customer_id):
         verify_text = message.text or ""
-        if not _should_suppress_business_reply(
+        await _reply_with_retry(message, VERIFY_REPLY, verification_keyboard())
+        _mark_business_reply(
             connection_id,
             customer_id,
             "verification",
             verify_text,
-        ):
-            await _reply_with_retry(message, VERIFY_REPLY, verification_keyboard())
-            _mark_business_reply(
-                connection_id,
-                customer_id,
-                "verification",
-                verify_text,
-            )
-            try:
-                core.track(customer_id, "business_dm:verify_required")
-            except Exception:
-                logger.exception("Could not track IBETIN Business verification requirement")
-            logger.info(
-                "IBETIN Business DM verification required: connection=%s customer=%s",
-                connection_id,
-                customer_id,
-            )
-        else:
-            logger.info(
-                "IBETIN Business DM blocked pending verification: connection=%s customer=%s",
-                connection_id,
-                customer_id,
-            )
+        )
+        try:
+            core.track(customer_id, "business_dm:verify_required")
+        except Exception:
+            logger.exception("Could not track IBETIN Business verification requirement")
+        logger.info(
+            "IBETIN Business DM verification alert sent: connection=%s customer=%s",
+            connection_id,
+            customer_id,
+        )
         return
 
     if customer_id and connection_id:

@@ -568,7 +568,7 @@ async def _notify_verified_lead(context, user, phone: str, source: str, campaign
     first_name = str(getattr(user, "first_name", "") or "—")
     try:
         await context.bot.send_message(
-            chat_id=int(app.core.ADMIN_USER_ID),
+            chat_id=ibetin_reports.notification_admin_user_id(),
             text=(
                 "🆕 <b>NEW VERIFIED IBETIN LEAD</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
@@ -733,6 +733,27 @@ async def verified_fixed_reply_handler(update, context) -> None:
 
     text = message.text.strip()
     if not text or text in {"▶️ START", "⚡ IBETIN Menu"}:
+        return
+
+    normalized = " ".join(text.casefold().split())
+    if normalized in {
+        "stop",
+        "unsubscribe",
+        "do not contact",
+        "dont contact",
+        "don't contact",
+        "no calls",
+        "no whatsapp",
+    }:
+        ibetin_leads.set_status(user.id, "dnc")
+        reminders.set_opt_out("bot", user.id, True)
+        reminders.set_opt_out("business_dm", user.id, True)
+        await message.reply_text(
+            "✅ <b>Contact preference updated.</b>\n\n"
+            "We will stop promotional follow-up to this Telegram lead. "
+            "You can still use IBETIN and official support anytime.",
+            parse_mode="HTML",
+        )
         return
 
     category, reply, markup = fantzo_business.classify_business_dm(text, user.id)

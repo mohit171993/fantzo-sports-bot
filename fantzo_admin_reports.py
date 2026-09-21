@@ -108,7 +108,10 @@ def _report_menu() -> InlineKeyboardMarkup:
                 _styled_button("🔔 REMINDERS", "rpt:reminders", "primary"),
                 _styled_button("⭐ FAVOURITES", "rpt:favourites", "primary"),
             ],
-            [_styled_button("🎯 LEAD FUNNEL", "rpt:leads", "success")],
+            [
+                _styled_button("🎯 LEAD FUNNEL", "rpt:leads", "success"),
+                _styled_button("💼 CRM", "crm:home", "success"),
+            ],
             [_styled_button("📱 VERIFIED NUMBERS", "rpt:mobile", "success")],
             [
                 _styled_button("📅 DAILY", "rpt:daily", "primary"),
@@ -399,6 +402,256 @@ def _lead_funnel_text() -> str:
         "• <code>/adlink cricket_01</code>\n\n"
         "<i>Use a different ?start=ad_... code for each paid campaign.</i>"
     )
+
+
+def _crm_status_label(status: str) -> str:
+    labels = {
+        "NEW": "🆕 NEW",
+        "CONTACTED": "☎️ CONTACTED",
+        "NO_ANSWER": "📵 NO ANSWER",
+        "INTERESTED": "⭐ INTERESTED",
+        "CONVERTED": "✅ CONVERTED",
+        "NOT_INTERESTED": "➖ NOT INTERESTED",
+        "DO_NOT_CONTACT": "🚫 DO NOT CONTACT",
+    }
+    return labels.get(str(status or ""), str(status or "UNKNOWN"))
+
+
+def _crm_home_text() -> str:
+    with core.db() as conn:
+        if not _table_exists(conn, "sales_leads"):
+            return "💼 <b>FANTZO CRM</b>\n\nNo lead data is available yet."
+
+        total = _scalar(conn, "SELECT COUNT(*) FROM sales_leads")
+        new = _scalar(conn, "SELECT COUNT(*) FROM sales_leads WHERE status='NEW'")
+        contacted = _scalar(conn, "SELECT COUNT(*) FROM sales_leads WHERE status='CONTACTED'")
+        no_answer = _scalar(conn, "SELECT COUNT(*) FROM sales_leads WHERE status='NO_ANSWER'")
+        interested = _scalar(conn, "SELECT COUNT(*) FROM sales_leads WHERE status='INTERESTED'")
+        converted = _scalar(conn, "SELECT COUNT(*) FROM sales_leads WHERE status='CONVERTED'")
+        not_interested = _scalar(conn, "SELECT COUNT(*) FROM sales_leads WHERE status='NOT_INTERESTED'")
+        dnc = _scalar(conn, "SELECT COUNT(*) FROM sales_leads WHERE status='DO_NOT_CONTACT'")
+
+    conversion = (float(converted) / float(total) * 100.0) if total else 0.0
+
+    return (
+        "💼 <b>FANTZO CRM</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
+        f"Total leads: <b>{_fmt_int(total)}</b>\n"
+        f"🆕 New: <b>{_fmt_int(new)}</b>\n"
+        f"☎️ Contacted: <b>{_fmt_int(contacted)}</b>\n"
+        f"📵 No answer: <b>{_fmt_int(no_answer)}</b>\n"
+        f"⭐ Interested: <b>{_fmt_int(interested)}</b>\n"
+        f"✅ Converted: <b>{_fmt_int(converted)}</b>\n"
+        f"➖ Not interested: <b>{_fmt_int(not_interested)}</b>\n"
+        f"🚫 Do not contact: <b>{_fmt_int(dnc)}</b>\n\n"
+        f"Lead conversion: <b>{conversion:.1f}%</b>\n\n"
+        "Tap a status to open that lead queue."
+    )
+
+
+def _crm_home_menu() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [
+            _styled_button("🆕 NEW", "crm:list:NEW", "primary"),
+            _styled_button("☎️ CONTACTED", "crm:list:CONTACTED", "primary"),
+        ],
+        [
+            _styled_button("📵 NO ANSWER", "crm:list:NO_ANSWER", "primary"),
+            _styled_button("⭐ INTERESTED", "crm:list:INTERESTED", "success"),
+        ],
+        [
+            _styled_button("✅ CONVERTED", "crm:list:CONVERTED", "success"),
+            InlineKeyboardButton("➖ NOT INTERESTED", callback_data="crm:list:NOT_INTERESTED"),
+        ],
+        [InlineKeyboardButton("🚫 DO NOT CONTACT", callback_data="crm:list:DO_NOT_CONTACT")],
+        [_styled_button("📋 ALL LEADS", "crm:list:ALL", "primary")],
+        [InlineKeyboardButton("⬅️ REPORTS", callback_data="rpt:home")],
+    ])
+
+
+def _crm_list(status: str):
+    status = str(status or "ALL").upper()
+    with core.db() as conn:
+        if not _table_exists(conn, "sales_leads"):
+            return [], 0
+        if status == "ALL":
+            rows = _rows(
+                conn,
+                """
+                SELECT s.primary_user_id,s.mobile_e164,s.campaign,s.status,
+                       s.assigned_agent,s.updated_at,u.username,u.first_name
+                FROM sales_leads s
+                LEFT JOIN users u ON u.user_id=s.primary_user_id
+                ORDER BY s.updated_at DESC
+                LIMIT 12
+                """
+            )
+            total = _scalar(conn, "SELECT COUNT(*) FROM sales_leads")
+        else:
+            rows = _rows(
+                conn,
+                """
+                SELECT s.primary_user_id,s.mobile_e164,s.campaign,s.status,
+                       s.assigned_agent,s.updated_at,u.username,u.first_name
+                FROM sales_leads s
+                LEFT JOIN users u ON u.user_id=s.primary_user_id
+                WHERE s.status=?
+                ORDER BY s.updated_at DESC
+                LIMIT 12
+                """,
+                (status,),
+            )
+            total = _scalar(conn, "SELECT COUNT(*) FROM sales_leads WHERE status=?", (status,))
+    return rows, int(total)
+
+
+def _crm_list_text(status: str) -> tuple[str, InlineKeyboardMarkup]:
+    rows, total = _crm_list(status)
+    label = "ALL LEADS" if status == "ALL" else _crm_status_label(status)
+
+    lines = [
+        f"💼 <b>CRM · {escape(label)}</b>",
+        "━━━━━━━━━━━━━━━━━━",
+        "",
+        f"Leads in queue: <b>{_fmt_int(total)}</b>",
+        "",
+    ]
+
+    buttons = []
+    if rows:
+        for idx, row in enumerate(rows, start=1):
+            username = str(row["username"] or "").strip()
+            name = str(row["first_name"] or "").strip()
+            display = f"@{username}" if username else (name or f"User {row['primary_user_id']}")
+            mobile = _mask_mobile(row["mobile_e164"])
+            campaign = str(row["campaign"] or "direct")
+            lines.append(
+                f"{idx}. <b>{escape(display)}</b> · <code>{mobile}</code>\n"
+                f"   {escape(_crm_status_label(row['status']))} · <code>{escape(campaign)}</code>"
+            )
+            buttons.append([
+                InlineKeyboardButton(
+                    f"{idx}. {display[:24]}",
+                    callback_data=f"crm:lead:{int(row['primary_user_id'])}",
+                )
+            ])
+    else:
+        lines.append("No leads in this queue.")
+
+    if total > len(rows):
+        lines.extend(["", f"<i>Showing latest {len(rows)} of {total} leads.</i>"])
+
+    buttons.append([InlineKeyboardButton("⬅️ CRM", callback_data="crm:home")])
+    return "\n".join(lines), InlineKeyboardMarkup(buttons)
+
+
+def _crm_lead(user_id: int):
+    with core.db() as conn:
+        if not _table_exists(conn, "sales_leads"):
+            return None
+        return _one(
+            conn,
+            """
+            SELECT s.*,u.username,u.first_name,
+                   a.first_start_arg,a.last_start_arg
+            FROM sales_leads s
+            LEFT JOIN users u ON u.user_id=s.primary_user_id
+            LEFT JOIN lead_attribution a ON a.user_id=s.primary_user_id
+            WHERE s.primary_user_id=?
+            LIMIT 1
+            """,
+            (int(user_id),),
+        )
+
+
+def _crm_lead_text(user_id: int) -> tuple[str, InlineKeyboardMarkup]:
+    row = _crm_lead(user_id)
+    if not row:
+        return (
+            "💼 <b>FANTZO CRM</b>\n\nLead not found.",
+            InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ CRM", callback_data="crm:home")]]),
+        )
+
+    username = str(row["username"] or "").strip()
+    name = str(row["first_name"] or "").strip()
+    agent = str(row["assigned_agent"] or "").strip() or "—"
+    notes = str(row["notes"] or "").strip() or "—"
+    campaign = str(row["campaign"] or "direct")
+
+    text = (
+        "💼 <b>FANTZO CRM · LEAD</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
+        f"Mobile: <code>{escape(str(row['mobile_e164']))}</code>\n"
+        f"Telegram: {('@' + escape(username)) if username else '—'}\n"
+        f"Name: {escape(name or '—')}\n"
+        f"User ID: <code>{int(row['primary_user_id'])}</code>\n"
+        f"Campaign: <code>{escape(campaign)}</code>\n"
+        f"Status: <b>{escape(_crm_status_label(row['status']))}</b>\n"
+        f"Agent: {escape(agent)}\n"
+        f"Created: {_fmt_dt(row['created_at'])}\n"
+        f"Updated: {_fmt_dt(row['updated_at'])}\n"
+        f"Last contact: {_fmt_dt(row['last_contact_at'])}\n"
+        f"Notes: {escape(notes[:500])}\n\n"
+        "<i>Use /leadassign or /leadnote for agent and notes.</i>"
+    )
+
+    uid = int(row["primary_user_id"])
+    buttons = InlineKeyboardMarkup([
+        [
+            _styled_button("☎️ CONTACTED", f"crm:set:{uid}:CONTACTED", "primary"),
+            _styled_button("📵 NO ANSWER", f"crm:set:{uid}:NO_ANSWER", "primary"),
+        ],
+        [
+            _styled_button("⭐ INTERESTED", f"crm:set:{uid}:INTERESTED", "success"),
+            _styled_button("✅ CONVERTED", f"crm:set:{uid}:CONVERTED", "success"),
+        ],
+        [
+            InlineKeyboardButton("➖ NOT INTERESTED", callback_data=f"crm:set:{uid}:NOT_INTERESTED"),
+        ],
+        [
+            InlineKeyboardButton("🚫 DO NOT CONTACT", callback_data=f"crm:set:{uid}:DO_NOT_CONTACT"),
+        ],
+        [InlineKeyboardButton("🆕 RESET TO NEW", callback_data=f"crm:set:{uid}:NEW")],
+        [InlineKeyboardButton("⬅️ CRM", callback_data="crm:home")],
+    ])
+    return text, buttons
+
+
+def _crm_set_status(user_id: int, status: str) -> bool:
+    allowed = {
+        "NEW", "CONTACTED", "NO_ANSWER", "INTERESTED",
+        "CONVERTED", "NOT_INTERESTED", "DO_NOT_CONTACT",
+    }
+    status = str(status or "").upper()
+    if status not in allowed:
+        return False
+
+    now = datetime.now(timezone.utc).isoformat()
+    with core.db() as conn:
+        row = conn.execute(
+            "SELECT mobile_e164 FROM sales_leads WHERE primary_user_id=? LIMIT 1",
+            (int(user_id),),
+        ).fetchone()
+        if not row:
+            return False
+
+        conn.execute(
+            """
+            UPDATE sales_leads
+            SET status=?,
+                updated_at=?,
+                last_contact_at=CASE
+                    WHEN ? IN ('CONTACTED','NO_ANSWER','INTERESTED','CONVERTED','NOT_INTERESTED','DO_NOT_CONTACT')
+                    THEN ? ELSE last_contact_at END,
+                converted_at=CASE
+                    WHEN ?='CONVERTED' THEN COALESCE(converted_at, ?)
+                    WHEN ?!='CONVERTED' THEN NULL
+                    ELSE converted_at END
+            WHERE primary_user_id=?
+            """,
+            (status, now, status, now, status, now, status, int(user_id)),
+        )
+    return True
 
 def _mask_mobile(value: str) -> str:
     text = str(value or "")
@@ -881,11 +1134,56 @@ async def _handle_report_callback(update, context) -> bool:
     if not query:
         return False
     data = str(query.data or "")
-    if not (data.startswith(REPORT_PREFIX) or data.startswith(DOWNLOAD_PREFIX)):
+    if not (
+        data.startswith(REPORT_PREFIX)
+        or data.startswith(DOWNLOAD_PREFIX)
+        or data.startswith("crm:")
+    ):
         return False
 
     if not _is_admin(update):
         await query.answer("Restricted to Fantzo admin.", show_alert=True)
+        return True
+
+    if data.startswith("crm:"):
+        parts = data.split(":")
+        action = parts[1] if len(parts) > 1 else "home"
+
+        if action == "home":
+            await query.answer()
+            await _show(query, _crm_home_text(), _crm_home_menu())
+            return True
+
+        if action == "list":
+            status = parts[2] if len(parts) > 2 else "ALL"
+            await query.answer()
+            text, markup = _crm_list_text(status)
+            await _show(query, text, markup)
+            return True
+
+        if action == "lead":
+            if len(parts) < 3 or not parts[2].isdigit():
+                await query.answer("Lead not found.", show_alert=True)
+                return True
+            await query.answer()
+            text, markup = _crm_lead_text(int(parts[2]))
+            await _show(query, text, markup)
+            return True
+
+        if action == "set":
+            if len(parts) < 4 or not parts[2].isdigit():
+                await query.answer("Invalid CRM action.", show_alert=True)
+                return True
+            ok = _crm_set_status(int(parts[2]), parts[3])
+            if not ok:
+                await query.answer("Could not update lead.", show_alert=True)
+                return True
+            await query.answer("Lead status updated ✅")
+            text, markup = _crm_lead_text(int(parts[2]))
+            await _show(query, text, markup)
+            return True
+
+        await query.answer("Unknown CRM action.", show_alert=True)
         return True
 
     if data.startswith(DOWNLOAD_PREFIX):

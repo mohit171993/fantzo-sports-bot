@@ -464,6 +464,17 @@ async def smart_show_home(update, context) -> None:
 app.show_home = smart_show_home
 
 
+def _verification_reply_keyboard() -> ReplyKeyboardMarkup:
+    """Keep the contact-verification button visible until verification succeeds."""
+    return ReplyKeyboardMarkup(
+        [[KeyboardButton("📱 VERIFY & CONTINUE", request_contact=True)]],
+        resize_keyboard=True,
+        one_time_keyboard=False,
+        is_persistent=True,
+        input_field_placeholder="Tap VERIFY & CONTINUE",
+    )
+
+
 async def _prompt_mobile_verification(update, context, source: str = "bot_start") -> None:
     user = update.effective_user
     message = update.effective_message
@@ -531,12 +542,7 @@ async def _prompt_mobile_verification(update, context, source: str = "bot_start"
         "Numbers from <b>any country</b> are accepted. "
         "Typed numbers are not accepted.",
         parse_mode="HTML",
-        reply_markup=ReplyKeyboardMarkup(
-            [[KeyboardButton("📱 VERIFY & CONTINUE", request_contact=True)]],
-            resize_keyboard=True,
-            one_time_keyboard=True,
-            input_field_placeholder="Tap VERIFY & CONTINUE",
-        ),
+        reply_markup=_verification_reply_keyboard(),
     )
 
 
@@ -559,11 +565,7 @@ async def mobile_contact_handler(update, context) -> None:
             "Please tap <b>📱 VERIFY & CONTINUE</b> and share the mobile number "
             "linked to your own Telegram account.",
             parse_mode="HTML",
-            reply_markup=ReplyKeyboardMarkup(
-                [[KeyboardButton("📱 VERIFY & CONTINUE", request_contact=True)]],
-                resize_keyboard=True,
-                one_time_keyboard=True,
-            ),
+            reply_markup=_verification_reply_keyboard(),
         )
         return
 
@@ -588,6 +590,8 @@ async def mobile_contact_handler(update, context) -> None:
 
     try:
         app.core.touch_user(update)
+        if source != "business_dm":
+            reminders.touch_user("bot", user.id, "general")
         app.core.track(user.id, f"mobile_verified:{source}")
     except Exception:
         logger.exception("Could not track IBETIN mobile verification")
@@ -650,11 +654,7 @@ async def pending_verification_text_handler(update, context) -> None:
         "Typed mobile numbers cannot verify your account. "
         "Please tap <b>📱 VERIFY & CONTINUE</b> below.",
         parse_mode="HTML",
-        reply_markup=ReplyKeyboardMarkup(
-            [[KeyboardButton("📱 VERIFY & CONTINUE", request_contact=True)]],
-            resize_keyboard=True,
-            one_time_keyboard=True,
-        ),
+        reply_markup=_verification_reply_keyboard(),
     )
     raise ApplicationHandlerStop
 
@@ -701,6 +701,7 @@ async def smart_start(update, context) -> None:
     if not phone_verify.is_verified(user.id):
         try:
             app.core.touch_user(update)
+            reminders.touch_user("bot", user.id, "verification")
             app.core.track(user.id, "mobile_verify:bot_start")
         except Exception:
             logger.exception("Could not track IBETIN bot-start verification")

@@ -48,6 +48,7 @@ def ensure_tables() -> None:
                 first_seen_at TEXT NOT NULL,
                 last_seen_at TEXT NOT NULL,
                 verified_at TEXT,
+                mobile_number TEXT,
                 contact_consent INTEGER NOT NULL DEFAULT 0,
                 lead_status TEXT NOT NULL DEFAULT 'new',
                 contacted_at TEXT,
@@ -79,6 +80,7 @@ def ensure_tables() -> None:
             for row in conn.execute("PRAGMA table_info(ibetin_leads)").fetchall()
         }
         migrations = (
+            ("mobile_number", "TEXT"),
             ("assigned_to", "INTEGER"),
             ("assigned_name", "TEXT"),
             ("next_followup_at", "TEXT"),
@@ -193,7 +195,7 @@ def ensure_tables() -> None:
             )
             rows = conn.execute(
                 f"""
-                SELECT user_id, {verified_col} verified_at,
+                SELECT user_id, phone_number, {verified_col} verified_at,
                        {source_expr} source, {campaign_expr} campaign,
                        {consent_expr} contact_consent
                 FROM liveline_verified_users
@@ -208,9 +210,10 @@ def ensure_tables() -> None:
                     """
                     INSERT OR IGNORE INTO ibetin_leads(
                         user_id, campaign, source, first_seen_at, last_seen_at,
-                        verified_at, contact_consent, lead_status, updated_at
+                        verified_at, mobile_number, contact_consent,
+                        lead_status, updated_at
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, 'new', ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', ?)
                     """,
                     (
                         uid,
@@ -219,6 +222,7 @@ def ensure_tables() -> None:
                         verified_at,
                         verified_at,
                         verified_at,
+                        str(row["phone_number"] or ""),
                         int(row["contact_consent"] or 0),
                         verified_at,
                     ),
@@ -227,6 +231,10 @@ def ensure_tables() -> None:
                     """
                     UPDATE ibetin_leads
                     SET verified_at=COALESCE(verified_at, ?),
+                        mobile_number=CASE
+                            WHEN COALESCE(mobile_number,'')='' THEN ?
+                            ELSE mobile_number
+                        END,
                         contact_consent=CASE
                             WHEN contact_consent=1 THEN 1 ELSE ?
                         END,
@@ -237,6 +245,7 @@ def ensure_tables() -> None:
                     """,
                     (
                         verified_at,
+                        str(row["phone_number"] or ""),
                         int(row["contact_consent"] or 0),
                         verified_at,
                         verified_at,
@@ -313,6 +322,7 @@ def mark_verified(
     source: str = "",
     campaign: str = "",
     contact_consent: bool = True,
+    mobile_number: str = "",
 ) -> None:
     if not user_id:
         return
@@ -329,6 +339,10 @@ def mark_verified(
             """
             UPDATE ibetin_leads
             SET verified_at=COALESCE(verified_at, ?),
+                mobile_number=CASE
+                    WHEN ? != '' THEN ?
+                    ELSE mobile_number
+                END,
                 contact_consent=?,
                 source=CASE WHEN ? != '' THEN ? ELSE source END,
                 campaign=CASE WHEN ? != '' THEN ? ELSE campaign END,
@@ -337,6 +351,8 @@ def mark_verified(
             """,
             (
                 now,
+                str(mobile_number or "").strip(),
+                str(mobile_number or "").strip(),
                 1 if contact_consent else 0,
                 clean_source(source) if source else "",
                 clean_source(source) if source else "",
@@ -603,6 +619,13 @@ def search_leads(term: str, limit: int = 10):
 
         conditions = ["CAST(l.user_id AS TEXT) LIKE ?"]
         params = [f"%{raw}%"]
+
+        if digits:
+            conditions.append(
+                "replace(replace(replace(replace(replace("
+                "COALESCE(l.mobile_number,''),'+',''),' ',''),'-',''),'(',''),')','') LIKE ?"
+            )
+            params.append(f"%{digits}%")
 
         if "users" in tables:
             conditions.append(

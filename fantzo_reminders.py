@@ -228,7 +228,15 @@ def _due_stage(row, now_utc: datetime):
     elapsed = now_utc - last_activity
     stage = int(row["reminder_stage"] or 0)
 
-    if row["source"] == "business_dm":
+    verified = _is_mobile_verified(int(row["user_id"]))
+
+    if not verified and row["source"] == "business_dm":
+        thresholds = [timedelta(hours=6), timedelta(hours=24), timedelta(hours=72)]
+    elif not verified:
+        # Paid-ad intent is freshest soon after the click. Follow up once after
+        # one hour, then again at 24h and 72h if verification is still pending.
+        thresholds = [timedelta(hours=1), timedelta(hours=24), timedelta(hours=72)]
+    elif row["source"] == "business_dm":
         thresholds = [timedelta(hours=6), timedelta(hours=24), timedelta(hours=72)]
     else:
         thresholds = [timedelta(hours=24), timedelta(days=3), timedelta(days=7)]

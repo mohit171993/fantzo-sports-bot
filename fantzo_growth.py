@@ -67,6 +67,33 @@ def growth_stats():
         active_24h = int(conn.execute("SELECT COUNT(DISTINCT user_id) c FROM growth_events WHERE created_at>=? AND user_id IS NOT NULL", (day,)).fetchone()['c'])
         active_7d = int(conn.execute("SELECT COUNT(DISTINCT user_id) c FROM growth_events WHERE created_at>=? AND user_id IS NOT NULL", (week,)).fetchone()['c'])
         favourites = int(conn.execute("SELECT COUNT(*) c FROM user_favourites WHERE alerts_enabled=1").fetchone()['c'])
+        lead_tables = bool(conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='sales_leads' LIMIT 1"
+        ).fetchone())
+        if lead_tables:
+            new_leads_24h = int(conn.execute(
+                "SELECT COUNT(*) c FROM sales_leads WHERE created_at>=?",
+                (day,),
+            ).fetchone()['c'])
+            converted_24h = int(conn.execute(
+                "SELECT COUNT(*) c FROM sales_leads WHERE converted_at IS NOT NULL AND converted_at>=?",
+                (day,),
+            ).fetchone()['c'])
+        else:
+            new_leads_24h = 0
+            converted_24h = 0
+
+        attribution_table = bool(conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='lead_attribution' LIMIT 1"
+        ).fetchone())
+        if attribution_table:
+            ad_starts_24h = int(conn.execute(
+                "SELECT COUNT(DISTINCT user_id) c FROM lead_attribution "
+                "WHERE campaign LIKE 'ad_%' AND first_seen_at>=?",
+                (day,),
+            ).fetchone()['c'])
+        else:
+            ad_starts_24h = 0
     return {
         'active_24h': active_24h,
         'active_7d': active_7d,
@@ -75,6 +102,9 @@ def growth_stats():
         'signup_started_24h': count('signup_started', day),
         'signup_completed_24h': count('signup_completed', day),
         'favourites': favourites,
+        'ad_starts_24h': ad_starts_24h,
+        'new_leads_24h': new_leads_24h,
+        'converted_24h': converted_24h,
     }
 
 
@@ -86,6 +116,9 @@ async def send_growth_report(application):
         f"👥 Active users (24h): <b>{s['active_24h']}</b>\n"
         f"📅 Active users (7d): <b>{s['active_7d']}</b>\n"
         f"🚀 Bot opens (24h): <b>{s['bot_opens_24h']}</b>\n"
+        f"📣 Telegram Ad starts (24h): <b>{s['ad_starts_24h']}</b>\n"
+        f"🔥 New verified leads (24h): <b>{s['new_leads_24h']}</b>\n"
+        f"✅ Lead conversions (24h): <b>{s['converted_24h']}</b>\n"
         f"📺 Live TV opens (24h): <b>{s['live_tv_24h']}</b>\n"
         f"📝 Signup started (24h): <b>{s['signup_started_24h']}</b>\n"
         f"✅ Signup completed (24h): <b>{s['signup_completed_24h']}</b>\n"

@@ -49,8 +49,8 @@ WELCOME_REPLY = (
 VERIFY_REPLY = (
     "👋 <b>Welcome to IBETIN</b>\n\n"
     "Before continuing, verify the mobile number linked to your Telegram account.\n\n"
-    "Tap <b>📱 VERIFY MOBILE</b> below. You only need to verify once — "
-    "the same verification is reused for Live Line."
+    "Tap <b>📱 VERIFY & CONTINUE</b> below. You only need to verify once — "
+    "the same verification is reused everywhere in IBETIN, including Live Line."
 )
 
 
@@ -82,7 +82,7 @@ def verification_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [[
             TelegramInlineKeyboardButton(
-                "📱 VERIFY MOBILE",
+                "📱 VERIFY & CONTINUE",
                 url=phone_verify.verification_bot_url("verify_business_dm"),
             )
         ]]
@@ -513,7 +513,6 @@ async def business_auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE
     customer_id = message.from_user.id if message.from_user else 0
     if customer_id and connection_id and message.from_user:
         _save_business_customer(connection_id, message.from_user)
-        _touch_business_reminder(customer_id, connection_id, "general")
 
     if customer_id and not phone_verify.is_verified(customer_id):
         verify_text = message.text or ""
@@ -539,7 +538,16 @@ async def business_auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE
                 connection_id,
                 customer_id,
             )
+        else:
+            logger.info(
+                "IBETIN Business DM blocked pending verification: connection=%s customer=%s",
+                connection_id,
+                customer_id,
+            )
         return
+
+    if customer_id and connection_id:
+        _touch_business_reminder(customer_id, connection_id, "general")
 
     if customer_id and connection_id and not _has_been_welcomed(connection_id, customer_id):
         await _reply_with_retry(message, WELCOME_REPLY, business_keyboard(customer_id))

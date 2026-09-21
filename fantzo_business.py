@@ -8,7 +8,7 @@ from urllib.parse import quote
 from telegram import InlineKeyboardButton as TelegramInlineKeyboardButton
 from telegram import InlineKeyboardMarkup, Update
 from telegram.error import BadRequest, RetryAfter
-from telegram.ext import ContextTypes
+from telegram.ext import ApplicationHandlerStop, ContextTypes
 
 import bot as core
 import fantzo_autoreply
@@ -494,6 +494,55 @@ async def _reply_with_retry(message, reply: str, markup=None) -> None:
                 attempt + 2,
             )
             await asyncio.sleep(delay)
+
+
+async def business_verification_guard(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    """Hard gate that runs before every normal IBETIN Business-DM handler."""
+    message = update.business_message
+    if not message:
+        return
+    if not fantzo_autoreply.is_enabled():
+        return
+    if message.sender_business_bot:
+        return
+
+    connection_id = message.business_connection_id or ""
+    owner_id = _owner_user_id(connection_id)
+    if owner_id and message.from_user and message.from_user.id == owner_id:
+        return
+
+    customer_id = message.from_user.id if message.from_user else 0
+    if not customer_id:
+        return
+
+    if connection_id and message.from_user:
+        _save_business_customer(connection_id, message.from_user)
+
+    if phone_verify.is_verified(customer_id):
+        return
+
+    await _reply_with_retry(message, VERIFY_REPLY, verification_keyboard())
+    _mark_business_reply(
+        connection_id,
+        customer_id,
+        "verification",
+        message.text or "",
+    )
+    try:
+        core.track(customer_id, "business_dm:verify_required")
+    except Exception:
+        logger.exception("Could not track IBETIN Business verification requirement")
+
+    logger.info(
+        "IBETIN Business verification guard sent alert and stopped update: "
+        "connection=%s customer=%s",
+        connection_id,
+        customer_id,
+    )
+    raise ApplicationHandlerStop
 
 
 async def business_auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

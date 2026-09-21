@@ -307,6 +307,13 @@ def run() -> None:
     app.add_handler(
         MessageHandler(
             filters.UpdateType.BUSINESS_MESSAGE,
+            fantzo_business.business_verification_guard,
+        ),
+        group=-20,
+    )
+    app.add_handler(
+        MessageHandler(
+            filters.UpdateType.BUSINESS_MESSAGE,
             fantzo_business.business_auto_reply,
         )
     )

@@ -253,10 +253,12 @@ def _lead_view(user_id: int):
         return None
     lead = dict(row)
     username, first_name = _identity(uid, users, business)
-    phone = (phones.get(uid) or {}).get("phone_number") or ""
+    current_phone = (phones.get(uid) or {}).get("phone_number") or ""
+    phone = str(lead.get("mobile_number") or current_phone or "")
     lead["username"] = username
     lead["first_name"] = first_name
     lead["phone_number"] = phone
+    lead["is_currently_verified"] = uid in phones
     return lead
 
 
@@ -351,7 +353,7 @@ def _lead_card_text(lead: dict) -> str:
     assigned = escape(str(lead.get("assigned_name") or "UNASSIGNED"))
     first_seen = escape(_fmt_admin_time(str(lead.get("first_seen_at") or "")))
     verified_raw = str(lead.get("verified_at") or "")
-    verified = bool(verified_raw)
+    verified = bool(lead.get("is_currently_verified"))
     followup = _fmt_admin_time(str(lead.get("next_followup_at") or ""))
     note = escape(str(lead.get("last_note") or "")[:180])
     consent = bool(int(lead.get("contact_consent") or 0))
@@ -429,19 +431,27 @@ def _crm_text() -> str:
         unassigned_verified = _count(
             conn,
             """
-            SELECT COUNT(*) FROM ibetin_leads
-            WHERE lead_status='new'
-              AND assigned_to IS NULL
-              AND verified_at IS NOT NULL
+            SELECT COUNT(*)
+            FROM ibetin_leads l
+            WHERE l.lead_status='new'
+              AND l.assigned_to IS NULL
+              AND EXISTS (
+                  SELECT 1 FROM liveline_verified_users v
+                  WHERE v.user_id=l.user_id
+              )
             """,
         )
         unassigned_unverified = _count(
             conn,
             """
-            SELECT COUNT(*) FROM ibetin_leads
-            WHERE lead_status='new'
-              AND assigned_to IS NULL
-              AND verified_at IS NULL
+            SELECT COUNT(*)
+            FROM ibetin_leads l
+            WHERE l.lead_status='new'
+              AND l.assigned_to IS NULL
+              AND NOT EXISTS (
+                  SELECT 1 FROM liveline_verified_users v
+                  WHERE v.user_id=l.user_id
+              )
             """,
         )
         legacy = _count(
@@ -1074,8 +1084,12 @@ def _report_leads():
     for r in rows_db:
         uid = int(r["user_id"])
         username, first_name = _identity(uid, users, business)
-        phone = (phones.get(uid) or {}).get("phone_number") or ""
-        verified = bool(r["verified_at"])
+        phone = str(
+            r["mobile_number"]
+            or (phones.get(uid) or {}).get("phone_number")
+            or ""
+        )
+        verified = uid in phones
         consent = bool(int(r["contact_consent"] or 0))
         if verified and consent:
             consent_status = "Recorded"

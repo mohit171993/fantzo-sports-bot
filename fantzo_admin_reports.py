@@ -391,7 +391,13 @@ def _lead_funnel_text() -> str:
         f"✅ Converted: <b>{_fmt_int(converted)}</b>\n\n"
         f"<b>Lead statuses</b>\n{status_text}\n\n"
         f"<b>Campaigns</b>\n{campaign_text}\n\n"
-        "<i>Use ad URLs such as ?start=ad_cricket_01 so each paid campaign is attributed separately.</i>"
+        "<b>Admin lead controls</b>\n"
+        "• <code>/lead &lt;user_id | @username | mobile&gt;</code>\n"
+        "• <code>/leadstatus &lt;lead&gt; CONTACTED</code>\n"
+        "• <code>/leadassign &lt;lead&gt; Agent Name</code>\n"
+        "• <code>/leadnote &lt;lead&gt; note</code>\n"
+        "• <code>/adlink cricket_01</code>\n\n"
+        "<i>Use a different ?start=ad_... code for each paid campaign.</i>"
     )
 
 def _mask_mobile(value: str) -> str:

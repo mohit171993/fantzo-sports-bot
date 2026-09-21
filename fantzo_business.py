@@ -369,6 +369,47 @@ def classify_business_dm(text: str, customer_id: int = 0):
     if _contains(t, ["hi", "hello", "hey", "hii", "hola", "namaste"]):
         return "greeting", "👋 Hi! How can I help you?", None
 
+    if (
+        "live line" in t
+        or "liveline" in t
+        or "watch live line" in t
+        or "cricket line" in t
+    ):
+        return (
+            "liveline",
+            "🏏 <b>IBETIN Live Line</b>\n\nOpen IBETIN Live Line below.",
+            InlineKeyboardMarkup(
+                [[_button("🏏 WATCH IBETIN LIVE LINE", "liveline", customer_id)]]
+            ),
+        )
+
+    if _contains(
+        t,
+        [
+            "join",
+            "join ibetin",
+            "i want to join",
+            "want to join",
+            "play",
+            "play now",
+            "start",
+            "start playing",
+            "open ibetin",
+            "go to ibetin",
+            "signup",
+            "sign up",
+            "register",
+            "registration",
+        ],
+    ):
+        return (
+            "join",
+            "🚀 <b>Join IBETIN</b>\n\nOpen IBETIN below to continue.",
+            InlineKeyboardMarkup(
+                [[_button("🚀 JOIN IBETIN", "home", customer_id)]]
+            ),
+        )
+
     if _contains(t, ["cricket", "ipl", "t20", "odi", "test", "wicket", "football", "soccer", "goal", "match", "score", "sports"]):
         return (
             "sports",
@@ -404,7 +445,7 @@ def classify_business_dm(text: str, customer_id: int = 0):
             _payments_keyboard(),
         )
 
-    if _contains(t, ["login", "password", "otp", "account", "register", "registration", "signup", "sign up", "bonus", "offer", "promo", "promotion"]):
+    if _contains(t, ["login", "password", "otp", "account", "bonus", "offer", "promo", "promotion"]):
         return (
             "account",
             "👤 <b>Account Help</b>\n\nOpen IBETIN to continue. For account problems, use official support and never send passwords or OTPs here.",
@@ -427,8 +468,10 @@ def classify_business_dm(text: str, customer_id: int = 0):
 
     return (
         "general",
-        "🤖 <b>IBETIN Assistant</b>\n\nPlease tell me what you need help with — sports, Live Line, payments or support.",
-        None,
+        "🤖 <b>IBETIN Assistant</b>\n\n"
+        "I can help you open IBETIN, Live Line or the official channel. "
+        "Choose an option below.",
+        business_keyboard(customer_id),
     )
 
 

@@ -174,20 +174,14 @@ def _overview_text() -> str:
         favourites = _scalar(conn, "SELECT COUNT(*) FROM user_favourites WHERE alerts_enabled=1") if _table_exists(conn, "user_favourites") else 0
         queued_banners = _scalar(conn, "SELECT COUNT(*) FROM live_tv_banners WHERE status='queued'") if _table_exists(conn, "live_tv_banners") else 0
         mobile_users = _scalar(conn, "SELECT COUNT(*) FROM live_tv_mobile_users WHERE capture_method='telegram_contact'") if _table_exists(conn, "live_tv_mobile_users") else 0
-        business_verified = _scalar(
-            conn,
-            "SELECT COUNT(*) FROM live_tv_mobile_users "
-            "WHERE capture_method='telegram_contact' AND source='business_dm'"
-        ) if _table_exists(conn, "live_tv_mobile_users") else 0
-        if _table_exists(conn, "mobile_verification_events"):
+        business_verified = 0
+        if _table_exists(conn, "live_tv_mobile_users") and _table_exists(conn, "business_welcomes"):
             business_verified = _scalar(
                 conn,
-                "SELECT COUNT(*) FROM ("
-                "SELECT user_id FROM live_tv_mobile_users WHERE capture_method='telegram_contact' AND source='business_dm' "
-                "UNION "
-                "SELECT user_id FROM mobile_verification_events "
-                "WHERE source='business_dm' AND event IN ('verified','already_verified')"
-                ")"
+                "SELECT COUNT(DISTINCT w.customer_id) "
+                "FROM business_welcomes w "
+                "JOIN live_tv_mobile_users m ON m.user_id=w.customer_id "
+                "WHERE m.capture_method='telegram_contact'"
             )
 
     return (
@@ -331,38 +325,29 @@ def _mobile_text() -> str:
             "WHERE capture_method!='telegram_contact'"
         )
 
-        business_verified = _scalar(
+        welcomed = _scalar(
             conn,
-            "SELECT COUNT(*) FROM live_tv_mobile_users "
-            "WHERE capture_method='telegram_contact' AND source='business_dm'"
-        )
-        bot_verified = _scalar(
-            conn,
-            "SELECT COUNT(*) FROM live_tv_mobile_users "
-            "WHERE capture_method='telegram_contact' AND source!='business_dm'"
-        )
-        verify_opens = 0
+            "SELECT COUNT(DISTINCT customer_id) FROM business_welcomes"
+        ) if _table_exists(conn, "business_welcomes") else 0
 
-        if _table_exists(conn, "mobile_verification_events"):
+        business_verified = 0
+        if _table_exists(conn, "business_welcomes"):
             business_verified = _scalar(
                 conn,
-                "SELECT COUNT(*) FROM ("
-                "SELECT user_id FROM live_tv_mobile_users WHERE capture_method='telegram_contact' AND source='business_dm' "
-                "UNION "
-                "SELECT user_id FROM mobile_verification_events "
-                "WHERE source='business_dm' AND event IN ('verified','already_verified')"
-                ")"
+                "SELECT COUNT(DISTINCT w.customer_id) "
+                "FROM business_welcomes w "
+                "JOIN live_tv_mobile_users m ON m.user_id=w.customer_id "
+                "WHERE m.capture_method='telegram_contact'"
             )
+
+        bot_verified = max(int(verified) - int(business_verified), 0)
+        verify_opens = 0
+        if _table_exists(conn, "mobile_verification_events"):
             verify_opens = _scalar(
                 conn,
                 "SELECT COUNT(DISTINCT user_id) FROM mobile_verification_events "
                 "WHERE source='business_dm' AND event='verify_open'"
             )
-
-        welcomed = _scalar(
-            conn,
-            "SELECT COUNT(DISTINCT customer_id) FROM business_welcomes"
-        ) if _table_exists(conn, "business_welcomes") else 0
 
         sources = _rows(
             conn,
@@ -398,7 +383,7 @@ def _mobile_text() -> str:
         f"Total verified users: <b>{_fmt_int(verified)}</b>\n"
         f"Unique verified numbers: <b>{_fmt_int(unique_numbers)}</b>\n"
         f"New verifications: <b>{_fmt_int(count_24)}</b> (24h) · <b>{_fmt_int(count_7)}</b> (7d)\n\n"
-        f"🤖 Bot / Live TV source: <b>{_fmt_int(bot_verified)}</b>\n"
+        f"🤖 Bot/direct verified: <b>{_fmt_int(bot_verified)}</b>\n"
         f"💬 Business DM verified: <b>{_fmt_int(business_verified)}</b>\n"
         f"↗️ Business verify opens: <b>{_fmt_int(verify_opens)}</b>\n"
         f"👋 Business DM customers welcomed: <b>{_fmt_int(welcomed)}</b>\n"
@@ -445,23 +430,18 @@ def _business_text() -> str:
         welcomed = _scalar(conn, "SELECT COUNT(DISTINCT customer_id) FROM business_welcomes") if _table_exists(conn, "business_welcomes") else 0
         connections = _scalar(conn, "SELECT COUNT(*) FROM business_connections WHERE enabled=1") if _table_exists(conn, "business_connections") else 0
 
-        verified = _scalar(
-            conn,
-            "SELECT COUNT(*) FROM live_tv_mobile_users "
-            "WHERE capture_method='telegram_contact' AND source='business_dm'"
-        ) if _table_exists(conn, "live_tv_mobile_users") else 0
-        verify_opens = 0
-
-        if _table_exists(conn, "mobile_verification_events"):
+        verified = 0
+        if _table_exists(conn, "live_tv_mobile_users") and _table_exists(conn, "business_welcomes"):
             verified = _scalar(
                 conn,
-                "SELECT COUNT(*) FROM ("
-                "SELECT user_id FROM live_tv_mobile_users WHERE capture_method='telegram_contact' AND source='business_dm' "
-                "UNION "
-                "SELECT user_id FROM mobile_verification_events "
-                "WHERE source='business_dm' AND event IN ('verified','already_verified')"
-                ")"
+                "SELECT COUNT(DISTINCT w.customer_id) "
+                "FROM business_welcomes w "
+                "JOIN live_tv_mobile_users m ON m.user_id=w.customer_id "
+                "WHERE m.capture_method='telegram_contact'"
             )
+
+        verify_opens = 0
+        if _table_exists(conn, "mobile_verification_events"):
             verify_opens = _scalar(
                 conn,
                 "SELECT COUNT(DISTINCT user_id) FROM mobile_verification_events "

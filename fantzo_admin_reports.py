@@ -360,32 +360,42 @@ def _back_menu(download_key: str | None = None) -> InlineKeyboardMarkup:
 
 
 def _downloads_menu() -> InlineKeyboardMarkup:
+    """Keep the everyday sales exports simple; raw product data is advanced."""
     return InlineKeyboardMarkup(
         [
             [
-                InlineKeyboardButton("👥 Users CSV", callback_data="rptdl:users"),
-                InlineKeyboardButton("🎯 Engagement CSV", callback_data="rptdl:engagement"),
+                _styled_button("🎯 LEADS CSV", "rptdl:leads", "success"),
+                _styled_button("📱 VERIFIED CSV", "rptdl:mobile", "success"),
             ],
             [
-                InlineKeyboardButton("📺 Live TV CSV", callback_data="rptdl:livetv"),
-                InlineKeyboardButton("📱 Verified Numbers CSV", callback_data="rptdl:mobile"),
+                InlineKeyboardButton("💬 BUSINESS CSV", callback_data="rptdl:business"),
+                InlineKeyboardButton("🔔 FOLLOW-UP CSV", callback_data="rptdl:reminders"),
             ],
-            [InlineKeyboardButton("🎯 Lead Funnel CSV", callback_data="rptdl:leads")],
-            [InlineKeyboardButton("🌐 Fantzo Opens CSV", callback_data="rptdl:web")],
-            [
-                InlineKeyboardButton("💬 Business CSV", callback_data="rptdl:business"),
-                InlineKeyboardButton("🔔 Reminders CSV", callback_data="rptdl:reminders"),
-            ],
-            [
-                InlineKeyboardButton("⭐ Favourites CSV", callback_data="rptdl:favourites"),
-                InlineKeyboardButton("📅 Daily CSV", callback_data="rptdl:daily"),
-            ],
-            [InlineKeyboardButton("🖼 Banners CSV", callback_data="rptdl:banners")],
-            [_styled_button("📦 COMPLETE ZIP", "rptdl:all", "success")],
+            [InlineKeyboardButton("📅 DAILY ACTIVITY CSV", callback_data="rptdl:daily")],
+            [_styled_button("📦 COMPLETE BACKUP EXPORT", "rptdl:all", "success")],
+            [InlineKeyboardButton("🧪 ADVANCED EXPORTS", callback_data="adm:advanced_exports")],
             [InlineKeyboardButton("⬅️ REPORTS", callback_data="rpt:home")],
             [InlineKeyboardButton("🏠 ADMIN HOME", callback_data="adm:home")],
         ]
     )
+
+
+def _advanced_downloads_menu() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("👥 Users CSV", callback_data="rptdl:users"),
+            InlineKeyboardButton("🎯 Engagement CSV", callback_data="rptdl:engagement"),
+        ],
+        [
+            InlineKeyboardButton("📺 Live TV CSV", callback_data="rptdl:livetv"),
+            InlineKeyboardButton("🌐 Fantzo Opens CSV", callback_data="rptdl:web"),
+        ],
+        [
+            InlineKeyboardButton("⭐ Favourites CSV", callback_data="rptdl:favourites"),
+            InlineKeyboardButton("🖼 Banners CSV", callback_data="rptdl:banners"),
+        ],
+        [InlineKeyboardButton("⬅️ EXPORTS", callback_data="rpt:downloads")],
+    ])
 
 
 def _overview_text() -> str:
@@ -1409,6 +1419,13 @@ async def _handle_report_callback(update, context) -> bool:
                 "These reports are useful for diagnostics and product analysis, "
                 "but they are not part of the team's daily lead workflow.",
                 _advanced_reports_menu(),
+            )
+        elif action == "advanced_exports":
+            await _show(
+                query,
+                "🧪 <b>ADVANCED EXPORTS</b>\n━━━━━━━━━━━━━━━━━━\n\n"
+                "Raw operational CSVs for analysis or troubleshooting.",
+                _advanced_downloads_menu(),
             )
         else:
             await query.answer("Unknown admin action.", show_alert=True)

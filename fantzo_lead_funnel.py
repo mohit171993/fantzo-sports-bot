@@ -116,6 +116,14 @@ def ensure_tables() -> None:
         )
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS lead_contact_opt_outs (
+                user_id INTEGER PRIMARY KEY,
+                opted_out_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS sales_leads (
                 mobile_e164 TEXT PRIMARY KEY,
                 primary_user_id INTEGER NOT NULL,
@@ -267,6 +275,10 @@ def on_verified(user_id: int, mobile_e164: str, source: str) -> bool:
     campaign = campaign_for_user(user_id)
 
     with core.db() as conn:
+        opted_out = bool(conn.execute(
+            "SELECT 1 FROM lead_contact_opt_outs WHERE user_id=? LIMIT 1",
+            (int(user_id),),
+        ).fetchone())
         conn.execute(
             """
             INSERT INTO lead_user_map(user_id,mobile_e164,linked_at)
@@ -295,25 +307,35 @@ def on_verified(user_id: int, mobile_e164: str, source: str) -> bool:
                 """
                 UPDATE sales_leads
                 SET campaign=?, updated_at=?,
-                    contact_permission_at=COALESCE(contact_permission_at, ?)
+                    contact_permission_at=COALESCE(contact_permission_at, ?),
+                    status=CASE WHEN ? THEN 'DO_NOT_CONTACT' ELSE status END
                 WHERE mobile_e164=?
                 """,
-                (chosen_campaign, now, now, str(mobile_e164)),
+                (chosen_campaign, now, now, 1 if opted_out else 0, str(mobile_e164)),
             )
         else:
+            initial_status = "DO_NOT_CONTACT" if opted_out else "NEW"
             conn.execute(
                 """
                 INSERT INTO sales_leads(
                     mobile_e164,primary_user_id,campaign,status,
                     assigned_agent,notes,contact_permission_at,
                     created_at,updated_at,last_contact_at,converted_at
-                ) VALUES(?,?,?,'NEW','','',?,?,?,NULL,NULL)
+                ) VALUES(?,?,?,?, '', '', ?, ?, ?, NULL, NULL)
                 """,
-                (str(mobile_e164), int(user_id), campaign, now, now, now),
+                (
+                    str(mobile_e164),
+                    int(user_id),
+                    campaign,
+                    initial_status,
+                    now,
+                    now,
+                    now,
+                ),
             )
 
     record_event(user_id, "verified_mobile", f"{source}|{campaign}")
-    return is_new_lead
+    return bool(is_new_lead and not opted_out)
 
 
 
@@ -514,6 +536,14 @@ def stop_user_contact(user_id: int) -> None:
         logger.exception("Could not opt user out of Fantzo reminders")
 
     with core.db() as conn:
+        conn.execute(
+            """
+            INSERT INTO lead_contact_opt_outs(user_id,opted_out_at)
+            VALUES(?,?)
+            ON CONFLICT(user_id) DO UPDATE SET opted_out_at=excluded.opted_out_at
+            """,
+            (int(user_id), now),
+        )
         mapped = conn.execute(
             "SELECT mobile_e164 FROM lead_user_map WHERE user_id=?",
             (int(user_id),),

@@ -3,7 +3,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import (\n    InlineKeyboardButton,\n    InlineKeyboardMarkup,\n    KeyboardButton,\n    ReplyKeyboardMarkup,\n)
 from telegram.error import BadRequest, Forbidden, RetryAfter
 
 import bot as core
@@ -128,6 +128,94 @@ def _parse_dt(value: str):
         return None
 
 
+def _is_mobile_verified(user_id: int) -> bool:
+    """Shared verification state used by bot, Business DM and Live TV."""
+    if not user_id:
+        return False
+    try:
+        with core.db() as conn:
+            table = conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' "
+                "AND name='live_tv_mobile_users' LIMIT 1"
+            ).fetchone()
+            if not table:
+                return False
+            row = conn.execute(
+                "SELECT 1 FROM live_tv_mobile_users "
+                "WHERE user_id=? AND capture_method='telegram_contact' LIMIT 1",
+                (int(user_id),),
+            ).fetchone()
+        return bool(row)
+    except Exception:
+        logger.exception("Could not check Fantzo mobile verification for reminder")
+        return False
+
+
+def _mark_business_verification_pending(user_id: int) -> None:
+    """Keep Business reminder -> bot verification handoff robust."""
+    if not user_id:
+        return
+    try:
+        with core.db() as conn:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS business_verification_pending (
+                    user_id INTEGER PRIMARY KEY,
+                    requested_at TEXT NOT NULL,
+                    source TEXT NOT NULL DEFAULT 'business_dm'
+                )
+                """
+            )
+            conn.execute(
+                """
+                INSERT INTO business_verification_pending(user_id, requested_at, source)
+                VALUES(?, ?, 'business_dm')
+                ON CONFLICT(user_id) DO UPDATE SET
+                    requested_at=excluded.requested_at,
+                    source='business_dm'
+                """,
+                (int(user_id), _now_iso()),
+            )
+    except Exception:
+        logger.exception("Could not mark Business verification reminder pending")
+
+
+def _verification_copy(stage: int, source: str):
+    if stage == 1:
+        intro = "🔐 <b>Complete your Fantzo verification</b>"
+        detail = "You’re one step away. Verify your Telegram-linked mobile number to continue."
+    elif stage == 2:
+        intro = "📱 <b>Your Fantzo verification is still pending</b>"
+        detail = "Complete the quick Telegram mobile verification to continue using Fantzo."
+    else:
+        intro = "👋 <b>Finish setting up Fantzo</b>"
+        detail = "Your Telegram mobile verification is still incomplete. Verify once to continue."
+
+    text = (
+        f"{intro}\n\n"
+        f"{detail}\n\n"
+        "Telegram will only accept the mobile number linked to your own account."
+    )
+
+    if source == "business_dm":
+        markup = InlineKeyboardMarkup([[
+            InlineKeyboardButton(
+                "📱 VERIFY MOBILE",
+                url="https://t.me/fantzoofficialbot?start=verify_business_dm",
+                api_kwargs={"style": "success"},
+            )
+        ]])
+    else:
+        markup = ReplyKeyboardMarkup(
+            [[KeyboardButton("📱 VERIFY NOW", request_contact=True)]],
+            resize_keyboard=True,
+            one_time_keyboard=True,
+            input_field_placeholder="Tap VERIFY NOW",
+        )
+
+    return text, markup
+
+
 def _due_stage(row, now_utc: datetime):
     last_activity = _parse_dt(str(row["last_activity"]))
     if not last_activity:
@@ -204,7 +292,17 @@ def _mark_send(source: str, user_id: int, stage: int, campaign_key: str, status:
 
 
 async def _send_with_retry(bot, row, stage: int) -> bool:
-    text, markup = _copy_for(str(row["interest"]), stage, str(row["source"]))
+    source = str(row["source"])
+    user_id = int(row["user_id"])
+    verified = _is_mobile_verified(user_id)
+
+    if verified:
+        text, markup = _copy_for(str(row["interest"]), stage, source)
+    else:
+        text, markup = _verification_copy(stage, source)
+        if source == "business_dm":
+            _mark_business_verification_pending(user_id)
+
     kwargs = {
         "chat_id": int(row["user_id"]),
         "text": text,
@@ -212,7 +310,7 @@ async def _send_with_retry(bot, row, stage: int) -> bool:
         "reply_markup": markup,
         "disable_web_page_preview": True,
     }
-    if row["source"] == "business_dm" and row["business_connection_id"]:
+    if source == "business_dm" and row["business_connection_id"]:
         kwargs["business_connection_id"] = str(row["business_connection_id"])
 
     for attempt in range(3):

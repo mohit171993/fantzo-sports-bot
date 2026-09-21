@@ -217,6 +217,16 @@ def _identity(uid: int, users, business):
     return username, first_name
 
 
+def _actor_name(user) -> str:
+    if not user:
+        return "Admin"
+    username = str(getattr(user, "username", "") or "").strip()
+    if username:
+        return "@" + username
+    name = str(getattr(user, "first_name", "") or "").strip()
+    return name or "Admin"
+
+
 def _fmt_admin_time(value: str) -> str:
     raw = str(value or "").strip()
     if not raw:
@@ -258,8 +268,29 @@ def lead_status_keyboard(user_id: int) -> InlineKeyboardMarkup:
     uid = int(user_id)
     lead = _lead_view(uid) or {}
     phone_digits = _phone_digits(lead.get("phone_number") or "")
+    consent = bool(int(lead.get("contact_consent") or 0))
 
     rows = [
+        [
+            InlineKeyboardButton(
+                "🙋 ASSIGN TO ME",
+                callback_data=f"reports:assign:{uid}",
+            ),
+            InlineKeyboardButton(
+                "📝 NOTE",
+                callback_data=f"reports:note:{uid}",
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                "⏰ FOLLOW-UP",
+                callback_data=f"reports:followup:{uid}",
+            ),
+            InlineKeyboardButton(
+                "🕘 HISTORY",
+                callback_data=f"reports:history:{uid}",
+            ),
+        ],
         [
             InlineKeyboardButton(
                 "📞 CONTACTED",
@@ -291,12 +322,12 @@ def lead_status_keyboard(user_id: int) -> InlineKeyboardMarkup:
             ),
         ],
     ]
-    if phone_digits:
+    if phone_digits and consent:
         rows.append(
             [InlineKeyboardButton("💬 OPEN WHATSAPP", url=f"https://wa.me/{phone_digits}")]
         )
     rows.append(
-        [InlineKeyboardButton("⬅️ CRM", callback_data="reports:crm")]
+        [InlineKeyboardButton("⬅️ WORK QUEUE", callback_data="reports:crm")]
     )
     return InlineKeyboardMarkup(rows)
 
@@ -318,16 +349,32 @@ def _lead_card_text(lead: dict) -> str:
     campaign = escape(str(lead.get("campaign") or "direct"))
     source = escape(str(lead.get("source") or "bot"))
     verified = _fmt_admin_time(str(lead.get("verified_at") or ""))
-    return (
-        f"{status_icon} <b>{status}</b>\n"
-        "━━━━━━━━━━━━━━━━━━\n"
-        f"👤 <b>{first_name}</b> · {telegram}\n"
-        f"📱 <code>{phone}</code>\n"
-        f"🎯 Campaign: <code>{campaign}</code>\n"
-        f"📥 Source: <b>{source}</b>\n"
-        f"🕒 Verified: <b>{escape(verified)}</b>\n"
-        "☎️ Follow-up: <b>Call + WhatsApp</b>"
+    assigned = escape(str(lead.get("assigned_name") or "UNASSIGNED"))
+    followup = _fmt_admin_time(str(lead.get("next_followup_at") or ""))
+    note = escape(str(lead.get("last_note") or "")[:180])
+    consent = bool(int(lead.get("contact_consent") or 0))
+    consent_text = (
+        "✅ New consent recorded"
+        if consent
+        else "⚠️ Legacy record · contact consent not recorded"
     )
+
+    lines = [
+        f"{status_icon} <b>{status}</b>",
+        "━━━━━━━━━━━━━━━━━━",
+        f"👤 <b>{first_name}</b> · {telegram}",
+        f"📱 <code>{phone}</code>",
+        f"🎯 Campaign: <code>{campaign}</code>",
+        f"📥 Source: <b>{source}</b>",
+        f"🕒 Verified: <b>{escape(verified)}</b>",
+        f"👨‍💼 Assigned: <b>{assigned}</b>",
+        f"🔐 {consent_text}",
+    ]
+    if str(lead.get("next_followup_at") or ""):
+        lines.append(f"⏰ Next follow-up: <b>{escape(followup)}</b>")
+    if note:
+        lines.append(f"📝 Note: {note}")
+    return "\n".join(lines)
 
 
 def _crm_status_counts() -> dict:
@@ -346,7 +393,6 @@ def _crm_status_counts() -> dict:
             SELECT lead_status, COUNT(*) c
             FROM ibetin_leads
             WHERE verified_at IS NOT NULL
-              AND contact_consent=1
             GROUP BY lead_status
             """
         ).fetchall()
@@ -360,38 +406,67 @@ def _crm_status_counts() -> dict:
 def _crm_text() -> str:
     counts = _crm_status_counts()
     follow_up = counts["contacted"] + counts["no_answer"]
-    active = (
-        counts["new"]
-        + follow_up
-        + counts["interested"]
-    )
+    active = counts["new"] + follow_up + counts["interested"]
+    with core.db() as conn:
+        legacy = _count(
+            conn,
+            """
+            SELECT COUNT(*) FROM ibetin_leads
+            WHERE verified_at IS NOT NULL
+              AND contact_consent=0
+              AND lead_status='new'
+            """,
+        )
+        unassigned = _count(
+            conn,
+            """
+            SELECT COUNT(*) FROM ibetin_leads
+            WHERE verified_at IS NOT NULL
+              AND lead_status='new'
+              AND assigned_to IS NULL
+            """,
+        )
+        due = _count(
+            conn,
+            """
+            SELECT COUNT(*) FROM ibetin_leads
+            WHERE next_followup_at IS NOT NULL
+              AND next_followup_at <= ?
+              AND lead_status NOT IN ('converted','dnc')
+            """,
+            (datetime.now(timezone.utc).isoformat(),),
+        )
     return (
-        "📞 <b>IBETIN CRM · LEAD PIPELINE</b>\n"
+        "📞 <b>IBETIN TEAM WORK QUEUE</b>\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
-        f"🆕 New to contact: <b>{counts['new']}</b>\n"
-        f"📞 Follow-up queue: <b>{follow_up}</b>\n"
+        f"🆕 Unassigned / New: <b>{unassigned}</b>\n"
+        f"🗂 Legacy awaiting review: <b>{legacy}</b>\n"
+        f"⏰ Follow-up due: <b>{due}</b>\n"
+        f"📞 Follow-up status: <b>{follow_up}</b>\n"
         f"⭐ Interested: <b>{counts['interested']}</b>\n"
-        f"✅ Converted: <b>{counts['converted']}</b>\n"
-        f"🚫 DNC: <b>{counts['dnc']}</b>\n\n"
-        f"📌 Active sales work: <b>{active}</b>\n\n"
-        "<b>Team workflow:</b> Open New Leads first, contact by call + "
-        "WhatsApp, then update the status immediately."
+        f"✅ Converted: <b>{counts['converted']}</b>\n\n"
+        f"📌 Active work: <b>{active}</b>\n\n"
+        "Old verified records remain here until the team assigns or updates them. "
+        "Legacy records are clearly marked because call/WhatsApp consent was not recorded."
     )
 
 
 def crm_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
+            [InlineKeyboardButton("🆕 UNASSIGNED / NEW", callback_data="reports:queue:new")],
             [
-                InlineKeyboardButton("🆕 NEW LEADS", callback_data="reports:queue:new"),
-                InlineKeyboardButton("📞 FOLLOW-UP", callback_data="reports:queue:followup"),
-            ],
-            [
+                InlineKeyboardButton("⏰ DUE FOLLOW-UP", callback_data="reports:queue:due"),
                 InlineKeyboardButton("⭐ INTERESTED", callback_data="reports:queue:interested"),
-                InlineKeyboardButton("✅ CONVERTED", callback_data="reports:queue:converted"),
             ],
-            [InlineKeyboardButton("📥 EXPORT CRM LEADS", callback_data="reports:exportleads")],
-            [InlineKeyboardButton("⬅️ DASHBOARD", callback_data="reports:overview")],
+            [
+                InlineKeyboardButton("🔎 SEARCH", callback_data="reports:search"),
+                InlineKeyboardButton("📥 CSV EXPORT", callback_data="reports:exportleads"),
+            ],
+            [
+                InlineKeyboardButton("✅ CONVERTED", callback_data="reports:queue:converted"),
+                InlineKeyboardButton("🎯 AD PERFORMANCE", callback_data="reports:adperformance"),
+            ],
         ]
     )
 
@@ -400,6 +475,7 @@ def _queue_statuses(queue: str):
     mapping = {
         "new": ("new",),
         "followup": ("contacted", "no_answer"),
+        "due": ("new", "contacted", "no_answer", "interested"),
         "interested": ("interested",),
         "converted": ("converted",),
     }
@@ -410,6 +486,7 @@ def _queue_title(queue: str) -> str:
     return {
         "new": "🆕 NEW LEADS · CONTACT NOW",
         "followup": "📞 FOLLOW-UP QUEUE",
+        "due": "⏰ FOLLOW-UP DUE NOW",
         "interested": "⭐ INTERESTED LEADS",
         "converted": "✅ CONVERTED LEADS",
     }.get(queue, "📞 CRM LEADS")
@@ -420,24 +497,35 @@ def _queue_leads(queue: str, limit: int = CRM_BATCH_SIZE):
     if not statuses:
         return []
     placeholders = ",".join("?" for _ in statuses)
-    order = (
-        "verified_at ASC"
-        if queue in {"new", "followup"}
-        else "updated_at DESC"
-    )
     ensure_tables()
+    now = datetime.now(timezone.utc).isoformat()
+
+    where_extra = ""
+    params = list(statuses)
+    if queue == "new":
+        where_extra = " AND lead_status='new'"
+        order = "CASE WHEN assigned_to IS NULL THEN 0 ELSE 1 END, verified_at ASC"
+    elif queue == "due":
+        where_extra = " AND next_followup_at IS NOT NULL AND next_followup_at <= ?"
+        params.append(now)
+        order = "next_followup_at ASC"
+    elif queue == "followup":
+        order = "COALESCE(next_followup_at, updated_at) ASC"
+    else:
+        order = "updated_at DESC"
+
     with core.db() as conn:
         rows = conn.execute(
             f"""
             SELECT user_id
             FROM ibetin_leads
             WHERE verified_at IS NOT NULL
-              AND contact_consent=1
               AND lead_status IN ({placeholders})
+              {where_extra}
             ORDER BY {order}
             LIMIT ?
             """,
-            (*statuses, int(limit)),
+            (*params, int(limit)),
         ).fetchall()
     return [
         lead
@@ -562,8 +650,7 @@ def _overview_text() -> str:
             FROM ibetin_leads
             WHERE first_seen_at >= ?
               AND verified_at IS NOT NULL
-              AND contact_consent=1
-            """,
+                          """,
             (cutoff_24h,),
         )
         verified_24h = _count(
@@ -572,8 +659,7 @@ def _overview_text() -> str:
             SELECT COUNT(*)
             FROM ibetin_leads
             WHERE verified_at >= ?
-              AND contact_consent=1
-            """,
+                          """,
             (cutoff_24h,),
         )
         converted_24h = _count(
@@ -593,8 +679,7 @@ def _overview_text() -> str:
             FROM ibetin_leads
             WHERE first_seen_at >= ?
               AND verified_at IS NOT NULL
-              AND contact_consent=1
-            """,
+                          """,
             (cutoff_7d,),
         )
         converted_7d = _count(
@@ -638,14 +723,14 @@ def _overview_text() -> str:
 def report_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
-            [InlineKeyboardButton("📞 CRM / LEAD PIPELINE", callback_data="reports:crm")],
+            [InlineKeyboardButton("📞 OPEN TEAM WORK QUEUE", callback_data="reports:crm")],
             [
-                InlineKeyboardButton("🎯 AD PERFORMANCE", callback_data="reports:adperformance"),
-                InlineKeyboardButton("📥 EXPORT LEADS", callback_data="reports:exportleads"),
+                InlineKeyboardButton("🔎 SEARCH", callback_data="reports:search"),
+                InlineKeyboardButton("📥 CSV EXPORT", callback_data="reports:exportleads"),
             ],
             [
-                InlineKeyboardButton("📚 TEAM GUIDE", callback_data="reports:guide"),
-                InlineKeyboardButton("⚙️ ADVANCED REPORTS", callback_data="reports:advanced"),
+                InlineKeyboardButton("🎯 AD PERFORMANCE", callback_data="reports:adperformance"),
+                InlineKeyboardButton("📚 HELP", callback_data="reports:guide"),
             ],
         ]
     )
@@ -910,7 +995,6 @@ def _report_leads():
             SELECT *
             FROM ibetin_leads
             WHERE verified_at IS NOT NULL
-              AND contact_consent=1
             ORDER BY verified_at DESC
             """
         ).fetchall()
@@ -931,6 +1015,10 @@ def _report_leads():
             r["verified_at"] or "",
             "Yes" if int(r["contact_consent"] or 0) else "No",
             r["lead_status"],
+            r["assigned_name"] or "",
+            r["next_followup_at"] or "",
+            r["last_note"] or "",
+            r["updated_by_name"] or "",
             r["contacted_at"] or "",
             r["interested_at"] or "",
             r["converted_at"] or "",
@@ -942,7 +1030,8 @@ def _report_leads():
         [
             "User ID", "Username", "First Name", "Mobile Number",
             "Campaign", "Source", "First Bot Start", "Verified At",
-            "Call + WhatsApp Consent", "Lead Status", "Contacted At",
+            "Call + WhatsApp Consent", "Lead Status", "Assigned To",
+            "Next Follow-up", "Latest Note", "Last Updated By", "Contacted At",
             "Interested At", "Converted At", "No Answer At", "DNC At",
             "Last Seen",
         ],
@@ -1034,6 +1123,70 @@ async def _send_all(message) -> None:
     )
 
 
+async def admin_text_handler(update, context) -> bool:
+    user = update.effective_user
+    message = update.effective_message
+    if not user or not message or not message.text:
+        return False
+    if not is_authorized_admin(user.id):
+        return False
+
+    mode = str(context.user_data.get("ibetin_admin_input_mode") or "")
+    if not mode:
+        return False
+
+    actor = _actor_name(user)
+    text = message.text.strip()
+    context.user_data.pop("ibetin_admin_input_mode", None)
+
+    if mode == "search":
+        ids = ibetin_leads.search_leads(text, limit=8)
+        if not ids:
+            await message.reply_text(
+                "🔎 <b>No CRM lead found.</b>\n\n"
+                "Search by mobile number, Telegram username or user ID.",
+                parse_mode="HTML",
+                reply_markup=report_menu(),
+            )
+            return True
+        await message.reply_text(
+            f"🔎 <b>SEARCH RESULTS</b> · {len(ids)} found",
+            parse_mode="HTML",
+        )
+        for uid in ids:
+            lead = _lead_view(uid)
+            if lead:
+                await message.reply_text(
+                    _lead_card_text(lead),
+                    parse_mode="HTML",
+                    reply_markup=lead_status_keyboard(uid),
+                    disable_web_page_preview=True,
+                )
+        return True
+
+    if mode.startswith("note:"):
+        try:
+            uid = int(mode.split(":", 1)[1])
+        except Exception:
+            uid = 0
+        if uid and ibetin_leads.add_note(uid, text, user.id, actor):
+            lead = _lead_view(uid)
+            await message.reply_text(
+                "✅ <b>Note saved.</b>",
+                parse_mode="HTML",
+            )
+            if lead:
+                await message.reply_text(
+                    _lead_card_text(lead),
+                    parse_mode="HTML",
+                    reply_markup=lead_status_keyboard(uid),
+                    disable_web_page_preview=True,
+                )
+        return True
+
+    return False
+
+
 async def reports_command(update, context) -> None:
     await send_menu(update, context)
 
@@ -1059,6 +1212,124 @@ async def handle_callback(update, context) -> bool:
     action = str(query.data).split(":", 1)[1]
     message = query.message or update.effective_message
     if not message:
+        return True
+
+    if action == "search":
+        context.user_data["ibetin_admin_input_mode"] = "search"
+        await message.reply_text(
+            "🔎 <b>CRM SEARCH</b>\n\n"
+            "Send a mobile number, Telegram username or Telegram user ID.",
+            parse_mode="HTML",
+        )
+        return True
+
+    if action.startswith("assign:"):
+        try:
+            uid = int(action.split(":", 1)[1])
+        except Exception:
+            uid = 0
+        actor = _actor_name(user)
+        if uid and ibetin_leads.assign_lead(uid, user.id, actor):
+            lead = _lead_view(uid)
+            if lead:
+                await query.edit_message_text(
+                    _lead_card_text(lead),
+                    parse_mode="HTML",
+                    reply_markup=lead_status_keyboard(uid),
+                    disable_web_page_preview=True,
+                )
+        return True
+
+    if action.startswith("note:"):
+        try:
+            uid = int(action.split(":", 1)[1])
+        except Exception:
+            uid = 0
+        if uid:
+            context.user_data["ibetin_admin_input_mode"] = f"note:{uid}"
+            await message.reply_text(
+                "📝 <b>ADD NOTE</b>\n\nSend the note in your next message.",
+                parse_mode="HTML",
+            )
+        return True
+
+    if action.startswith("followup:"):
+        try:
+            uid = int(action.split(":", 1)[1])
+        except Exception:
+            uid = 0
+        if uid:
+            await message.reply_text(
+                "⏰ <b>SET NEXT FOLLOW-UP</b>",
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup(
+                    [
+                        [
+                            InlineKeyboardButton("1 HOUR", callback_data=f"reports:setfu:1h:{uid}"),
+                            InlineKeyboardButton("3 HOURS", callback_data=f"reports:setfu:3h:{uid}"),
+                        ],
+                        [
+                            InlineKeyboardButton("TOMORROW", callback_data=f"reports:setfu:1d:{uid}"),
+                            InlineKeyboardButton("CLEAR", callback_data=f"reports:setfu:clear:{uid}"),
+                        ],
+                    ]
+                ),
+            )
+        return True
+
+    if action.startswith("setfu:"):
+        parts = action.split(":")
+        if len(parts) == 3:
+            _, choice, uid_s = parts
+            try:
+                uid = int(uid_s)
+            except Exception:
+                uid = 0
+            actor = _actor_name(user)
+            now = datetime.now(timezone.utc)
+            if choice == "1h":
+                target = now + timedelta(hours=1)
+            elif choice == "3h":
+                target = now + timedelta(hours=3)
+            elif choice == "1d":
+                target = now + timedelta(days=1)
+            else:
+                target = None
+            if uid and ibetin_leads.set_followup(
+                uid,
+                target.isoformat() if target else "",
+                user.id,
+                actor,
+            ):
+                lead = _lead_view(uid)
+                if lead:
+                    await message.reply_text(
+                        _lead_card_text(lead),
+                        parse_mode="HTML",
+                        reply_markup=lead_status_keyboard(uid),
+                        disable_web_page_preview=True,
+                    )
+        return True
+
+    if action.startswith("history:"):
+        try:
+            uid = int(action.split(":", 1)[1])
+        except Exception:
+            uid = 0
+        rows = ibetin_leads.recent_history(uid, 6) if uid else []
+        if not rows:
+            await message.reply_text("🕘 No CRM history yet.")
+            return True
+        lines = ["🕘 <b>LEAD HISTORY</b>", "━━━━━━━━━━━━━━━━━━", ""]
+        for row in rows:
+            when = escape(_fmt_admin_time(str(row.get("created_at") or "")))
+            actor = escape(str(row.get("actor_name") or "System"))
+            action_name = escape(str(row.get("action") or "").replace("_", " ").title())
+            value = escape(str(row.get("value") or "")[:160])
+            lines.append(f"• <b>{action_name}</b> · {actor} · {when}")
+            if value:
+                lines.append(f"  {value}")
+        await message.reply_text("\n".join(lines), parse_mode="HTML")
         return True
 
     if action.startswith("lead:"):

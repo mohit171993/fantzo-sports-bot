@@ -689,21 +689,41 @@ async def verified_ai_text_handler(update, context) -> None:
         return
 
     ai_reply = await ibetin_ai.reply(user.id, text)
+    support_markup = None
+
     if not ai_reply:
-        # Keep the bot functional until an AI API key is configured.
-        return
+        # Never leave a verified user unanswered while the AI provider is not
+        # configured or temporarily unavailable.
+        lower = " ".join(text.casefold().split())
+        if lower in {"hi", "hii", "hello", "hey", "namaste", "hi sir", "hello sir"}:
+            ai_reply = "👋 Hi! How can I help you with IBETIN today?"
+        elif ibetin_ai.needs_support_redirect(text):
+            ai_reply = (
+                "🛟 This looks like an account or transaction issue. "
+                "Please use official IBETIN Support."
+            )
+            support_markup = ibetin_ai.support_keyboard()
+        elif ibetin_ai.is_off_topic(text):
+            ai_reply = ibetin_ai.OFF_TOPIC_REPLY
+            support_markup = ibetin_ai.support_keyboard()
+        else:
+            ai_reply = (
+                "I can help with IBETIN, Live Line, sports, match alerts, "
+                "account, payments or support. What do you need?"
+            )
 
     try:
         app.core.touch_user(update)
-        app.core.track(user.id, "bot:ai")
+        app.core.track(user.id, "bot:ai" if ibetin_ai.enabled() else "bot:fallback")
     except Exception:
-        logger.exception("Could not track IBETIN main-bot AI reply")
+        logger.exception("Could not track IBETIN main-bot reply")
 
-    logger.info("IBETIN main-bot AI reply sent user_id=%s", user.id)
-    support_markup = None
-    if ibetin_ai.is_off_topic(text) or ibetin_ai.needs_support_redirect(text):
+    if support_markup is None and (
+        ibetin_ai.is_off_topic(text) or ibetin_ai.needs_support_redirect(text)
+    ):
         support_markup = ibetin_ai.support_keyboard()
 
+    logger.info("IBETIN main-bot reply sent user_id=%s ai_enabled=%s", user.id, ibetin_ai.enabled())
     await message.reply_text(
         ai_reply,
         reply_markup=support_markup,

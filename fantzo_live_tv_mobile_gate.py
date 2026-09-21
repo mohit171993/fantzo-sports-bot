@@ -310,7 +310,8 @@ async def contact_handler(update: Update, context) -> None:
     if not user or not message or not message.contact:
         return
 
-    if not context.user_data.get(_PENDING_KEY):
+    pending = bool(context.user_data.get(_PENDING_KEY))
+    if not pending and is_registered(user.id):
         return
 
     contact = message.contact
@@ -338,7 +339,10 @@ async def contact_handler(update: Update, context) -> None:
         )
         return
 
-    source = str(context.user_data.get(_PENDING_SOURCE_KEY) or "live_tv")
+    source = str(
+        context.user_data.get(_PENDING_SOURCE_KEY)
+        or ("bot_reminder" if not pending else "bot_start")
+    )
     e164, _ = save_verified_contact(
         user.id,
         contact.phone_number or "",
@@ -379,7 +383,7 @@ async def contact_handler(update: Update, context) -> None:
         )
         return
 
-    if source == "bot_start":
+    if source in {"bot_start", "bot_reminder"}:
         await message.reply_text(
             "✅ <b>Telegram mobile verified</b>\n\n"
             f"Verified number: <code>{masked}</code>\n"

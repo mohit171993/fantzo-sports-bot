@@ -307,20 +307,9 @@ def _should_suppress_business_reply(
     last_text = str(row["last_text"] or "")
     elapsed = max(0, now - int(row["last_reply_ts"] or 0))
 
-    # Never spam the generic assistant reply when the bot cannot understand
-    # several consecutive customer messages.
-    if category == "general" and last_category == "general" and elapsed < 600:
-        return True
-
-    # A greeting menu is already sent on first contact. Do not repeat it for
-    # every "hi/hello" during the same conversation.
-    if category == "greeting" and elapsed < 21600:
-        return True
-
-    # Exact repeated messages and repeated intent replies are also throttled.
-    if normalized and normalized == last_text and elapsed < 600:
-        return True
-    if category == last_category and elapsed < 120:
+    # Verified users should never experience a silent chat. Only suppress
+    # an accidental exact duplicate sent within a few seconds.
+    if normalized and normalized == last_text and elapsed < 3:
         return True
 
     return False

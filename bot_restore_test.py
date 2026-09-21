@@ -54,6 +54,19 @@ async def _send_banner_preview_when_running(application) -> None:
 
 async def configure_telegram_ui_with_restored_features(application) -> None:
     await _original_configure_telegram_ui(application)
+
+    try:
+        await application.bot.set_my_short_description(
+            "Cricket & football scores, fixtures, Live TV and sports updates."
+        )
+        await application.bot.set_my_description(
+            "Fantzo Sports brings cricket and football live scores, fixtures, "
+            "match alerts, Live TV access and sports updates inside Telegram. "
+            "One-time Telegram mobile verification is required to continue."
+        )
+    except Exception:
+        logger.exception("Could not update Fantzo Telegram bot descriptions")
+
     banner_queue.install(application)
     asyncio.create_task(
         _send_banner_preview_when_running(application),

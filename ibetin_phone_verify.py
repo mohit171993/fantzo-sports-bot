@@ -153,6 +153,7 @@ def verify_user(
         source=source_value,
         campaign=campaign_value,
         contact_consent=bool(contact_consent),
+        mobile_number=phone,
     )
     return True
 
@@ -247,6 +248,17 @@ def apply_requested_reset() -> int:
         for row in rows:
             stored_digits = re.sub(r"\D", "", str(row["phone_number"] or ""))
             if stored_digits == requested_digits:
+                conn.execute(
+                    """
+                    UPDATE ibetin_leads
+                    SET mobile_number=CASE
+                        WHEN COALESCE(mobile_number,'')='' THEN ?
+                        ELSE mobile_number
+                    END
+                    WHERE user_id=?
+                    """,
+                    (str(row["phone_number"] or ""), int(row["user_id"])),
+                )
                 cur = conn.execute(
                     "DELETE FROM liveline_verified_users WHERE user_id = ?",
                     (int(row["user_id"]),),
@@ -300,6 +312,22 @@ def apply_requested_username_reset() -> int:
 
         deleted = 0
         for user_id in user_ids:
+            row = conn.execute(
+                "SELECT phone_number FROM liveline_verified_users WHERE user_id=?",
+                (int(user_id),),
+            ).fetchone()
+            if row:
+                conn.execute(
+                    """
+                    UPDATE ibetin_leads
+                    SET mobile_number=CASE
+                        WHEN COALESCE(mobile_number,'')='' THEN ?
+                        ELSE mobile_number
+                    END
+                    WHERE user_id=?
+                    """,
+                    (str(row["phone_number"] or ""), int(user_id)),
+                )
             cur = conn.execute(
                 "DELETE FROM liveline_verified_users WHERE user_id=?",
                 (int(user_id),),
@@ -323,6 +351,22 @@ def apply_requested_user_id_reset() -> int:
 
     ensure_tables()
     with _connect() as conn:
+        row = conn.execute(
+            "SELECT phone_number FROM liveline_verified_users WHERE user_id = ?",
+            (user_id,),
+        ).fetchone()
+        if row:
+            conn.execute(
+                """
+                UPDATE ibetin_leads
+                SET mobile_number=CASE
+                    WHEN COALESCE(mobile_number,'')='' THEN ?
+                    ELSE mobile_number
+                END
+                WHERE user_id=?
+                """,
+                (str(row["phone_number"] or ""), user_id),
+            )
         cur = conn.execute(
             "DELETE FROM liveline_verified_users WHERE user_id = ?",
             (user_id,),

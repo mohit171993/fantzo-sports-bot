@@ -8,6 +8,8 @@ from telegram import (
     InlineKeyboardButton,
     InlineKeyboardButton as TelegramInlineKeyboardButton,
     InlineKeyboardMarkup,
+    KeyboardButton,
+    ReplyKeyboardMarkup,
     WebAppInfo,
 )
 from telegram.error import BadRequest, Forbidden, RetryAfter
@@ -277,6 +279,58 @@ def _copy_for(interest: str, stage: int, source: str, user_id: int = 0):
     return text, markup
 
 
+def _verification_reminder_copy(stage: int):
+    if stage == 1:
+        intro = "📱 Complete your IBETIN verification"
+    elif stage == 2:
+        intro = "🔐 Your IBETIN verification is still pending"
+    else:
+        intro = "👋 Finish verification to continue with IBETIN"
+
+    text = (
+        f"<b>{intro}</b>\n\n"
+        "Verify the mobile number linked to your Telegram account. "
+        "You only need to do this once.\n\n"
+        "Tap <b>📱 VERIFY & CONTINUE</b> below."
+    )
+    markup = ReplyKeyboardMarkup(
+        [[KeyboardButton("📱 VERIFY & CONTINUE", request_contact=True)]],
+        resize_keyboard=True,
+        one_time_keyboard=False,
+        is_persistent=True,
+        input_field_placeholder="Tap VERIFY & CONTINUE",
+    )
+    return text, markup
+
+
+async def _send_verification_with_retry(bot, row, stage: int) -> bool:
+    text, markup = _verification_reminder_copy(stage)
+    kwargs = {
+        "chat_id": int(row["user_id"]),
+        "text": text,
+        "parse_mode": "HTML",
+        "reply_markup": markup,
+        "disable_web_page_preview": True,
+    }
+
+    for attempt in range(3):
+        try:
+            await bot.send_message(**kwargs)
+            return True
+        except RetryAfter as exc:
+            delay = (
+                exc.retry_after.total_seconds()
+                if hasattr(exc.retry_after, "total_seconds")
+                else float(exc.retry_after)
+            )
+            if attempt >= 2:
+                raise
+            await asyncio.sleep(max(1.0, delay) + 1.0)
+        except (Forbidden, BadRequest):
+            raise
+    return False
+
+
 def _campaign_key(row, stage: int) -> str:
     activity = str(row["last_activity"]).replace(":", "").replace("+", "_")
     return f"{row['source']}:{stage}:{activity}"
@@ -349,10 +403,79 @@ async def run_due_reminders(application) -> None:
         if sent_count >= MAX_SENDS_PER_RUN:
             break
 
-        # One-time account verification is mandatory before any normal IBETIN
-        # reminder/follow-up. Old pre-verification rows are intentionally kept
-        # for analytics but cannot message the user until verification exists.
+        # Unverified main-bot users receive verification-only reminders on
+        # the existing bot cadence (24h, 3d, 7d). They never receive normal
+        # sports/promotional reminders before completing verification.
         if not phone_verify.is_verified(int(row["user_id"])):
+            if str(row["source"]) != "bot":
+                continue
+
+            stage = _due_stage(row, now)
+            if not stage:
+                continue
+
+            campaign_key = (
+                f"verify:{row['source']}:{stage}:"
+                + str(row["last_activity"]).replace(":", "").replace("+", "_")
+            )
+            with core.db() as conn:
+                exists = conn.execute(
+                    "SELECT 1 FROM reminder_sends "
+                    "WHERE source = ? AND user_id = ? AND campaign_key = ? "
+                    "AND status = 'sent'",
+                    (row["source"], row["user_id"], campaign_key),
+                ).fetchone()
+            if exists:
+                continue
+
+            try:
+                ok = await _send_verification_with_retry(application.bot, row, stage)
+                _mark_send(
+                    str(row["source"]),
+                    int(row["user_id"]),
+                    stage,
+                    campaign_key,
+                    "sent" if ok else "failed",
+                )
+                if ok:
+                    sent_count += 1
+                    await asyncio.sleep(1.2)
+            except Forbidden:
+                set_opt_out(str(row["source"]), int(row["user_id"]), True)
+                _mark_send(
+                    str(row["source"]),
+                    int(row["user_id"]),
+                    stage,
+                    campaign_key,
+                    "blocked",
+                )
+            except BadRequest as exc:
+                logger.warning(
+                    "IBETIN verification reminder rejected for %s/%s: %s",
+                    row["source"],
+                    row["user_id"],
+                    exc,
+                )
+                _mark_send(
+                    str(row["source"]),
+                    int(row["user_id"]),
+                    stage,
+                    campaign_key,
+                    "bad_request",
+                )
+            except Exception:
+                logger.exception(
+                    "IBETIN verification reminder send failed for %s/%s",
+                    row["source"],
+                    row["user_id"],
+                )
+                _mark_send(
+                    str(row["source"]),
+                    int(row["user_id"]),
+                    stage,
+                    campaign_key,
+                    "failed",
+                )
             continue
 
         stage = _due_stage(row, now)

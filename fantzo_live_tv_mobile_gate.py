@@ -246,7 +246,8 @@ def _verify_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         [[KeyboardButton("✅ VERIFY & CONTINUE", request_contact=True)]],
         resize_keyboard=True,
-        one_time_keyboard=True,
+        one_time_keyboard=False,
+        is_persistent=True,
         input_field_placeholder="Tap VERIFY & CONTINUE",
     )
 

@@ -46,6 +46,13 @@ WELCOME_REPLY = (
     "Choose an option below or simply type what you need."
 )
 
+VERIFY_REPLY = (
+    "👋 <b>Welcome to IBETIN</b>\n\n"
+    "Before continuing, verify the mobile number linked to your Telegram account.\n\n"
+    "Tap <b>📱 VERIFY MOBILE</b> below. You only need to verify once — "
+    "the same verification is reused for Live Line."
+)
+
 
 def telegram_mini_app_url(section: str = "home") -> str:
     section = (section or "home").strip().lower()
@@ -69,6 +76,17 @@ def _button(label: str, section: str, customer_id: int = 0) -> TelegramInlineKey
 
 def business_reply_text() -> str:
     return WELCOME_REPLY
+
+
+def verification_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [[
+            TelegramInlineKeyboardButton(
+                "📱 VERIFY MOBILE",
+                url=phone_verify.verification_bot_url("verify_business_dm"),
+            )
+        ]]
+    )
 
 
 def business_keyboard(customer_id: int = 0) -> InlineKeyboardMarkup:
@@ -496,6 +514,32 @@ async def business_auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE
     if customer_id and connection_id and message.from_user:
         _save_business_customer(connection_id, message.from_user)
         _touch_business_reminder(customer_id, connection_id, "general")
+
+    if customer_id and not phone_verify.is_verified(customer_id):
+        verify_text = message.text or ""
+        if not _should_suppress_business_reply(
+            connection_id,
+            customer_id,
+            "verification",
+            verify_text,
+        ):
+            await _reply_with_retry(message, VERIFY_REPLY, verification_keyboard())
+            _mark_business_reply(
+                connection_id,
+                customer_id,
+                "verification",
+                verify_text,
+            )
+            try:
+                core.track(customer_id, "business_dm:verify_required")
+            except Exception:
+                logger.exception("Could not track IBETIN Business verification requirement")
+            logger.info(
+                "IBETIN Business DM verification required: connection=%s customer=%s",
+                connection_id,
+                customer_id,
+            )
+        return
 
     if customer_id and connection_id and not _has_been_welcomed(connection_id, customer_id):
         await _reply_with_retry(message, WELCOME_REPLY, business_keyboard(customer_id))

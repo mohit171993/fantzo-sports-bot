@@ -288,7 +288,7 @@ def run_navigation_self_test() -> None:
         )
     else:
         button = verify_buttons[0]
-        if "VERIFY MOBILE" not in str(button.text or "").upper():
+        if "VERIFY & CONTINUE" not in str(button.text or "").upper():
             errors.append("business-verification: wrong button label")
         if not button.url or "start=verify_business_dm" not in button.url.lower():
             errors.append(

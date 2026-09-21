@@ -108,6 +108,7 @@ def _report_menu() -> InlineKeyboardMarkup:
                 _styled_button("🔔 REMINDERS", "rpt:reminders", "primary"),
                 _styled_button("⭐ FAVOURITES", "rpt:favourites", "primary"),
             ],
+            [_styled_button("🎯 LEAD FUNNEL", "rpt:leads", "success")],
             [_styled_button("📱 VERIFIED NUMBERS", "rpt:mobile", "success")],
             [
                 _styled_button("📅 DAILY", "rpt:daily", "primary"),
@@ -138,6 +139,7 @@ def _downloads_menu() -> InlineKeyboardMarkup:
                 InlineKeyboardButton("📺 Live TV CSV", callback_data="rptdl:livetv"),
                 InlineKeyboardButton("📱 Verified Numbers CSV", callback_data="rptdl:mobile"),
             ],
+            [InlineKeyboardButton("🎯 Lead Funnel CSV", callback_data="rptdl:leads")],
             [InlineKeyboardButton("🌐 Fantzo Opens CSV", callback_data="rptdl:web")],
             [
                 InlineKeyboardButton("💬 Business CSV", callback_data="rptdl:business"),
@@ -174,6 +176,9 @@ def _overview_text() -> str:
         favourites = _scalar(conn, "SELECT COUNT(*) FROM user_favourites WHERE alerts_enabled=1") if _table_exists(conn, "user_favourites") else 0
         queued_banners = _scalar(conn, "SELECT COUNT(*) FROM live_tv_banners WHERE status='queued'") if _table_exists(conn, "live_tv_banners") else 0
         mobile_users = _scalar(conn, "SELECT COUNT(*) FROM live_tv_mobile_users WHERE capture_method='telegram_contact'") if _table_exists(conn, "live_tv_mobile_users") else 0
+        ad_starts = _scalar(conn, "SELECT COUNT(DISTINCT user_id) FROM lead_attribution WHERE campaign LIKE 'ad_%'") if _table_exists(conn, "lead_attribution") else 0
+        sales_leads = _scalar(conn, "SELECT COUNT(*) FROM sales_leads") if _table_exists(conn, "sales_leads") else 0
+        converted_leads = _scalar(conn, "SELECT COUNT(*) FROM sales_leads WHERE status='CONVERTED'") if _table_exists(conn, "sales_leads") else 0
         business_verified = 0
         if _table_exists(conn, "live_tv_mobile_users") and _table_exists(conn, "business_welcomes"):
             business_verified = _scalar(
@@ -194,6 +199,8 @@ def _overview_text() -> str:
         f"🎯 Bot actions: <b>{_fmt_int(clicks)}</b> total · <b>{_fmt_int(clicks_24)}</b> in 24h\n"
         f"📺 Live TV opens: <b>{_fmt_int(live_tv)}</b> from <b>{_fmt_int(live_tv_users)}</b> users\n"
         f"📱 Telegram-verified numbers: <b>{_fmt_int(mobile_users)}</b>\n"
+        f"📣 Telegram Ad starts: <b>{_fmt_int(ad_starts)}</b>\n"
+        f"🎯 Deduplicated leads: <b>{_fmt_int(sales_leads)}</b> · ✅ Converted: <b>{_fmt_int(converted_leads)}</b>\n"
         f"💬 Business DM verified: <b>{_fmt_int(business_verified)}</b>\n"
         f"🌐 Fantzo web opens: <b>{_fmt_int(web_opens)}</b>\n"
         f"💬 Business DM events: <b>{_fmt_int(business)}</b>\n"
@@ -284,6 +291,108 @@ def _livetv_text() -> str:
     )
 
 
+
+
+def _lead_funnel_text() -> str:
+    with core.db() as conn:
+        if not _table_exists(conn, "lead_attribution"):
+            return "🎯 <b>LEAD FUNNEL</b>\n\nNo paid-ads lead data is available yet."
+
+        starts = _scalar(conn, "SELECT COUNT(DISTINCT user_id) FROM lead_attribution")
+        ad_starts = _scalar(
+            conn,
+            "SELECT COUNT(DISTINCT user_id) FROM lead_attribution WHERE campaign LIKE 'ad_%'"
+        )
+        prompts = _scalar(
+            conn,
+            "SELECT COUNT(DISTINCT user_id) FROM lead_events WHERE event='verification_prompt'"
+        ) if _table_exists(conn, "lead_events") else 0
+        verified_users = _scalar(conn, "SELECT COUNT(DISTINCT user_id) FROM lead_user_map") if _table_exists(conn, "lead_user_map") else 0
+        leads = _scalar(conn, "SELECT COUNT(*) FROM sales_leads") if _table_exists(conn, "sales_leads") else 0
+        contacted = _scalar(
+            conn,
+            "SELECT COUNT(*) FROM sales_leads WHERE status!='NEW'"
+        ) if _table_exists(conn, "sales_leads") else 0
+        interested = _scalar(
+            conn,
+            "SELECT COUNT(*) FROM sales_leads WHERE status='INTERESTED'"
+        ) if _table_exists(conn, "sales_leads") else 0
+        converted = _scalar(
+            conn,
+            "SELECT COUNT(*) FROM sales_leads WHERE status='CONVERTED'"
+        ) if _table_exists(conn, "sales_leads") else 0
+        reminder_recovered = _scalar(
+            conn,
+            "SELECT COUNT(DISTINCT user_id) FROM lead_events "
+            "WHERE event='verified_mobile' AND value LIKE 'bot_reminder|%'"
+        ) if _table_exists(conn, "lead_events") else 0
+
+        ad_verified = 0
+        if _table_exists(conn, "lead_user_map"):
+            ad_verified = _scalar(
+                conn,
+                "SELECT COUNT(DISTINCT a.user_id) "
+                "FROM lead_attribution a JOIN lead_user_map m ON m.user_id=a.user_id "
+                "WHERE a.campaign LIKE 'ad_%'"
+            )
+
+        status_rows = _rows(
+            conn,
+            "SELECT status,COUNT(*) c FROM sales_leads GROUP BY status ORDER BY c DESC"
+        ) if _table_exists(conn, "sales_leads") else []
+
+        campaign_rows = _rows(
+            conn,
+            """
+            SELECT a.campaign,
+                   COUNT(DISTINCT a.user_id) starts,
+                   COUNT(DISTINCT lum.user_id) verified_users,
+                   COUNT(DISTINCT s.mobile_e164) leads,
+                   COUNT(DISTINCT CASE WHEN s.status='CONVERTED' THEN s.mobile_e164 END) converted
+            FROM lead_attribution a
+            LEFT JOIN lead_user_map lum ON lum.user_id=a.user_id
+            LEFT JOIN sales_leads s ON s.mobile_e164=lum.mobile_e164
+            GROUP BY a.campaign
+            ORDER BY starts DESC, verified_users DESC
+            LIMIT 8
+            """
+        )
+
+    verification_rate = (float(verified_users) / float(starts) * 100.0) if starts else 0.0
+    ad_verification_rate = (float(ad_verified) / float(ad_starts) * 100.0) if ad_starts else 0.0
+    lead_conversion = (float(converted) / float(leads) * 100.0) if leads else 0.0
+
+    status_text = "\n".join(
+        f"• {escape(str(r['status']).replace('_', ' '))}: <b>{_fmt_int(r['c'])}</b>"
+        for r in status_rows
+    ) or "• No lead statuses yet"
+
+    campaign_text = "\n".join(
+        f"• <code>{escape(str(r['campaign']))}</code>: "
+        f"{_fmt_int(r['starts'])} starts → {_fmt_int(r['verified_users'])} verified "
+        f"→ {_fmt_int(r['leads'])} leads → {_fmt_int(r['converted'])} converted"
+        for r in campaign_rows
+    ) or "• No campaign attribution yet"
+
+    return (
+        "🎯 <b>PAID ADS · LEAD FUNNEL</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
+        f"Bot starts tracked: <b>{_fmt_int(starts)}</b>\n"
+        f"Telegram Ad starts: <b>{_fmt_int(ad_starts)}</b>\n"
+        f"Verification prompts: <b>{_fmt_int(prompts)}</b>\n"
+        f"Verified Telegram users: <b>{_fmt_int(verified_users)}</b>\n"
+        f"Deduplicated mobile leads: <b>{_fmt_int(leads)}</b>\n"
+        f"Reminder-assisted verifications: <b>{_fmt_int(reminder_recovered)}</b>\n\n"
+        f"Overall start → verified: <b>{verification_rate:.1f}%</b>\n"
+        f"Ad start → verified: <b>{ad_verification_rate:.1f}%</b>\n"
+        f"Lead → converted: <b>{lead_conversion:.1f}%</b>\n\n"
+        f"☎️ Contacted/updated: <b>{_fmt_int(contacted)}</b>\n"
+        f"🔥 Interested: <b>{_fmt_int(interested)}</b>\n"
+        f"✅ Converted: <b>{_fmt_int(converted)}</b>\n\n"
+        f"<b>Lead statuses</b>\n{status_text}\n\n"
+        f"<b>Campaigns</b>\n{campaign_text}\n\n"
+        "<i>Use ad URLs such as ?start=ad_cricket_01 so each paid campaign is attributed separately.</i>"
+    )
 
 def _mask_mobile(value: str) -> str:
     text = str(value or "")
@@ -656,6 +765,15 @@ def _report_csv(key: str) -> tuple[str, bytes]:
             "FROM clicks c LEFT JOIN users u ON u.user_id=c.user_id "
             "WHERE c.action='live_tv_status' ORDER BY c.created_at DESC"
         )
+    if key == "leads":
+        return f"fantzo_lead_funnel_{stamp}.csv", _query_csv(
+            "SELECT s.mobile_e164,s.primary_user_id,u.username,u.first_name,"
+            "s.campaign,s.status,s.assigned_agent,s.notes,s.contact_permission_at,"
+            "s.created_at,s.updated_at,s.last_contact_at,s.converted_at,"
+            "(SELECT COUNT(*) FROM lead_user_map lm WHERE lm.mobile_e164=s.mobile_e164) AS telegram_accounts "
+            "FROM sales_leads s LEFT JOIN users u ON u.user_id=s.primary_user_id "
+            "ORDER BY s.created_at DESC"
+        )
     if key == "mobile":
         return f"fantzo_verified_mobile_numbers_{stamp}.csv", _query_csv(
             "SELECT m.user_id,u.username,u.first_name,m.mobile_e164,m.mobile_national,"
@@ -694,16 +812,20 @@ def _all_reports_zip() -> tuple[str, bytes]:
         "03_live_tv.csv": _report_csv("livetv")[1],
         "04_live_tv_mobile_numbers.csv": _table_csv("live_tv_mobile_users"),
         "05_mobile_verification_events.csv": _table_csv("mobile_verification_events"),
-        "06_fantzo_web_opens.csv": _table_csv("web_events"),
-        "07_growth_events.csv": _table_csv("growth_events"),
-        "08_business_welcomes.csv": _table_csv("business_welcomes"),
-        "09_business_connections.csv": _table_csv("business_connections"),
-        "10_reminder_users.csv": _table_csv("reminder_users"),
-        "11_reminder_sends.csv": _table_csv("reminder_sends"),
-        "12_favourites.csv": _table_csv("user_favourites"),
-        "13_daily_activity.csv": _daily_csv(),
-        "14_live_tv_banners.csv": _table_csv("live_tv_banners"),
-        "15_live_tv_banner_settings.csv": _table_csv("live_tv_banner_settings"),
+        "06_lead_attribution.csv": _table_csv("lead_attribution"),
+        "07_lead_events.csv": _table_csv("lead_events"),
+        "08_lead_user_map.csv": _table_csv("lead_user_map"),
+        "09_sales_leads.csv": _table_csv("sales_leads"),
+        "10_fantzo_web_opens.csv": _table_csv("web_events"),
+        "11_growth_events.csv": _table_csv("growth_events"),
+        "12_business_welcomes.csv": _table_csv("business_welcomes"),
+        "13_business_connections.csv": _table_csv("business_connections"),
+        "14_reminder_users.csv": _table_csv("reminder_users"),
+        "15_reminder_sends.csv": _table_csv("reminder_sends"),
+        "16_favourites.csv": _table_csv("user_favourites"),
+        "17_daily_activity.csv": _daily_csv(),
+        "18_live_tv_banners.csv": _table_csv("live_tv_banners"),
+        "19_live_tv_banner_settings.csv": _table_csv("live_tv_banner_settings"),
     }
     readme = (
         "FANTZO ADMIN REPORT PACK\n"
@@ -711,6 +833,8 @@ def _all_reports_zip() -> tuple[str, bytes]:
         "Definitions:\n"
         "- Live TV canonical opens: clicks.action = live_tv_status\n"
         "- Mobile verification: Telegram self-contact only; all countries accepted\n"
+        "- lead_attribution preserves first paid/referral start source per Telegram user\n"
+        "- sales_leads is deduplicated by verified mobile number and stores sales status\n"
         "- Business DM verification handoff uses source=business_dm\n"
         "- mobile_verification_events stores verify opens and verification completions\n"
         "- Full mobile numbers are admin-only in live_tv_mobile_users/CSV exports\n"
@@ -791,6 +915,8 @@ async def _handle_report_callback(update, context) -> bool:
         await _show(query, _engagement_text(), _back_menu("engagement"))
     elif action == "livetv":
         await _show(query, _livetv_text(), _back_menu("livetv"))
+    elif action == "leads":
+        await _show(query, _lead_funnel_text(), _back_menu("leads"))
     elif action == "mobile":
         await _show(query, _mobile_text(), _back_menu("mobile"))
     elif action == "web":

@@ -2,8 +2,11 @@ import csv
 import io
 import logging
 import os
+import re
 import zipfile
 from datetime import datetime, timedelta, timezone
+from html import escape
+from zoneinfo import ZoneInfo
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, InputFile
 
@@ -14,6 +17,8 @@ import ibetin_leads
 logger = logging.getLogger(__name__)
 
 REPORT_PREFIX = "reports:"
+DUBAI_TZ = ZoneInfo("Asia/Dubai")
+CRM_BATCH_SIZE = 5
 
 
 def _setting_user_id(key: str):
@@ -212,36 +217,328 @@ def _identity(uid: int, users, business):
     return username, first_name
 
 
+def _fmt_admin_time(value: str) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return "—"
+    try:
+        dt = datetime.fromisoformat(raw)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(DUBAI_TZ).strftime("%d %b %Y, %H:%M")
+    except Exception:
+        return raw[:16].replace("T", " ")
+
+
+def _lead_view(user_id: int):
+    ensure_tables()
+    uid = int(user_id)
+    with core.db() as conn:
+        users, business, phones = _user_maps(conn)
+        row = conn.execute(
+            "SELECT * FROM ibetin_leads WHERE user_id=?",
+            (uid,),
+        ).fetchone()
+    if not row:
+        return None
+    lead = dict(row)
+    username, first_name = _identity(uid, users, business)
+    phone = (phones.get(uid) or {}).get("phone_number") or ""
+    lead["username"] = username
+    lead["first_name"] = first_name
+    lead["phone_number"] = phone
+    return lead
+
+
+def _phone_digits(value: str) -> str:
+    return re.sub(r"\D", "", str(value or ""))[:15]
+
+
 def lead_status_keyboard(user_id: int) -> InlineKeyboardMarkup:
     uid = int(user_id)
+    lead = _lead_view(uid) or {}
+    phone_digits = _phone_digits(lead.get("phone_number") or "")
+
+    rows = [
+        [
+            InlineKeyboardButton(
+                "📞 CONTACTED",
+                callback_data=f"reports:lead:contacted:{uid}",
+            ),
+            InlineKeyboardButton(
+                "⭐ INTERESTED",
+                callback_data=f"reports:lead:interested:{uid}",
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                "✅ CONVERTED",
+                callback_data=f"reports:lead:converted:{uid}",
+            ),
+            InlineKeyboardButton(
+                "📵 NO ANSWER",
+                callback_data=f"reports:lead:no_answer:{uid}",
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                "🚫 DNC",
+                callback_data=f"reports:lead:dnc:{uid}",
+            ),
+            InlineKeyboardButton(
+                "↩️ NEW",
+                callback_data=f"reports:lead:new:{uid}",
+            ),
+        ],
+    ]
+    if phone_digits:
+        rows.append(
+            [InlineKeyboardButton("💬 OPEN WHATSAPP", url=f"https://wa.me/{phone_digits}")]
+        )
+    rows.append(
+        [InlineKeyboardButton("⬅️ CRM", callback_data="reports:crm")]
+    )
+    return InlineKeyboardMarkup(rows)
+
+
+def _lead_card_text(lead: dict) -> str:
+    status = str(lead.get("lead_status") or "new").replace("_", " ").upper()
+    status_icon = {
+        "NEW": "🆕",
+        "CONTACTED": "📞",
+        "INTERESTED": "⭐",
+        "CONVERTED": "✅",
+        "NO ANSWER": "📵",
+        "DNC": "🚫",
+    }.get(status, "📌")
+    username = str(lead.get("username") or "")
+    telegram = f"@{escape(username)}" if username else "—"
+    first_name = escape(str(lead.get("first_name") or "—"))
+    phone = escape(str(lead.get("phone_number") or "—"))
+    campaign = escape(str(lead.get("campaign") or "direct"))
+    source = escape(str(lead.get("source") or "bot"))
+    verified = _fmt_admin_time(str(lead.get("verified_at") or ""))
+    return (
+        f"{status_icon} <b>{status}</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        f"👤 <b>{first_name}</b> · {telegram}\n"
+        f"📱 <code>{phone}</code>\n"
+        f"🎯 Campaign: <code>{campaign}</code>\n"
+        f"📥 Source: <b>{source}</b>\n"
+        f"🕒 Verified: <b>{escape(verified)}</b>\n"
+        "☎️ Follow-up: <b>Call + WhatsApp</b>"
+    )
+
+
+def _crm_status_counts() -> dict:
+    ensure_tables()
+    counts = {
+        "new": 0,
+        "contacted": 0,
+        "no_answer": 0,
+        "interested": 0,
+        "converted": 0,
+        "dnc": 0,
+    }
+    with core.db() as conn:
+        rows = conn.execute(
+            """
+            SELECT lead_status, COUNT(*) c
+            FROM ibetin_leads
+            WHERE verified_at IS NOT NULL
+              AND contact_consent=1
+            GROUP BY lead_status
+            """
+        ).fetchall()
+    for row in rows:
+        key = str(row["lead_status"] or "new")
+        if key in counts:
+            counts[key] = int(row["c"] or 0)
+    return counts
+
+
+def _crm_text() -> str:
+    counts = _crm_status_counts()
+    follow_up = counts["contacted"] + counts["no_answer"]
+    active = (
+        counts["new"]
+        + follow_up
+        + counts["interested"]
+    )
+    return (
+        "📞 <b>IBETIN CRM · LEAD PIPELINE</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
+        f"🆕 New to contact: <b>{counts['new']}</b>\n"
+        f"📞 Follow-up queue: <b>{follow_up}</b>\n"
+        f"⭐ Interested: <b>{counts['interested']}</b>\n"
+        f"✅ Converted: <b>{counts['converted']}</b>\n"
+        f"🚫 DNC: <b>{counts['dnc']}</b>\n\n"
+        f"📌 Active sales work: <b>{active}</b>\n\n"
+        "<b>Team workflow:</b> Open New Leads first, contact by call + "
+        "WhatsApp, then update the status immediately."
+    )
+
+
+def crm_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
             [
-                InlineKeyboardButton(
-                    "📞 CONTACTED",
-                    callback_data=f"reports:lead:contacted:{uid}",
-                ),
-                InlineKeyboardButton(
-                    "⭐ INTERESTED",
-                    callback_data=f"reports:lead:interested:{uid}",
-                ),
+                InlineKeyboardButton("🆕 NEW LEADS", callback_data="reports:queue:new"),
+                InlineKeyboardButton("📞 FOLLOW-UP", callback_data="reports:queue:followup"),
             ],
             [
-                InlineKeyboardButton(
-                    "✅ CONVERTED",
-                    callback_data=f"reports:lead:converted:{uid}",
-                ),
-                InlineKeyboardButton(
-                    "📵 NO ANSWER",
-                    callback_data=f"reports:lead:no_answer:{uid}",
-                ),
+                InlineKeyboardButton("⭐ INTERESTED", callback_data="reports:queue:interested"),
+                InlineKeyboardButton("✅ CONVERTED", callback_data="reports:queue:converted"),
+            ],
+            [InlineKeyboardButton("📥 EXPORT CRM LEADS", callback_data="reports:exportleads")],
+            [InlineKeyboardButton("⬅️ DASHBOARD", callback_data="reports:overview")],
+        ]
+    )
+
+
+def _queue_statuses(queue: str):
+    mapping = {
+        "new": ("new",),
+        "followup": ("contacted", "no_answer"),
+        "interested": ("interested",),
+        "converted": ("converted",),
+    }
+    return mapping.get(str(queue or ""), ())
+
+
+def _queue_title(queue: str) -> str:
+    return {
+        "new": "🆕 NEW LEADS · CONTACT NOW",
+        "followup": "📞 FOLLOW-UP QUEUE",
+        "interested": "⭐ INTERESTED LEADS",
+        "converted": "✅ CONVERTED LEADS",
+    }.get(queue, "📞 CRM LEADS")
+
+
+def _queue_leads(queue: str, limit: int = CRM_BATCH_SIZE):
+    statuses = _queue_statuses(queue)
+    if not statuses:
+        return []
+    placeholders = ",".join("?" for _ in statuses)
+    order = (
+        "verified_at ASC"
+        if queue in {"new", "followup"}
+        else "updated_at DESC"
+    )
+    ensure_tables()
+    with core.db() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT user_id
+            FROM ibetin_leads
+            WHERE verified_at IS NOT NULL
+              AND contact_consent=1
+              AND lead_status IN ({placeholders})
+            ORDER BY {order}
+            LIMIT ?
+            """,
+            (*statuses, int(limit)),
+        ).fetchall()
+    return [
+        lead
+        for lead in (_lead_view(int(row["user_id"])) for row in rows)
+        if lead
+    ]
+
+
+def queue_menu(queue: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("🔄 REFRESH QUEUE", callback_data=f"reports:queue:{queue}")],
+            [InlineKeyboardButton("⬅️ CRM", callback_data="reports:crm")],
+        ]
+    )
+
+
+def advanced_menu() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton("👥 BOT USERS", callback_data="reports:users"),
+                InlineKeyboardButton("📱 VERIFIED MOBILES", callback_data="reports:liveline"),
             ],
             [
-                InlineKeyboardButton(
-                    "🚫 DNC",
-                    callback_data=f"reports:lead:dnc:{uid}",
-                )
+                InlineKeyboardButton("💬 DM USERS", callback_data="reports:business"),
+                InlineKeyboardButton("⏰ REMINDERS", callback_data="reports:reminders"),
             ],
+            [
+                InlineKeyboardButton("🖱 ACTIVITY", callback_data="reports:activity"),
+                InlineKeyboardButton("🌐 WEB OPENS", callback_data="reports:web"),
+            ],
+            [
+                InlineKeyboardButton("🎨 TECH/CAMPAIGNS", callback_data="reports:campaigns"),
+                InlineKeyboardButton("📦 ALL REPORTS", callback_data="reports:all"),
+            ],
+            [InlineKeyboardButton("⬅️ DASHBOARD", callback_data="reports:overview")],
+        ]
+    )
+
+
+def _team_guide_text() -> str:
+    return (
+        "📚 <b>IBETIN CRM · TEAM GUIDE</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
+        "<b>1. NEW LEAD</b>\n"
+        "A user has verified their Telegram-linked mobile and agreed to "
+        "IBETIN follow-up by call and WhatsApp. Contact them as soon as possible.\n\n"
+        "<b>2. CONTACTED</b>\n"
+        "Mark this immediately after your first genuine call/WhatsApp attempt.\n\n"
+        "<b>3. NO ANSWER</b>\n"
+        "Use when the user did not respond. These leads stay in Follow-up.\n\n"
+        "<b>4. INTERESTED</b>\n"
+        "Use when the user has responded positively and needs conversion follow-up.\n\n"
+        "<b>5. CONVERTED</b>\n"
+        "Use only after the team's conversion goal has actually been completed.\n\n"
+        "<b>6. DNC</b>\n"
+        "Use immediately if the user asks not to be contacted. Do not call or "
+        "WhatsApp them again.\n\n"
+        "<b>Daily routine:</b> New Leads → Follow-up → Interested → Ad Performance.\n"
+        "Always update status after every contact attempt so another team member "
+        "can understand the lead instantly."
+    )
+
+
+def _ad_performance_text() -> str:
+    headers, rows = _report_funnel()
+    del headers
+    if not rows:
+        return (
+            "🎯 <b>AD PERFORMANCE</b>\n"
+            "━━━━━━━━━━━━━━━━━━\n\n"
+            "No campaign data yet. Use a unique Telegram start code for every ad."
+        )
+
+    lines = [
+        "🎯 <b>AD PERFORMANCE</b>",
+        "━━━━━━━━━━━━━━━━━━",
+        "",
+        "Shows which Telegram start code produces verified and converted leads.",
+        "",
+    ]
+    for row in rows[:8]:
+        campaign, starts, verified, verify_rate, contacted, interested, converted, conversion_rate = row
+        lines.extend(
+            [
+                f"<b>{escape(str(campaign))}</b>",
+                f"Starts <b>{starts}</b> → Verified <b>{verified}</b> ({escape(str(verify_rate))}) "
+                f"→ Converted <b>{converted}</b> ({escape(str(conversion_rate))})",
+                f"Contacted <b>{contacted}</b> · Interested <b>{interested}</b>",
+                "",
+            ]
+        )
+    return "\n".join(lines).rstrip()
+
+
+def ad_performance_menu() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("📥 EXPORT AD FUNNEL", callback_data="reports:exportfunnel")],
+            [InlineKeyboardButton("⬅️ DASHBOARD", callback_data="reports:overview")],
         ]
     )
 
@@ -253,67 +550,103 @@ def _overview_text() -> str:
     cutoff_7d = (now - timedelta(days=7)).isoformat()
 
     with core.db() as conn:
-        total_users = _count(conn, "SELECT COUNT(*) FROM users") if _table_exists(conn, "users") else 0
-        active_24h = _count(conn, "SELECT COUNT(*) FROM users WHERE last_seen >= ?", (cutoff_24h,)) if _table_exists(conn, "users") else 0
-        active_7d = _count(conn, "SELECT COUNT(*) FROM users WHERE last_seen >= ?", (cutoff_7d,)) if _table_exists(conn, "users") else 0
-        subscribers = _count(conn, "SELECT COUNT(*) FROM users WHERE subscribed=1") if _table_exists(conn, "users") else 0
-        verified_mobile = _count(conn, "SELECT COUNT(*) FROM liveline_verified_users") if _table_exists(conn, "liveline_verified_users") else 0
-        dm_users = _count(conn, "SELECT COUNT(DISTINCT customer_id) FROM business_customers") if _table_exists(conn, "business_customers") else 0
-        reminder_users = _count(conn, "SELECT COUNT(*) FROM reminder_users") if _table_exists(conn, "reminder_users") else 0
-        opted_out = _count(conn, "SELECT COUNT(*) FROM reminder_users WHERE opted_out=1") if _table_exists(conn, "reminder_users") else 0
-        actions = _count(conn, "SELECT COUNT(*) FROM clicks") if _table_exists(conn, "clicks") else 0
-        web_opens = _count(conn, "SELECT COUNT(*) FROM web_events") if _table_exists(conn, "web_events") else 0
-        creatives = _count(conn, "SELECT COUNT(*) FROM creative_assets WHERE active=1") if _table_exists(conn, "creative_assets") else 0
-        campaigns = _count(conn, "SELECT COUNT(*) FROM channel_campaigns") if _table_exists(conn, "channel_campaigns") else 0
-        lead_total = _count(conn, "SELECT COUNT(*) FROM ibetin_leads") if _table_exists(conn, "ibetin_leads") else 0
-        lead_new = _count(conn, "SELECT COUNT(*) FROM ibetin_leads WHERE lead_status='new'") if _table_exists(conn, "ibetin_leads") else 0
-        lead_contacted = _count(conn, "SELECT COUNT(*) FROM ibetin_leads WHERE lead_status='contacted'") if _table_exists(conn, "ibetin_leads") else 0
-        lead_interested = _count(conn, "SELECT COUNT(*) FROM ibetin_leads WHERE lead_status='interested'") if _table_exists(conn, "ibetin_leads") else 0
-        lead_converted = _count(conn, "SELECT COUNT(*) FROM ibetin_leads WHERE lead_status='converted'") if _table_exists(conn, "ibetin_leads") else 0
+        starts_24h = _count(
+            conn,
+            "SELECT COUNT(*) FROM ibetin_leads WHERE first_seen_at >= ?",
+            (cutoff_24h,),
+        )
+        verified_from_24h_starts = _count(
+            conn,
+            """
+            SELECT COUNT(*)
+            FROM ibetin_leads
+            WHERE first_seen_at >= ?
+              AND verified_at IS NOT NULL
+              AND contact_consent=1
+            """,
+            (cutoff_24h,),
+        )
+        verified_24h = _count(
+            conn,
+            """
+            SELECT COUNT(*)
+            FROM ibetin_leads
+            WHERE verified_at >= ?
+              AND contact_consent=1
+            """,
+            (cutoff_24h,),
+        )
+        converted_24h = _count(
+            conn,
+            "SELECT COUNT(*) FROM ibetin_leads WHERE converted_at >= ?",
+            (cutoff_24h,),
+        )
+        starts_7d = _count(
+            conn,
+            "SELECT COUNT(*) FROM ibetin_leads WHERE first_seen_at >= ?",
+            (cutoff_7d,),
+        )
+        verified_7d = _count(
+            conn,
+            """
+            SELECT COUNT(*)
+            FROM ibetin_leads
+            WHERE first_seen_at >= ?
+              AND verified_at IS NOT NULL
+              AND contact_consent=1
+            """,
+            (cutoff_7d,),
+        )
+        converted_7d = _count(
+            conn,
+            "SELECT COUNT(*) FROM ibetin_leads WHERE converted_at >= ?",
+            (cutoff_7d,),
+        )
+
+    counts = _crm_status_counts()
+    follow_up = counts["contacted"] + counts["no_answer"]
+    verification_rate = (
+        round(verified_from_24h_starts * 100.0 / starts_24h, 1)
+        if starts_24h else 0.0
+    )
+    verify_rate_7d = (
+        round(verified_7d * 100.0 / starts_7d, 1)
+        if starts_7d else 0.0
+    )
 
     return (
-        "📊 <b>IBETIN REPORT CENTER</b>\n"
+        "📊 <b>IBETIN SALES DASHBOARD</b>\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
-        f"👥 Bot users: <b>{total_users}</b>\n"
-        f"⚡ Active 24h: <b>{active_24h}</b>\n"
-        f"📅 Active 7d: <b>{active_7d}</b>\n"
-        f"🔔 Subscribers: <b>{subscribers}</b>\n\n"
-        f"📱 Verified IBETIN users: <b>{verified_mobile}</b>\n"
-        f"💬 Business DM users: <b>{dm_users}</b>\n\n"
-        f"⏰ Reminder users: <b>{reminder_users}</b>\n"
-        f"🔕 Reminder opt-outs: <b>{opted_out}</b>\n"
-        f"🖱 Bot actions: <b>{actions}</b>\n"
-        f"🌐 Web opens: <b>{web_opens}</b>\n"
-        f"🎨 Active creatives: <b>{creatives}</b>\n"
-        f"📣 Channel campaigns: <b>{campaigns}</b>\n\n"
-        f"📞 Lead pipeline: <b>{lead_total}</b>\n"
-        f"🆕 New: <b>{lead_new}</b> · 📞 Contacted: <b>{lead_contacted}</b>\n"
-        f"⭐ Interested: <b>{lead_interested}</b> · ✅ Converted: <b>{lead_converted}</b>"
+        "<b>Last 24 hours</b>\n"
+        f"👥 Bot starts: <b>{starts_24h}</b>\n"
+        f"📱 New verified leads: <b>{verified_24h}</b>\n"
+        f"🔐 Start → verification: <b>{verification_rate}%</b>\n"
+        f"✅ Converted: <b>{converted_24h}</b>\n\n"
+        "<b>Team work queue</b>\n"
+        f"🆕 New to contact: <b>{counts['new']}</b>\n"
+        f"📞 Follow-up: <b>{follow_up}</b>\n"
+        f"⭐ Interested: <b>{counts['interested']}</b>\n"
+        f"✅ Total converted: <b>{counts['converted']}</b>\n\n"
+        "<b>Last 7 days</b>\n"
+        f"👥 Starts: <b>{starts_7d}</b> · 📱 Verified: <b>{verified_7d}</b> "
+        f"(<b>{verify_rate_7d}%</b>) · ✅ Converted: <b>{converted_7d}</b>\n\n"
+        "Open <b>CRM / LEAD PIPELINE</b> to work leads. "
+        "Technical reports are kept under Advanced."
     )
 
 
 def report_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
-            [InlineKeyboardButton("📊 OVERVIEW", callback_data="reports:overview")],
+            [InlineKeyboardButton("📞 CRM / LEAD PIPELINE", callback_data="reports:crm")],
             [
-                InlineKeyboardButton("👥 BOT USERS", callback_data="reports:users"),
-                InlineKeyboardButton("📱 VERIFIED USERS + MOBILE", callback_data="reports:liveline"),
+                InlineKeyboardButton("🎯 AD PERFORMANCE", callback_data="reports:adperformance"),
+                InlineKeyboardButton("📥 EXPORT LEADS", callback_data="reports:exportleads"),
             ],
             [
-                InlineKeyboardButton("📞 LEADS", callback_data="reports:leads"),
-                InlineKeyboardButton("🎯 AD FUNNEL", callback_data="reports:funnel"),
+                InlineKeyboardButton("📚 TEAM GUIDE", callback_data="reports:guide"),
+                InlineKeyboardButton("⚙️ ADVANCED REPORTS", callback_data="reports:advanced"),
             ],
-            [InlineKeyboardButton("💬 DM USERS", callback_data="reports:business")],
-            [
-                InlineKeyboardButton("⏰ REMINDERS", callback_data="reports:reminders"),
-                InlineKeyboardButton("🖱 ACTIVITY", callback_data="reports:activity"),
-            ],
-            [
-                InlineKeyboardButton("🌐 WEB OPENS", callback_data="reports:web"),
-                InlineKeyboardButton("🎨 CAMPAIGNS", callback_data="reports:campaigns"),
-            ],
-            [InlineKeyboardButton("📦 DOWNLOAD ALL REPORTS", callback_data="reports:all")],
         ]
     )
 
@@ -576,7 +909,9 @@ def _report_leads():
             """
             SELECT *
             FROM ibetin_leads
-            ORDER BY COALESCE(verified_at, first_seen_at) DESC
+            WHERE verified_at IS NOT NULL
+              AND contact_consent=1
+            ORDER BY verified_at DESC
             """
         ).fetchall()
 
@@ -663,7 +998,7 @@ def _report_funnel():
 REPORT_BUILDERS = {
     "users": ("IBETIN_Bot_Users.csv", _report_users),
     "liveline": ("IBETIN_Verified_Users_With_Mobile.csv", _report_liveline),
-    "leads": ("IBETIN_Lead_Pipeline.csv", _report_leads),
+    "leads": ("IBETIN_CRM_Leads.csv", _report_leads),
     "funnel": ("IBETIN_Ad_Funnel_By_Campaign.csv", _report_funnel),
     "business": ("IBETIN_Business_DM_Users.csv", _report_business),
     "reminders": ("IBETIN_Reminder_Users.csv", _report_reminders),
@@ -735,12 +1070,29 @@ async def handle_callback(update, context) -> bool:
             except Exception:
                 uid = 0
             if uid and ibetin_leads.set_status(uid, status):
-                label = status.replace("_", " ").title()
-                await message.reply_text(
-                    f"✅ Lead <code>{uid}</code> marked <b>{label}</b>.",
-                    parse_mode="HTML",
-                    reply_markup=lead_status_keyboard(uid),
-                )
+                if status == "dnc":
+                    try:
+                        import fantzo_reminders as reminders
+                        reminders.set_opt_out("bot", uid, True)
+                        reminders.set_opt_out("business_dm", uid, True)
+                    except Exception:
+                        logger.exception("Could not apply DNC reminder opt-out")
+
+                lead = _lead_view(uid)
+                if lead:
+                    try:
+                        await query.edit_message_text(
+                            _lead_card_text(lead),
+                            parse_mode="HTML",
+                            reply_markup=lead_status_keyboard(uid),
+                            disable_web_page_preview=True,
+                        )
+                    except Exception:
+                        label = status.replace("_", " ").title()
+                        await message.reply_text(
+                            f"✅ Lead status updated to <b>{escape(label)}</b>.",
+                            parse_mode="HTML",
+                        )
             else:
                 await message.reply_text("⚠️ Could not update lead status.")
         return True
@@ -750,7 +1102,83 @@ async def handle_callback(update, context) -> bool:
             _overview_text(),
             parse_mode="HTML",
             reply_markup=report_menu(),
+            disable_web_page_preview=True,
         )
+        return True
+
+    if action == "crm":
+        await message.reply_text(
+            _crm_text(),
+            parse_mode="HTML",
+            reply_markup=crm_menu(),
+            disable_web_page_preview=True,
+        )
+        return True
+
+    if action.startswith("queue:"):
+        queue = action.split(":", 1)[1]
+        leads = _queue_leads(queue)
+        title = _queue_title(queue)
+        if not leads:
+            await message.reply_text(
+                f"{title}\n\n✅ No leads in this queue right now.",
+                parse_mode="HTML",
+                reply_markup=queue_menu(queue),
+            )
+            return True
+
+        await message.reply_text(
+            f"{title}\n\nShowing the next <b>{len(leads)}</b> lead(s). "
+            "Update each status after your action.",
+            parse_mode="HTML",
+            reply_markup=queue_menu(queue),
+        )
+        for lead in leads:
+            await message.reply_text(
+                _lead_card_text(lead),
+                parse_mode="HTML",
+                reply_markup=lead_status_keyboard(int(lead["user_id"])),
+                disable_web_page_preview=True,
+            )
+        return True
+
+    if action == "adperformance":
+        await message.reply_text(
+            _ad_performance_text(),
+            parse_mode="HTML",
+            reply_markup=ad_performance_menu(),
+            disable_web_page_preview=True,
+        )
+        return True
+
+    if action == "guide":
+        await message.reply_text(
+            _team_guide_text(),
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton("⬅️ DASHBOARD", callback_data="reports:overview")]]
+            ),
+            disable_web_page_preview=True,
+        )
+        return True
+
+    if action == "advanced":
+        await message.reply_text(
+            "⚙️ <b>ADVANCED / TECHNICAL REPORTS</b>\n"
+            "━━━━━━━━━━━━━━━━━━\n\n"
+            "These are mainly for troubleshooting, auditing and exports. "
+            "The sales team normally does not need them during daily lead work.",
+            parse_mode="HTML",
+            reply_markup=advanced_menu(),
+        )
+        return True
+
+    if action == "exportleads":
+        await _send_report(message, "leads")
+        return True
+
+    if action == "exportfunnel":
+        await _send_report(message, "funnel")
         return True
 
     if action == "all":

@@ -105,6 +105,15 @@ async def report_loop(application):
         await asyncio.sleep(REPORT_INTERVAL_SECONDS)
 
 
+async def _start_report_when_running(application):
+    while not application.running:
+        await asyncio.sleep(0.2)
+    application.create_task(report_loop(application))
+
+
 def start(application):
     ensure_tables()
-    application.create_task(report_loop(application))
+    asyncio.create_task(
+        _start_report_when_running(application),
+        name="fantzo-growth-report-starter",
+    )

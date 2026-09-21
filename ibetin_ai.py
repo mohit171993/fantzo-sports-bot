@@ -3,6 +3,7 @@ import os
 from typing import Optional
 
 import httpx
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 import bot as core
 
@@ -44,6 +45,18 @@ IBETIN_KEYWORDS = {
     "channel", "bot", "menu", "join", "live", "result", "results", "news",
 }
 
+SUPPORT_TRIGGER_KEYWORDS = {
+    "failed deposit", "deposit failed", "withdrawal failed", "withdraw failed",
+    "payment failed", "payment pending", "deposit pending", "withdrawal pending",
+    "money not received", "amount not received", "refund", "kyc", "blocked",
+    "account locked", "login issue", "otp issue", "complaint", "transaction",
+}
+
+SUPPORT_PAGE_URL = os.getenv(
+    "IBETIN_SUPPORT_URL",
+    "https://ibetin.com/information/contacts",
+).strip()
+
 
 def _looks_ibetin_related(text: str) -> bool:
     t = " ".join(str(text or "").casefold().split())
@@ -56,6 +69,33 @@ def _looks_ibetin_related(text: str) -> bool:
 
     return any(keyword in t for keyword in IBETIN_KEYWORDS)
 
+
+
+def needs_support_redirect(text: str) -> bool:
+    t = " ".join(str(text or "").casefold().split())
+    if not t:
+        return False
+    return any(keyword in t for keyword in SUPPORT_TRIGGER_KEYWORDS)
+
+
+def support_keyboard() -> InlineKeyboardMarkup:
+    telegram_url = os.getenv("IBETIN_TELEGRAM_SUPPORT_URL", "").strip()
+    whatsapp_url = os.getenv("IBETIN_WHATSAPP_SUPPORT_URL", "").strip()
+
+    rows = []
+    if telegram_url:
+        rows.append([InlineKeyboardButton("💬 TELEGRAM SUPPORT", url=telegram_url)])
+    if whatsapp_url:
+        rows.append([InlineKeyboardButton("🟢 WHATSAPP SUPPORT", url=whatsapp_url)])
+
+    if not rows:
+        rows.append([InlineKeyboardButton("🛟 OPEN IBETIN SUPPORT", url=SUPPORT_PAGE_URL)])
+
+    return InlineKeyboardMarkup(rows)
+
+
+def is_off_topic(text: str) -> bool:
+    return not _looks_ibetin_related(text)
 
 
 

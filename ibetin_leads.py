@@ -87,15 +87,16 @@ def record_start(
         ).fetchone()
 
         if existing:
-            # Do not overwrite a real ad campaign with a later plain /start.
+            # Preserve first-touch attribution. A later plain /start or another
+            # campaign must not rewrite the source that originally acquired the lead.
             old_campaign = str(existing["campaign"] or "direct")
             chosen_campaign = (
                 old_campaign
-                if campaign_value == "direct" and old_campaign != "direct"
+                if old_campaign != "direct"
                 else campaign_value
             )
             old_source = str(existing["source"] or "bot")
-            chosen_source = source_value or old_source
+            chosen_source = old_source or source_value
             conn.execute(
                 """
                 UPDATE ibetin_leads
@@ -203,11 +204,21 @@ def set_status(user_id: int, status: str) -> bool:
             (int(user_id),),
         ).fetchone()
         if not row:
-            record_start(int(user_id))
-        conn.execute(
-            "UPDATE ibetin_leads SET lead_status=?, updated_at=? WHERE user_id=?",
-            (status, now, int(user_id)),
-        )
+            conn.execute(
+                """
+                INSERT INTO ibetin_leads(
+                    user_id, campaign, source, first_seen_at, last_seen_at,
+                    lead_status, updated_at
+                )
+                VALUES (?, 'direct', 'bot', ?, ?, ?, ?)
+                """,
+                (int(user_id), now, now, status, now),
+            )
+        else:
+            conn.execute(
+                "UPDATE ibetin_leads SET lead_status=?, updated_at=? WHERE user_id=?",
+                (status, now, int(user_id)),
+            )
         if timestamp_column:
             conn.execute(
                 f"UPDATE ibetin_leads "

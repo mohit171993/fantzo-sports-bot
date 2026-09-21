@@ -25,6 +25,7 @@ import fantzo_analytics as analytics
 import fantzo_autoreply
 import fantzo_business
 import trial_live_tv
+import ibetin_ai
 
 logger = logging.getLogger(__name__)
 
@@ -295,6 +296,7 @@ def run() -> None:
     analytics.ensure_tables()
     fantzo_autoreply.ensure_setting()
     fantzo_business.ensure_tables()
+    ibetin_ai.ensure_tables()
 
     app = (
         Application.builder()

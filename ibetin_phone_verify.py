@@ -156,3 +156,57 @@ def apply_requested_reset() -> int:
                 )
                 deleted += int(cur.rowcount or 0)
     return deleted
+
+
+def apply_requested_username_reset() -> int:
+    """One-time operator reset for a user's IBETIN mobile verification.
+
+    Controlled by IBETIN_RESET_VERIFICATION_USERNAME. It resolves the Telegram
+    user ID from users/business_customers and deletes only that user's row from
+    liveline_verified_users. The environment variable should be cleared
+    immediately after the reset is observed.
+    """
+    requested = (
+        os.getenv("IBETIN_RESET_VERIFICATION_USERNAME", "")
+        .strip()
+        .lstrip("@")
+        .casefold()
+    )
+    if not requested:
+        return 0
+
+    ensure_tables()
+    user_ids = set()
+    with _connect() as conn:
+        tables = {
+            str(row["name"])
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+
+        if "users" in tables:
+            rows = conn.execute(
+                "SELECT user_id FROM users WHERE lower(username)=?",
+                (requested,),
+            ).fetchall()
+            user_ids.update(int(row["user_id"]) for row in rows if row["user_id"])
+
+        if "business_customers" in tables:
+            rows = conn.execute(
+                "SELECT DISTINCT customer_id FROM business_customers WHERE lower(username)=?",
+                (requested,),
+            ).fetchall()
+            user_ids.update(
+                int(row["customer_id"]) for row in rows if row["customer_id"]
+            )
+
+        deleted = 0
+        for user_id in user_ids:
+            cur = conn.execute(
+                "DELETE FROM liveline_verified_users WHERE user_id=?",
+                (int(user_id),),
+            )
+            deleted += int(cur.rowcount or 0)
+
+    return deleted

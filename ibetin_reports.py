@@ -212,7 +212,7 @@ def _overview_text() -> str:
         f"⚡ Active 24h: <b>{active_24h}</b>\n"
         f"📅 Active 7d: <b>{active_7d}</b>\n"
         f"🔔 Subscribers: <b>{subscribers}</b>\n\n"
-        f"📱 Verified mobiles / Live Line users: <b>{verified_mobile}</b>\n"
+        f"📱 Verified IBETIN users: <b>{verified_mobile}</b>\n"
         f"💬 Business DM users: <b>{dm_users}</b>\n\n"
         f"⏰ Reminder users: <b>{reminder_users}</b>\n"
         f"🔕 Reminder opt-outs: <b>{opted_out}</b>\n"
@@ -229,7 +229,7 @@ def report_menu() -> InlineKeyboardMarkup:
             [InlineKeyboardButton("📊 OVERVIEW", callback_data="reports:overview")],
             [
                 InlineKeyboardButton("👥 BOT USERS", callback_data="reports:users"),
-                InlineKeyboardButton("🏏 LIVE LINE + MOBILE", callback_data="reports:liveline"),
+                InlineKeyboardButton("📱 VERIFIED USERS + MOBILE", callback_data="reports:liveline"),
             ],
             [InlineKeyboardButton("💬 DM USERS", callback_data="reports:business")],
             [
@@ -468,7 +468,7 @@ def _report_campaigns():
 
 REPORT_BUILDERS = {
     "users": ("IBETIN_Bot_Users.csv", _report_users),
-    "liveline": ("IBETIN_Live_Line_Users_With_Mobile.csv", _report_liveline),
+    "liveline": ("IBETIN_Verified_Users_With_Mobile.csv", _report_liveline),
     "business": ("IBETIN_Business_DM_Users.csv", _report_business),
     "reminders": ("IBETIN_Reminder_Users.csv", _report_reminders),
     "activity": ("IBETIN_Activity_Report.csv", _report_activity),

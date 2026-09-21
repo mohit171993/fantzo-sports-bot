@@ -13,6 +13,7 @@ from telegram.ext import ApplicationHandlerStop, ContextTypes
 import bot as core
 import fantzo_autoreply
 import ibetin_phone_verify as phone_verify
+import ibetin_ai
 
 logger = logging.getLogger(__name__)
 
@@ -607,6 +608,24 @@ async def business_auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE
     text = message.text.strip()
     if not text or text.startswith("/"):
         return
+
+    # Verified users get natural AI replies first. If the AI provider is not
+    # configured or temporarily unavailable, fall back to the existing
+    # deterministic IBETIN intent replies below.
+    if customer_id and phone_verify.is_verified(customer_id):
+        ai_reply = await ibetin_ai.reply(customer_id, text)
+        if ai_reply:
+            try:
+                core.track(customer_id, "business_dm:ai")
+            except Exception:
+                logger.exception("Could not track IBETIN AI Business DM")
+            logger.info(
+                "IBETIN AI Business DM reply sent: connection=%s customer=%s",
+                connection_id,
+                customer_id,
+            )
+            await _reply_with_retry(message, ai_reply, None)
+            return
 
     # Test the exact production follow-up renderer in the same Business DM.
     if " ".join(text.lower().split()) in {"test followup", "followup test", "test reminder"}:

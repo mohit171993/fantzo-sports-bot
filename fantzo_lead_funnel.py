@@ -17,10 +17,11 @@ import re
 from datetime import datetime, timezone
 from html import escape
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
-from telegram.ext import CommandHandler
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove, WebAppInfo
+from telegram.ext import CommandHandler, MessageHandler, filters
 
 import bot_tracked as tracked
+import fantzo_reminders as reminders
 
 logger = logging.getLogger(__name__)
 core = tracked.app.core
@@ -498,6 +499,53 @@ def _resolve_mobile(identifier: str) -> str | None:
     return None
 
 
+
+def stop_user_contact(user_id: int) -> None:
+    """Stop Fantzo reminder/contact outreach for one Telegram user."""
+    if not user_id:
+        return
+    ensure_tables()
+    now = _now_iso()
+
+    try:
+        reminders.set_opt_out("bot", int(user_id), True)
+        reminders.set_opt_out("business_dm", int(user_id), True)
+    except Exception:
+        logger.exception("Could not opt user out of Fantzo reminders")
+
+    with core.db() as conn:
+        mapped = conn.execute(
+            "SELECT mobile_e164 FROM lead_user_map WHERE user_id=?",
+            (int(user_id),),
+        ).fetchone()
+        if mapped:
+            conn.execute(
+                """
+                UPDATE sales_leads
+                SET status='DO_NOT_CONTACT', updated_at=?, last_contact_at=?
+                WHERE mobile_e164=?
+                """,
+                (now, now, str(mapped["mobile_e164"])),
+            )
+
+    record_event(user_id, "contact_opt_out", "user_request")
+
+
+async def stop_contact_handler(update, context) -> None:
+    user = update.effective_user
+    message = update.effective_message
+    if not user or not message:
+        return
+
+    stop_user_contact(user.id)
+    await message.reply_text(
+        "✅ <b>Contact and reminder messages are OFF.</b>\n\n"
+        "You can still use Fantzo normally.",
+        parse_mode="HTML",
+        reply_markup=ReplyKeyboardRemove(),
+    )
+
+
 def _admin_only(update) -> bool:
     user = update.effective_user
     return bool(user and int(user.id) == int(core.ADMIN_USER_ID))
@@ -720,4 +768,14 @@ def register_handlers(application) -> None:
     application.add_handler(CommandHandler("leadassign", leadassign_command))
     application.add_handler(CommandHandler("leadnote", leadnote_command))
     application.add_handler(CommandHandler("adlink", adlink_command))
-    logger.info("Fantzo lead CRM admin commands registered")
+    application.add_handler(CommandHandler("stop", stop_contact_handler), group=-9)
+    application.add_handler(
+        MessageHandler(
+            filters.UpdateType.MESSAGE
+            & filters.TEXT
+            & filters.Regex(r"(?i)^\\s*(stop|unsubscribe|do not contact)\\s*$"),
+            stop_contact_handler,
+        ),
+        group=-9,
+    )
+    logger.info("Fantzo lead CRM admin commands and user opt-out handlers registered")

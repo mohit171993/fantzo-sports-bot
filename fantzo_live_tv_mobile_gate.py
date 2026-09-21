@@ -353,7 +353,14 @@ async def contact_handler(update: Update, context) -> None:
         source,
     )
     track_verification_event(user.id, source, "verified")
-    lead_funnel.on_verified(user.id, e164, source)
+    is_new_lead = lead_funnel.on_verified(user.id, e164, source)
+    await lead_funnel.notify_admin_verified(
+        context.application,
+        user.id,
+        e164,
+        source,
+        is_new_lead,
+    )
 
     try:
         if source == "business_dm":

@@ -829,10 +829,10 @@ def _crm_lead_text(user_id: int) -> tuple[str, InlineKeyboardMarkup]:
     rows = []
     if mobile_digits and str(row["status"] or "") != "DO_NOT_CONTACT":
         rows.append([
-            _styled_button(
+            InlineKeyboardButton(
                 "💬 OPEN WHATSAPP",
-                style="success",
                 url=f"https://wa.me/{mobile_digits}",
+                api_kwargs={"style": "success"},
             )
         ])
 

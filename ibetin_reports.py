@@ -745,9 +745,9 @@ async def send_menu(update, context) -> None:
         return
     ensure_tables()
     await message.reply_text(
-        _overview_text(),
+        _crm_text(),
         parse_mode="HTML",
-        reply_markup=report_menu(),
+        reply_markup=crm_menu(),
         disable_web_page_preview=True,
     )
 
@@ -1146,7 +1146,7 @@ async def admin_text_handler(update, context) -> bool:
                 "🔎 <b>No CRM lead found.</b>\n\n"
                 "Search by mobile number, Telegram username or user ID.",
                 parse_mode="HTML",
-                reply_markup=report_menu(),
+                reply_markup=crm_menu(),
             )
             return True
         await message.reply_text(
@@ -1340,7 +1340,8 @@ async def handle_callback(update, context) -> bool:
                 uid = int(uid_s)
             except Exception:
                 uid = 0
-            if uid and ibetin_leads.set_status(uid, status):
+            actor = _actor_name(user)
+            if uid and ibetin_leads.set_status(uid, status, user.id, actor):
                 if status == "dnc":
                     try:
                         import fantzo_reminders as reminders
@@ -1370,9 +1371,9 @@ async def handle_callback(update, context) -> bool:
 
     if action == "overview":
         await message.reply_text(
-            _overview_text(),
+            _crm_text(),
             parse_mode="HTML",
-            reply_markup=report_menu(),
+            reply_markup=crm_menu(),
             disable_web_page_preview=True,
         )
         return True
@@ -1427,7 +1428,7 @@ async def handle_callback(update, context) -> bool:
             _team_guide_text(),
             parse_mode="HTML",
             reply_markup=InlineKeyboardMarkup(
-                [[InlineKeyboardButton("⬅️ DASHBOARD", callback_data="reports:overview")]]
+                [[InlineKeyboardButton("⬅️ WORK QUEUE", callback_data="reports:crm")]]
             ),
             disable_web_page_preview=True,
         )

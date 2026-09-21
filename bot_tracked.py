@@ -23,6 +23,7 @@ import ibetin_creatives
 import ibetin_news as news
 import ibetin_phone_verify as phone_verify
 import ibetin_reports
+import ibetin_ai
 import private_apk_upload
 import trial_live_tv
 
@@ -671,6 +672,40 @@ async def start_button_handler(update, context) -> None:
     await smart_start(update, context)
 
 
+async def verified_ai_text_handler(update, context) -> None:
+    user = update.effective_user
+    message = update.effective_message
+    if not user or not message or not message.text:
+        return
+
+    text = message.text.strip()
+    if not text or text.startswith("/"):
+        return
+
+    # Pending verification is handled earlier in group -10 and stops the update.
+    # Only verified users can reach the AI assistant.
+    if not phone_verify.is_verified(user.id):
+        await _prompt_mobile_verification(update, context, "bot_start")
+        return
+
+    ai_reply = await ibetin_ai.reply(user.id, text)
+    if not ai_reply:
+        # Keep the bot functional until an AI API key is configured.
+        return
+
+    try:
+        app.core.touch_user(update)
+        app.core.track(user.id, "bot:ai")
+    except Exception:
+        logger.exception("Could not track IBETIN main-bot AI reply")
+
+    logger.info("IBETIN main-bot AI reply sent user_id=%s", user.id)
+    await message.reply_text(
+        ai_reply,
+        disable_web_page_preview=True,
+    )
+
+
 async def smart_start(update, context) -> None:
     user = update.effective_user
     message = update.effective_message
@@ -931,6 +966,16 @@ async def configure_telegram_ui(application) -> None:
             & filters.Regex(r"^▶️ START$"),
             start_button_handler,
         )
+    )
+    application.add_handler(
+        MessageHandler(
+            filters.UpdateType.MESSAGE
+            & filters.TEXT
+            & ~filters.COMMAND
+            & ~filters.Regex(r"^▶️ START$"),
+            verified_ai_text_handler,
+        ),
+        group=5,
     )
     application.add_handler(CommandHandler("livetvadmin", live_tv_admin_command))
 

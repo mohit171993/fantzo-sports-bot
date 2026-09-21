@@ -279,6 +279,7 @@ def on_verified(user_id: int, mobile_e164: str, source: str) -> bool:
             "SELECT 1 FROM lead_contact_opt_outs WHERE user_id=? LIMIT 1",
             (int(user_id),),
         ).fetchone())
+        permission_at = None if opted_out else now
         conn.execute(
             """
             INSERT INTO lead_user_map(user_id,mobile_e164,linked_at)
@@ -311,7 +312,7 @@ def on_verified(user_id: int, mobile_e164: str, source: str) -> bool:
                     status=CASE WHEN ? THEN 'DO_NOT_CONTACT' ELSE status END
                 WHERE mobile_e164=?
                 """,
-                (chosen_campaign, now, now, 1 if opted_out else 0, str(mobile_e164)),
+                (chosen_campaign, now, permission_at, 1 if opted_out else 0, str(mobile_e164)),
             )
         else:
             initial_status = "DO_NOT_CONTACT" if opted_out else "NEW"
@@ -328,7 +329,7 @@ def on_verified(user_id: int, mobile_e164: str, source: str) -> bool:
                     int(user_id),
                     campaign,
                     initial_status,
-                    now,
+                    permission_at,
                     now,
                     now,
                 ),

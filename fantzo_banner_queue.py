@@ -157,9 +157,18 @@ async def scheduler_loop(application):
         except Exception: logger.exception("Fantzo Live TV banner scheduler error")
         await asyncio.sleep(CHECK_INTERVAL_SECONDS)
 
+async def _start_scheduler_when_running(application):
+    while not application.running:
+        await asyncio.sleep(0.2)
+    application.create_task(scheduler_loop(application))
+
+
 def install(application):
     ensure_tables()
     application.add_handler(CommandHandler("banners", banner_admin)); application.add_handler(CommandHandler("bannerpostnow", post_now)); application.add_handler(CommandHandler("bannerpause", pause)); application.add_handler(CommandHandler("bannerresume", resume)); application.add_handler(CommandHandler("bannerclear", clear))
     image_uploads = filters.PHOTO | filters.Document.IMAGE | filters.Document.FileExtension("png") | filters.Document.FileExtension("jpg") | filters.Document.FileExtension("jpeg") | filters.Document.FileExtension("webp")
     application.add_handler(MessageHandler(image_uploads & filters.User(user_id=core.ADMIN_USER_ID), receive_banner))
-    application.create_task(scheduler_loop(application))
+    asyncio.create_task(
+        _start_scheduler_when_running(application),
+        name="fantzo-banner-scheduler-starter",
+    )

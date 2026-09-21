@@ -68,6 +68,140 @@ def ensure_tables() -> None:
             "ON ibetin_leads(lead_status)"
         )
 
+        tables = {
+            str(row["name"])
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+
+        # Historical bot users are preserved as direct leads. This is a
+        # best-effort backfill only and never overwrites newer campaign/status data.
+        if "users" in tables:
+            rows = conn.execute(
+                """
+                SELECT user_id, created_at, last_seen
+                FROM users
+                WHERE user_id IS NOT NULL
+                """
+            ).fetchall()
+            for row in rows:
+                first_seen = str(row["created_at"] or row["last_seen"] or _now())
+                last_seen = str(row["last_seen"] or first_seen)
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO ibetin_leads(
+                        user_id, campaign, source, first_seen_at, last_seen_at,
+                        lead_status, updated_at
+                    )
+                    VALUES (?, 'direct', 'bot', ?, ?, 'new', ?)
+                    """,
+                    (int(row["user_id"]), first_seen, last_seen, last_seen),
+                )
+
+        if "business_customers" in tables:
+            rows = conn.execute(
+                """
+                SELECT customer_id, MIN(first_seen) first_seen, MAX(last_seen) last_seen
+                FROM business_customers
+                WHERE customer_id IS NOT NULL
+                GROUP BY customer_id
+                """
+            ).fetchall()
+            for row in rows:
+                first_seen = str(row["first_seen"] or row["last_seen"] or _now())
+                last_seen = str(row["last_seen"] or first_seen)
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO ibetin_leads(
+                        user_id, campaign, source, first_seen_at, last_seen_at,
+                        lead_status, updated_at
+                    )
+                    VALUES (?, 'direct', 'business_dm', ?, ?, 'new', ?)
+                    """,
+                    (int(row["customer_id"]), first_seen, last_seen, last_seen),
+                )
+
+        if "liveline_verified_users" in tables:
+            columns = {
+                str(row["name"])
+                for row in conn.execute(
+                    "PRAGMA table_info(liveline_verified_users)"
+                ).fetchall()
+            }
+            verified_col = (
+                "first_verified_at"
+                if "first_verified_at" in columns
+                else "verified_at"
+            )
+            source_expr = (
+                "verification_source"
+                if "verification_source" in columns
+                else "''"
+            )
+            campaign_expr = (
+                "campaign"
+                if "campaign" in columns
+                else "'direct'"
+            )
+            consent_expr = (
+                "contact_consent"
+                if "contact_consent" in columns
+                else "0"
+            )
+            rows = conn.execute(
+                f"""
+                SELECT user_id, {verified_col} verified_at,
+                       {source_expr} source, {campaign_expr} campaign,
+                       {consent_expr} contact_consent
+                FROM liveline_verified_users
+                """
+            ).fetchall()
+            for row in rows:
+                uid = int(row["user_id"])
+                verified_at = str(row["verified_at"] or _now())
+                source = clean_source(str(row["source"] or "bot"))
+                campaign = clean_campaign(str(row["campaign"] or "direct"))
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO ibetin_leads(
+                        user_id, campaign, source, first_seen_at, last_seen_at,
+                        verified_at, contact_consent, lead_status, updated_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 'new', ?)
+                    """,
+                    (
+                        uid,
+                        campaign,
+                        source,
+                        verified_at,
+                        verified_at,
+                        verified_at,
+                        int(row["contact_consent"] or 0),
+                        verified_at,
+                    ),
+                )
+                conn.execute(
+                    """
+                    UPDATE ibetin_leads
+                    SET verified_at=COALESCE(verified_at, ?),
+                        contact_consent=CASE
+                            WHEN contact_consent=1 THEN 1 ELSE ?
+                        END,
+                        updated_at=CASE
+                            WHEN updated_at < ? THEN ? ELSE updated_at
+                        END
+                    WHERE user_id=?
+                    """,
+                    (
+                        verified_at,
+                        int(row["contact_consent"] or 0),
+                        verified_at,
+                        verified_at,
+                        uid,
+                    ),
+                )
+
 
 def record_start(
     user_id: int,

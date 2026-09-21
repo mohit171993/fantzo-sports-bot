@@ -1003,6 +1003,12 @@ async def live_tv_admin_command(update, context) -> None:
     )
 
 
+async def admin_crm_text_handler(update, context) -> None:
+    """Consume Search/Note input before normal verified-user text routing."""
+    if await ibetin_reports.admin_text_handler(update, context):
+        raise ApplicationHandlerStop
+
+
 # =========================================================
 # TELEGRAM UI
 # =========================================================
@@ -1061,6 +1067,13 @@ async def configure_telegram_ui(application) -> None:
             pending_verification_text_handler,
         ),
         group=-10,
+    )
+    application.add_handler(
+        MessageHandler(
+            filters.UpdateType.MESSAGE & filters.TEXT & ~filters.COMMAND,
+            admin_crm_text_handler,
+        ),
+        group=-5,
     )
     application.add_handler(
         MessageHandler(

@@ -21,6 +21,7 @@ from telegram import (
 from telegram.ext import ApplicationHandlerStop, MessageHandler, filters
 
 import bot_tracked as tracked
+import fantzo_lead_funnel as lead_funnel
 
 logger = logging.getLogger(__name__)
 core = tracked.app.core
@@ -259,6 +260,7 @@ async def _prompt_mobile(update: Update, context, source: str) -> None:
     context.user_data[_PENDING_KEY] = True
     context.user_data[_PENDING_SOURCE_KEY] = source
     track_verification_event(user.id, source, "prompt")
+    lead_funnel.on_verification_prompt(user.id, source)
 
     query = update.callback_query
     message = update.effective_message
@@ -298,7 +300,9 @@ async def _prompt_mobile(update: Update, context, source: str) -> None:
         "Tap <b>📱 VERIFY & CONTINUE</b> below. Telegram will share the "
         "mobile number linked to your own Telegram account.\n\n"
         "Numbers from <b>any country</b> are accepted. "
-        "Typed numbers are not accepted.",
+        "Typed numbers are not accepted.\n\n"
+        "By sharing your Telegram-linked number, you agree that Fantzo may "
+        "contact you about your enquiry. You can ask us to stop at any time.",
         parse_mode="HTML",
         reply_markup=_verify_keyboard(),
     )
@@ -349,6 +353,7 @@ async def contact_handler(update: Update, context) -> None:
         source,
     )
     track_verification_event(user.id, source, "verified")
+    lead_funnel.on_verified(user.id, e164, source)
 
     try:
         if source == "business_dm":
@@ -386,14 +391,12 @@ async def contact_handler(update: Update, context) -> None:
     if source in {"bot_start", "bot_reminder"}:
         await message.reply_text(
             "✅ <b>Telegram mobile verified</b>\n\n"
-            f"Verified number: <code>{masked}</code>\n"
-            "Opening Fantzo…",
+            f"Verified number: <code>{masked}</code>",
             parse_mode="HTML",
             reply_markup=ReplyKeyboardRemove(),
         )
-        # The account is now verified, so the global /start gate falls through
-        # immediately to the normal existing Fantzo home flow.
-        await tracked.app.start(update, context)
+        # Paid-ad users get one focused conversion screen before the full menu.
+        await lead_funnel.send_post_verify(message, user.id)
         return
 
     await message.reply_text(
@@ -448,6 +451,9 @@ def install() -> None:
     async def gated_start(update, context):
         user = update.effective_user
         arg = context.args[0].lower() if context.args else ""
+
+        if user:
+            lead_funnel.record_start(user.id, arg)
 
         business_handoff = bool(
             user
@@ -522,6 +528,10 @@ def install() -> None:
         query = update.callback_query
         user = update.effective_user
         action = str(query.data or "") if query else ""
+
+        if user and action:
+            if is_registered(user.id):
+                lead_funnel.record_post_verify_action(user.id, action)
 
         if user and action == "live_tv_status":
             if not is_registered(user.id):

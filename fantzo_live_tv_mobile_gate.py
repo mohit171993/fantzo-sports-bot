@@ -121,6 +121,21 @@ def business_verification_pending(user_id: int, max_age_hours: int = 24) -> bool
             "SELECT requested_at FROM business_verification_pending WHERE user_id=?",
             (int(user_id),),
         ).fetchone()
+
+        # Compatibility fallback for Business DMs that happened before the
+        # persistent-pending table was introduced.
+        if not row:
+            clicks_table = conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='clicks' LIMIT 1"
+            ).fetchone()
+            if clicks_table:
+                row = conn.execute(
+                    "SELECT created_at AS requested_at FROM clicks "
+                    "WHERE user_id=? AND action='business_dm:verify_required' "
+                    "ORDER BY created_at DESC LIMIT 1",
+                    (int(user_id),),
+                ).fetchone()
+
     if not row or not row["requested_at"]:
         return False
     try:

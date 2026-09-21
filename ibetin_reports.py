@@ -348,27 +348,39 @@ def _lead_card_text(lead: dict) -> str:
     phone = escape(str(lead.get("phone_number") or "—"))
     campaign = escape(str(lead.get("campaign") or "direct"))
     source = escape(str(lead.get("source") or "bot"))
-    verified = _fmt_admin_time(str(lead.get("verified_at") or ""))
     assigned = escape(str(lead.get("assigned_name") or "UNASSIGNED"))
+    first_seen = escape(_fmt_admin_time(str(lead.get("first_seen_at") or "")))
+    verified_raw = str(lead.get("verified_at") or "")
+    verified = bool(verified_raw)
     followup = _fmt_admin_time(str(lead.get("next_followup_at") or ""))
     note = escape(str(lead.get("last_note") or "")[:180])
     consent = bool(int(lead.get("contact_consent") or 0))
-    consent_text = (
-        "✅ New consent recorded"
-        if consent
-        else "⚠️ Legacy record · contact consent not recorded"
-    )
+
+    if verified:
+        verification_text = (
+            f"✅ <b>VERIFIED</b> · "
+            f"{escape(_fmt_admin_time(verified_raw))}"
+        )
+        consent_text = (
+            "✅ Call + WhatsApp consent recorded"
+            if consent
+            else "⚠️ Legacy verified record · contact consent not recorded"
+        )
+    else:
+        verification_text = "⚠️ <b>NOT VERIFIED</b>"
+        consent_text = "ℹ️ Contact consent not available · verification incomplete"
 
     lines = [
         f"{status_icon} <b>{status}</b>",
         "━━━━━━━━━━━━━━━━━━",
         f"👤 <b>{first_name}</b> · {telegram}",
         f"📱 <code>{phone}</code>",
+        f"🔐 {verification_text}",
+        f"🕒 First seen: <b>{first_seen}</b>",
         f"🎯 Campaign: <code>{campaign}</code>",
         f"📥 Source: <b>{source}</b>",
-        f"🕒 Verified: <b>{escape(verified)}</b>",
         f"👨‍💼 Assigned: <b>{assigned}</b>",
-        f"🔐 {consent_text}",
+        consent_text,
     ]
     if str(lead.get("next_followup_at") or ""):
         lines.append(f"⏰ Next follow-up: <b>{escape(followup)}</b>")
@@ -392,7 +404,6 @@ def _crm_status_counts() -> dict:
             """
             SELECT lead_status, COUNT(*) c
             FROM ibetin_leads
-            WHERE verified_at IS NOT NULL
             GROUP BY lead_status
             """
         ).fetchall()
@@ -406,8 +417,33 @@ def _crm_status_counts() -> dict:
 def _crm_text() -> str:
     counts = _crm_status_counts()
     follow_up = counts["contacted"] + counts["no_answer"]
-    active = counts["new"] + follow_up + counts["interested"]
     with core.db() as conn:
+        unassigned = _count(
+            conn,
+            """
+            SELECT COUNT(*) FROM ibetin_leads
+            WHERE lead_status='new'
+              AND assigned_to IS NULL
+            """,
+        )
+        unassigned_verified = _count(
+            conn,
+            """
+            SELECT COUNT(*) FROM ibetin_leads
+            WHERE lead_status='new'
+              AND assigned_to IS NULL
+              AND verified_at IS NOT NULL
+            """,
+        )
+        unassigned_unverified = _count(
+            conn,
+            """
+            SELECT COUNT(*) FROM ibetin_leads
+            WHERE lead_status='new'
+              AND assigned_to IS NULL
+              AND verified_at IS NULL
+            """,
+        )
         legacy = _count(
             conn,
             """
@@ -415,15 +451,6 @@ def _crm_text() -> str:
             WHERE verified_at IS NOT NULL
               AND contact_consent=0
               AND lead_status='new'
-            """,
-        )
-        unassigned = _count(
-            conn,
-            """
-            SELECT COUNT(*) FROM ibetin_leads
-            WHERE verified_at IS NOT NULL
-              AND lead_status='new'
-              AND assigned_to IS NULL
             """,
         )
         due = _count(
@@ -436,18 +463,21 @@ def _crm_text() -> str:
             """,
             (datetime.now(timezone.utc).isoformat(),),
         )
+
+    active = unassigned + follow_up + counts["interested"]
     return (
         "📞 <b>IBETIN TEAM WORK QUEUE</b>\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
-        f"🆕 Unassigned / New: <b>{unassigned}</b>\n"
-        f"🗂 Legacy awaiting review: <b>{legacy}</b>\n"
-        f"⏰ Follow-up due: <b>{due}</b>\n"
-        f"📞 Follow-up status: <b>{follow_up}</b>\n"
+        f"🆕 Unassigned / New · ALL TIME: <b>{unassigned}</b>\n"
+        f"   ✅ Verified: <b>{unassigned_verified}</b> · "
+        f"⚠️ Not verified: <b>{unassigned_unverified}</b>\n"
+        f"🗂 Legacy verified awaiting review: <b>{legacy}</b>\n"
+        f"📞 Follow-up: <b>{follow_up}</b> · ⏰ Due now: <b>{due}</b>\n"
         f"⭐ Interested: <b>{counts['interested']}</b>\n"
         f"✅ Converted: <b>{counts['converted']}</b>\n\n"
         f"📌 Active work: <b>{active}</b>\n\n"
-        "Old verified records remain here until the team assigns or updates them. "
-        "Legacy records are clearly marked because call/WhatsApp consent was not recorded."
+        "Unassigned now includes every historical bot/DM record still in New status, "
+        "whether verified or not. Open it to review one record at a time."
     )
 
 
@@ -484,7 +514,7 @@ def _queue_statuses(queue: str):
 
 def _queue_title(queue: str) -> str:
     return {
-        "new": "🆕 NEW LEADS · CONTACT NOW",
+        "new": "🆕 UNASSIGNED / NEW · ALL TIME",
         "followup": "📞 FOLLOW-UP QUEUE",
         "due": "⏰ FOLLOW-UP DUE NOW",
         "interested": "⭐ INTERESTED LEADS",
@@ -492,26 +522,27 @@ def _queue_title(queue: str) -> str:
     }.get(queue, "📞 CRM LEADS")
 
 
-def _queue_leads(queue: str, limit: int = CRM_BATCH_SIZE):
+def _queue_ids(queue: str):
     statuses = _queue_statuses(queue)
     if not statuses:
         return []
     placeholders = ",".join("?" for _ in statuses)
     ensure_tables()
     now = datetime.now(timezone.utc).isoformat()
-
-    where_extra = ""
     params = list(statuses)
+
     if queue == "new":
-        where_extra = " AND lead_status='new'"
-        order = "CASE WHEN assigned_to IS NULL THEN 0 ELSE 1 END, verified_at ASC"
+        where_extra = " AND assigned_to IS NULL"
+        order = "COALESCE(verified_at, first_seen_at) DESC"
     elif queue == "due":
         where_extra = " AND next_followup_at IS NOT NULL AND next_followup_at <= ?"
         params.append(now)
         order = "next_followup_at ASC"
     elif queue == "followup":
+        where_extra = ""
         order = "COALESCE(next_followup_at, updated_at) ASC"
     else:
+        where_extra = ""
         order = "updated_at DESC"
 
     with core.db() as conn:
@@ -519,25 +550,66 @@ def _queue_leads(queue: str, limit: int = CRM_BATCH_SIZE):
             f"""
             SELECT user_id
             FROM ibetin_leads
-            WHERE verified_at IS NOT NULL
-              AND lead_status IN ({placeholders})
+            WHERE lead_status IN ({placeholders})
               {where_extra}
             ORDER BY {order}
-            LIMIT ?
             """,
-            (*params, int(limit)),
+            tuple(params),
         ).fetchall()
-    return [
-        lead
-        for lead in (_lead_view(int(row["user_id"])) for row in rows)
-        if lead
-    ]
+    return [int(row["user_id"]) for row in rows]
+
+
+def _queue_item(queue: str, index: int):
+    ids = _queue_ids(queue)
+    total = len(ids)
+    if not total:
+        return None, 0, 0
+    safe_index = max(0, min(int(index), total - 1))
+    return _lead_view(ids[safe_index]), safe_index, total
+
+
+def _queue_card_keyboard(
+    user_id: int,
+    queue: str,
+    index: int,
+    total: int,
+) -> InlineKeyboardMarkup:
+    rows = list(lead_status_keyboard(int(user_id)).inline_keyboard)
+    nav = []
+    if index > 0:
+        nav.append(
+            InlineKeyboardButton(
+                "◀️ PREVIOUS",
+                callback_data=f"reports:qitem:{queue}:{index-1}",
+            )
+        )
+    if index < total - 1:
+        nav.append(
+            InlineKeyboardButton(
+                "NEXT ▶️",
+                callback_data=f"reports:qitem:{queue}:{index+1}",
+            )
+        )
+    if nav:
+        # Keep navigation above the final CRM-back row.
+        insert_at = max(0, len(rows) - 1)
+        rows.insert(insert_at, nav)
+    rows.insert(
+        max(0, len(rows) - 1),
+        [
+            InlineKeyboardButton(
+                f"📋 {index+1} OF {total}",
+                callback_data="reports:no_op",
+            )
+        ],
+    )
+    return InlineKeyboardMarkup(rows)
 
 
 def queue_menu(queue: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
-            [InlineKeyboardButton("🔄 REFRESH QUEUE", callback_data=f"reports:queue:{queue}")],
+            [InlineKeyboardButton("🔄 REFRESH", callback_data=f"reports:queue:{queue}")],
             [InlineKeyboardButton("⬅️ CRM", callback_data="reports:crm")],
         ]
     )
@@ -994,8 +1066,7 @@ def _report_leads():
             """
             SELECT *
             FROM ibetin_leads
-            WHERE verified_at IS NOT NULL
-            ORDER BY verified_at DESC
+            ORDER BY COALESCE(verified_at, first_seen_at) DESC
             """
         ).fetchall()
 
@@ -1004,16 +1075,26 @@ def _report_leads():
         uid = int(r["user_id"])
         username, first_name = _identity(uid, users, business)
         phone = (phones.get(uid) or {}).get("phone_number") or ""
+        verified = bool(r["verified_at"])
+        consent = bool(int(r["contact_consent"] or 0))
+        if verified and consent:
+            consent_status = "Recorded"
+        elif verified:
+            consent_status = "Legacy / Not Recorded"
+        else:
+            consent_status = "Not Available / Not Verified"
+
         rows.append([
             uid,
             username,
             first_name,
             phone,
+            "Verified" if verified else "Not Verified",
             r["campaign"],
             r["source"],
             r["first_seen_at"],
             r["verified_at"] or "",
-            "Yes" if int(r["contact_consent"] or 0) else "No",
+            consent_status,
             r["lead_status"],
             r["assigned_name"] or "",
             r["next_followup_at"] or "",
@@ -1029,11 +1110,11 @@ def _report_leads():
     return (
         [
             "User ID", "Username", "First Name", "Mobile Number",
-            "Campaign", "Source", "First Bot Start", "Verified At",
-            "Call + WhatsApp Consent", "Lead Status", "Assigned To",
-            "Next Follow-up", "Latest Note", "Last Updated By", "Contacted At",
-            "Interested At", "Converted At", "No Answer At", "DNC At",
-            "Last Seen",
+            "Verification Status", "Campaign", "Source", "First Seen",
+            "Verified At", "Contact Consent Status", "Lead Status",
+            "Assigned To", "Next Follow-up", "Latest Note", "Last Updated By",
+            "Contacted At", "Interested At", "Converted At", "No Answer At",
+            "DNC At", "Last Seen",
         ],
         rows,
     )
@@ -1387,31 +1468,53 @@ async def handle_callback(update, context) -> bool:
         )
         return True
 
+    if action == "no_op":
+        return True
+
     if action.startswith("queue:"):
         queue = action.split(":", 1)[1]
-        leads = _queue_leads(queue)
+        lead, index, total = _queue_item(queue, 0)
         title = _queue_title(queue)
-        if not leads:
+        if not lead:
             await message.reply_text(
-                f"{title}\n\n✅ No leads in this queue right now.",
+                f"{title}\n\n✅ No records in this queue right now.",
                 parse_mode="HTML",
                 reply_markup=queue_menu(queue),
             )
             return True
 
         await message.reply_text(
-            f"{title}\n\nShowing the next <b>{len(leads)}</b> lead(s). "
-            "Update each status after your action.",
+            f"{title}\n"
+            f"<b>Record {index+1} of {total}</b>\n\n"
+            + _lead_card_text(lead),
             parse_mode="HTML",
-            reply_markup=queue_menu(queue),
+            reply_markup=_queue_card_keyboard(
+                int(lead["user_id"]), queue, index, total
+            ),
+            disable_web_page_preview=True,
         )
-        for lead in leads:
-            await message.reply_text(
-                _lead_card_text(lead),
-                parse_mode="HTML",
-                reply_markup=lead_status_keyboard(int(lead["user_id"])),
-                disable_web_page_preview=True,
-            )
+        return True
+
+    if action.startswith("qitem:"):
+        parts = action.split(":")
+        if len(parts) == 3:
+            _, queue, index_s = parts
+            try:
+                wanted = int(index_s)
+            except Exception:
+                wanted = 0
+            lead, index, total = _queue_item(queue, wanted)
+            if lead:
+                await query.edit_message_text(
+                    f"{_queue_title(queue)}\n"
+                    f"<b>Record {index+1} of {total}</b>\n\n"
+                    + _lead_card_text(lead),
+                    parse_mode="HTML",
+                    reply_markup=_queue_card_keyboard(
+                        int(lead["user_id"]), queue, index, total
+                    ),
+                    disable_web_page_preview=True,
+                )
         return True
 
     if action == "adperformance":

@@ -347,7 +347,9 @@ def _lead_card_text(lead: dict) -> str:
     username = str(lead.get("username") or "")
     telegram = f"@{escape(username)}" if username else "—"
     first_name = escape(str(lead.get("first_name") or "—"))
-    phone = escape(str(lead.get("phone_number") or "—"))
+    phone_raw = str(lead.get("phone_number") or "").strip()
+    phone = escape(phone_raw) if phone_raw else "Not captured"
+    telegram_user_id = int(lead.get("user_id") or 0)
     campaign = escape(str(lead.get("campaign") or "direct"))
     source = escape(str(lead.get("source") or "bot"))
     assigned = escape(str(lead.get("assigned_name") or "UNASSIGNED"))
@@ -376,8 +378,9 @@ def _lead_card_text(lead: dict) -> str:
         f"{status_icon} <b>{status}</b>",
         "━━━━━━━━━━━━━━━━━━",
         f"👤 <b>{first_name}</b> · {telegram}",
-        f"📱 <code>{phone}</code>",
-        f"🔐 {verification_text}",
+        f"🆔 Telegram ID: <code>{telegram_user_id}</code>",
+        f"📱 Mobile: <code>{phone}</code>" if phone_raw else "📱 Mobile: <b>Not captured</b>",
+        f"🔐 Verification: {verification_text}",
         f"🕒 First seen: <b>{first_seen}</b>",
         f"🎯 Campaign: <code>{campaign}</code>",
         f"📥 Source: <b>{source}</b>",
@@ -914,7 +917,7 @@ def _report_liveline():
         ])
     return (
         [
-            "User ID", "Username", "First Name", "Mobile Number",
+            "Telegram User ID", "Username", "First Name", "Mobile Number",
             "First Verified At", "Verification Source", "Campaign",
             "Call + WhatsApp Consent", "Lead Status", "Contacted At",
             "Interested At", "Converted At", "Last Seen",

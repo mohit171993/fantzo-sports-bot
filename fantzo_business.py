@@ -308,20 +308,42 @@ def _retry_seconds(exc: RetryAfter) -> float:
 
 async def _reply_with_retry(message, reply: str, markup=None) -> None:
     kwargs = {
+        "chat_id": message.chat_id,
+        "text": reply,
         "parse_mode": "HTML",
         "reply_markup": markup,
         "disable_web_page_preview": True,
     }
 
+    # For Telegram Business messages, explicitly pass the business connection.
+    # This avoids relying on reply_text() to infer the business context.
+    business_connection_id = getattr(message, "business_connection_id", None)
+    if business_connection_id:
+        kwargs["business_connection_id"] = business_connection_id
+
+    bot = message.get_bot()
+
     for attempt in range(3):
         try:
-            await message.reply_text(reply, **kwargs)
+            sent = await bot.send_message(**kwargs)
+            logger.info(
+                "Fantzo Business reply delivered: connection=%s chat=%s message_id=%s markup=%s",
+                business_connection_id,
+                message.chat_id,
+                getattr(sent, "message_id", None),
+                bool(kwargs.get("reply_markup")),
+            )
             return
         except BadRequest as exc:
             if kwargs.get("reply_markup") is not None:
                 logger.warning("Fantzo Business DM keyboard failed: %s", exc)
                 kwargs["reply_markup"] = None
                 continue
+            logger.exception(
+                "Fantzo Business reply failed: connection=%s chat=%s",
+                business_connection_id,
+                message.chat_id,
+            )
             raise
         except RetryAfter as exc:
             if attempt >= 2:

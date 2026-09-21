@@ -216,6 +216,25 @@ def record_start(user_id: int, arg: str = "") -> str:
                 (int(user_id), campaign, start_arg, now, start_arg, now),
             )
 
+    if campaign not in {"direct", "internal"}:
+        with core.db() as conn:
+            mapped = conn.execute(
+                "SELECT mobile_e164 FROM lead_user_map WHERE user_id=?",
+                (int(user_id),),
+            ).fetchone()
+            if mapped:
+                conn.execute(
+                    """
+                    UPDATE sales_leads
+                    SET campaign=CASE
+                        WHEN campaign IN ('direct','internal') THEN ?
+                        ELSE campaign END,
+                        updated_at=?
+                    WHERE mobile_e164=?
+                    """,
+                    (campaign, _now_iso(), str(mapped["mobile_e164"])),
+                )
+
     record_event(user_id, "bot_start", campaign)
     return campaign
 
@@ -364,10 +383,32 @@ def post_verify_text(user_id: int) -> str:
 
 async def send_post_verify(message, user_id: int) -> None:
     record_post_verify_view(user_id)
+    text = post_verify_text(user_id)
+    markup = post_verify_keyboard(user_id)
+
+    # Reuse the existing Fantzo home banner when one is configured, so the
+    # conversion screen feels visual without creating another asset workflow.
+    try:
+        banner_file_id = tracked.app.get_banner_file_id()
+    except Exception:
+        banner_file_id = ""
+
+    if banner_file_id:
+        try:
+            await message.reply_photo(
+                photo=banner_file_id,
+                caption=text,
+                parse_mode="HTML",
+                reply_markup=markup,
+            )
+            return
+        except Exception:
+            logger.exception("Could not send Fantzo post-verification hero banner")
+
     await message.reply_text(
-        post_verify_text(user_id),
+        text,
         parse_mode="HTML",
-        reply_markup=post_verify_keyboard(user_id),
+        reply_markup=markup,
         disable_web_page_preview=True,
     )
 
@@ -555,12 +596,75 @@ async def leadnote_command(update, context) -> None:
     await update.effective_message.reply_text("✅ Lead note saved.")
 
 
+
+def _backfill_existing_verified_users() -> None:
+    """Seed CRM rows for already-verified users without fabricating consent."""
+    ensure_tables()
+    with core.db() as conn:
+        table = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='live_tv_mobile_users' LIMIT 1"
+        ).fetchone()
+        if not table:
+            return
+        rows = conn.execute(
+            "SELECT user_id,mobile_e164,created_at,updated_at "
+            "FROM live_tv_mobile_users WHERE capture_method='telegram_contact'"
+        ).fetchall()
+
+    for row in rows:
+        user_id = int(row["user_id"])
+        mobile = str(row["mobile_e164"])
+        campaign = campaign_for_user(user_id)
+        created = str(row["created_at"] or _now_iso())
+        updated = str(row["updated_at"] or created)
+
+        with core.db() as conn:
+            conn.execute(
+                """
+                INSERT INTO lead_user_map(user_id,mobile_e164,linked_at)
+                VALUES(?,?,?)
+                ON CONFLICT(user_id) DO UPDATE SET
+                    mobile_e164=excluded.mobile_e164
+                """,
+                (user_id, mobile, updated),
+            )
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO sales_leads(
+                    mobile_e164,primary_user_id,campaign,status,
+                    assigned_agent,notes,contact_permission_at,
+                    created_at,updated_at,last_contact_at,converted_at
+                ) VALUES(?,?,?,'NEW','','',NULL,?,?,NULL,NULL)
+                """,
+                (mobile, user_id, campaign, created, updated),
+            )
+
+
+async def adlink_command(update, context) -> None:
+    if not _admin_only(update) or not update.effective_message:
+        return
+
+    raw = "_".join(context.args).strip() if context.args else "main_01"
+    slug = re.sub(r"[^a-zA-Z0-9_-]", "_", raw).strip("_").lower()[:50] or "main_01"
+    if not slug.startswith("ad_"):
+        slug = f"ad_{slug}"
+
+    await update.effective_message.reply_text(
+        "📣 <b>TELEGRAM ADS TRACKING LINK</b>\n\n"
+        f"<code>https://t.me/fantzoofficialbot?start={escape(slug)}</code>\n\n"
+        "Use a different code for each ad or campaign so verified leads can be attributed correctly.",
+        parse_mode="HTML",
+        disable_web_page_preview=True,
+    )
+
+
 def install() -> None:
     global _installed
     if _installed:
         return
     _installed = True
     ensure_tables()
+    _backfill_existing_verified_users()
     logger.info("Fantzo paid-ads lead attribution and CRM installed")
 
 
@@ -569,4 +673,5 @@ def register_handlers(application) -> None:
     application.add_handler(CommandHandler("leadstatus", leadstatus_command))
     application.add_handler(CommandHandler("leadassign", leadassign_command))
     application.add_handler(CommandHandler("leadnote", leadnote_command))
+    application.add_handler(CommandHandler("adlink", adlink_command))
     logger.info("Fantzo lead CRM admin commands registered")

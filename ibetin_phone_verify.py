@@ -7,6 +7,8 @@ import time
 from datetime import datetime, timezone
 from urllib.parse import urlencode
 
+import ibetin_leads
+
 DEFAULT_LIVE_LINE_URL = "https://ibetin-app-production.up.railway.app/liveline"
 DEFAULT_BOT_USERNAME = "Ibtnofficialbot"
 TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60
@@ -23,14 +25,46 @@ def _connect():
 
 
 def ensure_tables() -> None:
+    ibetin_leads.ensure_tables()
     with _connect() as conn:
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS liveline_verified_users (
                 user_id INTEGER PRIMARY KEY,
                 phone_number TEXT NOT NULL,
-                verified_at TEXT NOT NULL
+                verified_at TEXT NOT NULL,
+                first_verified_at TEXT,
+                verification_source TEXT NOT NULL DEFAULT '',
+                campaign TEXT NOT NULL DEFAULT 'direct',
+                contact_consent INTEGER NOT NULL DEFAULT 0,
+                consent_at TEXT
             )
+            """
+        )
+        columns = {
+            str(row["name"])
+            for row in conn.execute(
+                "PRAGMA table_info(liveline_verified_users)"
+            ).fetchall()
+        }
+        migrations = (
+            ("first_verified_at", "TEXT"),
+            ("verification_source", "TEXT NOT NULL DEFAULT ''"),
+            ("campaign", "TEXT NOT NULL DEFAULT 'direct'"),
+            ("contact_consent", "INTEGER NOT NULL DEFAULT 0"),
+            ("consent_at", "TEXT"),
+        )
+        for name, sql_type in migrations:
+            if name not in columns:
+                conn.execute(
+                    f"ALTER TABLE liveline_verified_users "
+                    f"ADD COLUMN {name} {sql_type}"
+                )
+        conn.execute(
+            """
+            UPDATE liveline_verified_users
+            SET first_verified_at=COALESCE(first_verified_at, verified_at)
+            WHERE first_verified_at IS NULL OR first_verified_at=''
             """
         )
 
@@ -43,23 +77,83 @@ def normalize_phone(value: str) -> str:
     return ("+" if raw.startswith("+") else "") + digits
 
 
-def verify_user(user_id: int, phone_number: str) -> bool:
+def verify_user(
+    user_id: int,
+    phone_number: str,
+    source: str = "",
+    campaign: str = "",
+    contact_consent: bool = False,
+) -> bool:
     phone = normalize_phone(phone_number)
     if not user_id or not phone:
         return False
     ensure_tables()
     now = datetime.now(timezone.utc).isoformat()
+    lead = ibetin_leads.get_lead(int(user_id)) or {}
+    source_value = (
+        ibetin_leads.clean_source(source)
+        if source
+        else str(lead.get("source") or "bot")
+    )
+    campaign_value = (
+        ibetin_leads.clean_campaign(campaign)
+        if campaign
+        else str(lead.get("campaign") or "direct")
+    )
     with _connect() as conn:
         conn.execute(
             """
-            INSERT INTO liveline_verified_users(user_id, phone_number, verified_at)
-            VALUES (?, ?, ?)
+            INSERT INTO liveline_verified_users(
+                user_id, phone_number, verified_at, first_verified_at,
+                verification_source, campaign, contact_consent, consent_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(user_id) DO UPDATE SET
                 phone_number = excluded.phone_number,
-                verified_at = excluded.verified_at
+                verified_at = excluded.verified_at,
+                first_verified_at = COALESCE(
+                    liveline_verified_users.first_verified_at,
+                    liveline_verified_users.verified_at,
+                    excluded.first_verified_at
+                ),
+                verification_source = CASE
+                    WHEN excluded.verification_source != ''
+                    THEN excluded.verification_source
+                    ELSE liveline_verified_users.verification_source
+                END,
+                campaign = CASE
+                    WHEN excluded.campaign != ''
+                    THEN excluded.campaign
+                    ELSE liveline_verified_users.campaign
+                END,
+                contact_consent = CASE
+                    WHEN excluded.contact_consent = 1 THEN 1
+                    ELSE liveline_verified_users.contact_consent
+                END,
+                consent_at = CASE
+                    WHEN excluded.contact_consent = 1
+                    THEN COALESCE(liveline_verified_users.consent_at, excluded.consent_at)
+                    ELSE liveline_verified_users.consent_at
+                END
             """,
-            (int(user_id), phone, now),
+            (
+                int(user_id),
+                phone,
+                now,
+                now,
+                source_value,
+                campaign_value,
+                1 if contact_consent else 0,
+                now if contact_consent else None,
+            ),
         )
+
+    ibetin_leads.mark_verified(
+        int(user_id),
+        source=source_value,
+        campaign=campaign_value,
+        contact_consent=bool(contact_consent),
+    )
     return True
 
 

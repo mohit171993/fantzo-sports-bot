@@ -4,6 +4,7 @@ Keeps the current Live TV reliability layer, restored production features,
 Business DM safety and ops protections while making Fantzo.com the dominant
 user destination.
 """
+import asyncio
 import logging
 
 import bot_tracked_livefix  # installs current Live TV reliability layer
@@ -45,10 +46,19 @@ fantzo_live_tv_mobile_gate.install()
 _original_configure_telegram_ui = tracked.configure_telegram_ui
 
 
+async def _send_banner_preview_when_running(application) -> None:
+    while not application.running:
+        await asyncio.sleep(0.2)
+    await banner_preview.send_once(application)
+
+
 async def configure_telegram_ui_with_restored_features(application) -> None:
     await _original_configure_telegram_ui(application)
     banner_queue.install(application)
-    application.create_task(banner_preview.send_once(application))
+    asyncio.create_task(
+        _send_banner_preview_when_running(application),
+        name="fantzo-banner-preview-starter",
+    )
     reminder_report.start(application)
     growth.start(application)
     fantzo_ops.install(application)

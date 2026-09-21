@@ -19,6 +19,7 @@ import fantzo_funnel
 import fantzo_business_flow_fix
 import fantzo_admin_reports
 import fantzo_live_tv_mobile_gate
+import fantzo_lead_funnel
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,7 @@ fantzo_business.business_auto_reply = nonblocking_business_auto_reply
 growth_integration.install()
 fantzo_funnel.install()
 fantzo_business_flow_fix.install()
+fantzo_lead_funnel.install()
 fantzo_admin_reports.install()
 fantzo_live_tv_mobile_gate.install()
 _original_configure_telegram_ui = tracked.configure_telegram_ui
@@ -51,8 +53,9 @@ async def configure_telegram_ui_with_restored_features(application) -> None:
     growth.start(application)
     fantzo_ops.install(application)
     fantzo_live_tv_mobile_gate.register_handlers(application)
+    fantzo_lead_funnel.register_handlers(application)
     logger.info(
-        "Fantzo production features installed: Business funnel, banner queue, reminder report, favourites tracking, growth reporting, ops safety, admin reports, Live TV mobile gate and Fantzo-first main UX"
+        "Fantzo production features installed: Business funnel, paid-ads lead attribution/CRM, banner queue, reminder report, favourites tracking, growth reporting, ops safety, admin reports, global mobile verification and Fantzo-first main UX"
     )
 
 

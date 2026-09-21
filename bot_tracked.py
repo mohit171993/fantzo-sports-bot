@@ -20,6 +20,7 @@ import fantzo_live_tv
 import fantzo_reminders as reminders
 import ibetin_hub as hub
 import ibetin_creatives
+import ibetin_leads
 import ibetin_news as news
 import ibetin_phone_verify as phone_verify
 import ibetin_reports
@@ -308,6 +309,18 @@ def premium_main_keyboard(user_id: int = 0) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(rows)
 
 
+def conversion_keyboard(user_id: int) -> InlineKeyboardMarkup:
+    """Focused post-verification menu for paid-traffic conversion."""
+    live_url = phone_verify.live_line_url(user_id, IBETIN_LIVE_LINE_URL)
+    return InlineKeyboardMarkup(
+        [
+            [hub_button("🚀 JOIN IBETIN", "home")],
+            [site_button("🏏 WATCH IBETIN LIVE LINE", live_url)],
+            [InlineKeyboardButton("📢 JOIN CHANNEL", url=IBETIN_CHANNEL_URL)],
+        ]
+    )
+
+
 def premium_join_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
@@ -537,13 +550,42 @@ async def _prompt_mobile_verification(update, context, source: str = "bot_start"
         "📱 <b>VERIFY MOBILE TO CONTINUE</b>\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
         f"{detail}\n\n"
+        "✅ Verify once to unlock IBETIN, Live Line and quick access.\n\n"
         "Tap <b>📱 VERIFY & CONTINUE</b> below. Telegram will share the "
         "mobile number linked to your own Telegram account.\n\n"
-        "Numbers from <b>any country</b> are accepted. "
-        "Typed numbers are not accepted.",
+        "By tapping Verify & Continue, you agree that the IBETIN team may "
+        "contact you about your request by <b>phone call and WhatsApp</b>. "
+        "You can opt out anytime.\n\n"
+        "Numbers from <b>any country</b> are accepted. Typed numbers are not accepted.\n"
+        "🔞 <b>18+ only • Play responsibly</b>",
         parse_mode="HTML",
         reply_markup=_verification_reply_keyboard(),
     )
+
+
+async def _notify_verified_lead(context, user, phone: str, source: str, campaign: str) -> None:
+    username = f"@{user.username}" if getattr(user, "username", None) else "—"
+    first_name = str(getattr(user, "first_name", "") or "—")
+    try:
+        await context.bot.send_message(
+            chat_id=int(app.core.ADMIN_USER_ID),
+            text=(
+                "🆕 <b>NEW VERIFIED IBETIN LEAD</b>\n"
+                "━━━━━━━━━━━━━━━━━━\n\n"
+                f"👤 Name: <b>{first_name}</b>\n"
+                f"🔗 Telegram: <b>{username}</b>\n"
+                f"📱 Mobile: <code>{phone}</code>\n"
+                f"🎯 Campaign: <code>{campaign or 'direct'}</code>\n"
+                f"📥 Source: <b>{source}</b>\n"
+                "☎️ Follow-up: <b>Call + WhatsApp</b>\n\n"
+                "Update the lead status below after follow-up."
+            ),
+            parse_mode="HTML",
+            reply_markup=ibetin_reports.lead_status_keyboard(int(user.id)),
+            disable_web_page_preview=True,
+        )
+    except Exception:
+        logger.exception("Could not send IBETIN verified lead alert")
 
 
 async def mobile_contact_handler(update, context) -> None:
@@ -553,12 +595,13 @@ async def mobile_contact_handler(update, context) -> None:
     if not user or not message or not contact:
         return
 
-    # Only contacts requested by our verification flow are accepted.
-    if not context.user_data.get("ibetin_mobile_verify_pending"):
+    was_verified = phone_verify.is_verified(user.id)
+
+    # A valid Telegram self-contact is enough even if the in-memory pending
+    # flag was lost after a Railway restart or the user came from a reminder.
+    if was_verified and not context.user_data.get("ibetin_mobile_verify_pending"):
         return
 
-    # Telegram self-contact verification: the contact must belong to the same
-    # Telegram user. Forwarded/other contacts never unlock IBETIN.
     if contact.user_id is None or int(contact.user_id) != int(user.id):
         await message.reply_text(
             "⚠️ <b>Verification failed.</b>\n\n"
@@ -569,18 +612,35 @@ async def mobile_contact_handler(update, context) -> None:
         )
         return
 
-    if not phone_verify.verify_user(user.id, contact.phone_number):
+    lead = ibetin_leads.get_lead(user.id) or {}
+    source = str(
+        context.user_data.pop("ibetin_mobile_verify_source", "")
+        or lead.get("source")
+        or "bot_start"
+    )
+    if source == "bot":
+        source = "bot_start"
+    campaign = str(
+        context.user_data.pop("ibetin_campaign", "")
+        or lead.get("campaign")
+        or "direct"
+    )
+
+    if not phone_verify.verify_user(
+        user.id,
+        contact.phone_number,
+        source=source,
+        campaign=campaign,
+        contact_consent=True,
+    ):
         await message.reply_text(
             "⚠️ <b>A valid Telegram-linked mobile number is required.</b>\n\n"
             "Please tap <b>📱 VERIFY & CONTINUE</b> and try again.",
             parse_mode="HTML",
+            reply_markup=_verification_reply_keyboard(),
         )
         return
 
-    source = str(
-        context.user_data.pop("ibetin_mobile_verify_source", "bot_start")
-        or "bot_start"
-    )
     context.user_data.pop("ibetin_mobile_verify_pending", None)
 
     phone = phone_verify.normalize_phone(contact.phone_number)
@@ -596,7 +656,13 @@ async def mobile_contact_handler(update, context) -> None:
     except Exception:
         logger.exception("Could not track IBETIN mobile verification")
 
-    logger.info("IBETIN mobile verified user_id=%s source=%s", user.id, source)
+    logger.info(
+        "IBETIN mobile verified user_id=%s source=%s campaign=%s",
+        user.id,
+        source,
+        campaign,
+    )
+
     await message.reply_text(
         "✅ <b>Telegram mobile verified</b>\n\n"
         f"Verified number: <code>{masked}</code>\n"
@@ -604,6 +670,9 @@ async def mobile_contact_handler(update, context) -> None:
         parse_mode="HTML",
         reply_markup=ReplyKeyboardRemove(),
     )
+
+    if not was_verified:
+        await _notify_verified_lead(context, user, phone, source, campaign)
 
     if source == "liveline":
         await message.reply_text(
@@ -618,45 +687,67 @@ async def mobile_contact_handler(update, context) -> None:
                 )]]
             ),
         )
-        await message.reply_text(
-            "Use <b>▶️ START</b> anytime to reopen the IBETIN menu.",
-            parse_mode="HTML",
-            reply_markup=app.QUICK_MENU,
-        )
         return
 
     if source == "business_dm":
-        import fantzo_business
         await message.reply_text(
             "Choose what you want to do next 👇",
             reply_markup=fantzo_business.business_keyboard(user.id),
         )
         return
 
-    await app.show_home(update, context)
     await message.reply_text(
-        "⚡ <b>IBETIN quick access enabled</b>\n\n"
-        "Your mobile is verified once for IBETIN, including Live Line.",
+        "🎯 <b>You're ready.</b> Choose what you want to do next 👇",
         parse_mode="HTML",
-        reply_markup=app.QUICK_MENU,
+        reply_markup=conversion_keyboard(user.id),
     )
 
 
 async def pending_verification_text_handler(update, context) -> None:
+    user = update.effective_user
     message = update.effective_message
-    if not message or not message.text:
+    if not user or not message or not message.text:
         return
-    if not context.user_data.get("ibetin_mobile_verify_pending"):
+    if phone_verify.is_verified(user.id):
         return
 
+    context.user_data["ibetin_mobile_verify_pending"] = True
+    context.user_data.setdefault("ibetin_mobile_verify_source", "bot_start")
     await message.reply_text(
         "🔐 <b>Telegram verification is required.</b>\n\n"
-        "Typed mobile numbers cannot verify your account. "
-        "Please tap <b>📱 VERIFY & CONTINUE</b> below.",
+        "Please tap <b>📱 VERIFY & CONTINUE</b> below. "
+        "Typed mobile numbers cannot verify your account.",
         parse_mode="HTML",
         reply_markup=_verification_reply_keyboard(),
     )
     raise ApplicationHandlerStop
+
+
+async def verified_fixed_reply_handler(update, context) -> None:
+    user = update.effective_user
+    message = update.effective_message
+    if not user or not message or not message.text:
+        return
+    if not phone_verify.is_verified(user.id):
+        return
+
+    text = message.text.strip()
+    if not text or text in {"▶️ START", "⚡ IBETIN Menu"}:
+        return
+
+    category, reply, markup = fantzo_business.classify_business_dm(text, user.id)
+    try:
+        app.core.touch_user(update)
+        app.core.track(user.id, f"bot_text:{category}")
+    except Exception:
+        logger.exception("Could not track IBETIN fixed reply")
+
+    await message.reply_text(
+        reply,
+        parse_mode="HTML",
+        reply_markup=markup,
+        disable_web_page_preview=True,
+    )
 
 
 async def liveline_command(update, context) -> None:
@@ -688,12 +779,25 @@ async def smart_start(update, context) -> None:
         return
 
     if arg in {"verify_business_dm", "business_verify"}:
+        ibetin_leads.record_start(user.id, source="business_dm")
+        context.user_data["ibetin_mobile_verify_source"] = "business_dm"
         await _prompt_mobile_verification(update, context, "business_dm")
         return
 
     if arg in {"verifyliveline", "liveline", "livelineverify"}:
+        ibetin_leads.record_start(user.id, source="liveline")
+        context.user_data["ibetin_mobile_verify_source"] = "liveline"
         await _prompt_mobile_verification(update, context, "liveline")
         return
+
+    campaign = ibetin_leads.clean_campaign(arg or "direct")
+    ibetin_leads.record_start(user.id, campaign=campaign, source="bot")
+    context.user_data["ibetin_campaign"] = campaign
+    context.user_data["ibetin_mobile_verify_source"] = "bot_start"
+    try:
+        app.core.track(user.id, f"campaign_start:{campaign}")
+    except Exception:
+        logger.exception("Could not track IBETIN campaign start")
 
     # Fantzo-style global onboarding gate: first IBETIN entry requires a
     # Telegram self-contact verification. Once verified, all IBETIN features
@@ -708,12 +812,12 @@ async def smart_start(update, context) -> None:
         await _prompt_mobile_verification(update, context, "bot_start")
         return
 
-    await app.show_home(update, context)
     await message.reply_text(
-        "⚡ <b>Mini App quick access enabled</b>\n\n"
-        "Use the button below anytime. Your Telegram mobile is already verified.",
+        "👋 <b>Welcome to IBETIN</b>\n\n"
+        "Your mobile is already verified. Choose what you want to do next 👇",
         parse_mode="HTML",
-        reply_markup=app.QUICK_MENU,
+        reply_markup=conversion_keyboard(user.id),
+        disable_web_page_preview=True,
     )
 
 
@@ -933,9 +1037,20 @@ async def configure_telegram_ui(application) -> None:
             start_button_handler,
         )
     )
+    application.add_handler(
+        MessageHandler(
+            filters.UpdateType.MESSAGE
+            & filters.TEXT
+            & ~filters.COMMAND
+            & ~filters.Regex(r"^(?:▶️ START|⚡ IBETIN Menu)$"),
+            verified_fixed_reply_handler,
+        ),
+        group=10,
+    )
     application.add_handler(CommandHandler("livetvadmin", live_tv_admin_command))
 
     phone_verify.ensure_tables()
+    ibetin_leads.ensure_tables()
     ibetin_reports.ensure_tables()
     ibetin_reports.log_admin_diagnostics()
     await ibetin_reports.push_report_center_to_unlocked_admin(application)

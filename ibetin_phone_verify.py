@@ -120,12 +120,15 @@ def live_line_url(user_id: int, base_url: str = "") -> str:
     return f"{root}{joiner}{urlencode({'access': token})}"
 
 
-def verification_bot_url() -> str:
+def verification_bot_url(start_arg: str = "verifyliveline") -> str:
     username = (
         os.getenv("IBETIN_BOT_USERNAME", DEFAULT_BOT_USERNAME).strip().lstrip("@")
         or DEFAULT_BOT_USERNAME
     )
-    return f"https://t.me/{username}?start=verifyliveline"
+    arg = re.sub(r"[^A-Za-z0-9_-]", "", str(start_arg or "verifyliveline"))[:64]
+    if not arg:
+        arg = "verifyliveline"
+    return f"https://t.me/{username}?start={arg}"
 
 
 def apply_requested_reset() -> int:

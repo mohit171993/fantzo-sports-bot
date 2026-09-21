@@ -510,6 +510,10 @@ def crm_menu() -> InlineKeyboardMarkup:
                 InlineKeyboardButton("✅ CONVERTED", callback_data="reports:queue:converted"),
                 InlineKeyboardButton("🎯 AD PERFORMANCE", callback_data="reports:adperformance"),
             ],
+            [
+                InlineKeyboardButton("📚 TEAM GUIDE", callback_data="reports:guide"),
+                InlineKeyboardButton("🧰 MORE ADMIN TOOLS", callback_data="reports:advanced"),
+            ],
         ]
     )
 
@@ -647,7 +651,7 @@ def advanced_menu() -> InlineKeyboardMarkup:
                 InlineKeyboardButton("🎨 TECH/CAMPAIGNS", callback_data="reports:campaigns"),
                 InlineKeyboardButton("📦 ALL REPORTS", callback_data="reports:all"),
             ],
-            [InlineKeyboardButton("⬅️ DASHBOARD", callback_data="reports:overview")],
+            [InlineKeyboardButton("⬅️ BACK TO CRM", callback_data="reports:overview")],
         ]
     )
 
@@ -1556,10 +1560,10 @@ async def handle_callback(update, context) -> bool:
 
     if action == "advanced":
         await message.reply_text(
-            "⚙️ <b>ADVANCED / TECHNICAL REPORTS</b>\n"
+            "🧰 <b>MORE ADMIN TOOLS</b>\n"
             "━━━━━━━━━━━━━━━━━━\n\n"
-            "These are mainly for troubleshooting, auditing and exports. "
-            "The sales team normally does not need them during daily lead work.",
+            "Useful reports and operational tools kept separate from the daily CRM "
+            "so the main sales screen stays simple.",
             parse_mode="HTML",
             reply_markup=advanced_menu(),
         )

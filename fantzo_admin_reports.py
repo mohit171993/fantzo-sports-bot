@@ -1,8 +1,9 @@
-"""Admin reporting center for Fantzo.
+"""Fantzo team admin center.
 
-Adds a read-only Reports section beneath the existing /admin panel. Reports can
-be viewed in Telegram or downloaded as CSV files. A complete ZIP export is also
-available. No report action mutates Fantzo production data.
+Provides a CRM-first /admin dashboard for the sales/marketing workflow, plus
+campaign attribution, operational reports, exports and advanced diagnostics.
+CRM status actions intentionally mutate sales_leads; report/export actions are
+read-only.
 """
 
 from __future__ import annotations
@@ -824,10 +825,21 @@ def _crm_lead_text(user_id: int) -> tuple[str, InlineKeyboardMarkup]:
     )
 
     uid = int(row["primary_user_id"])
-    buttons = InlineKeyboardMarkup([
+    mobile_digits = "".join(ch for ch in str(row["mobile_e164"] or "") if ch.isdigit())
+    rows = []
+    if mobile_digits and str(row["status"] or "") != "DO_NOT_CONTACT":
+        rows.append([
+            _styled_button(
+                "💬 OPEN WHATSAPP",
+                style="success",
+                url=f"https://wa.me/{mobile_digits}",
+            )
+        ])
+
+    rows.extend([
         [
-            _styled_button("☎️ CONTACTED", f"crm:set:{uid}:CONTACTED", "primary"),
-            _styled_button("📵 NO ANSWER", f"crm:set:{uid}:NO_ANSWER", "primary"),
+            _styled_button("☎️ CONTACTED", callback_data=f"crm:set:{uid}:CONTACTED", style="primary"),
+            _styled_button("📵 NO ANSWER", callback_data=f"crm:set:{uid}:NO_ANSWER", style="primary"),
         ],
         [
             _styled_button("⭐ INTERESTED", f"crm:set:{uid}:INTERESTED", "success"),
@@ -840,8 +852,12 @@ def _crm_lead_text(user_id: int) -> tuple[str, InlineKeyboardMarkup]:
             InlineKeyboardButton("🚫 DO NOT CONTACT", callback_data=f"crm:set:{uid}:DO_NOT_CONTACT"),
         ],
         [InlineKeyboardButton("🆕 RESET TO NEW", callback_data=f"crm:set:{uid}:NEW")],
-        [InlineKeyboardButton("⬅️ CRM", callback_data="crm:home")],
+        [
+            InlineKeyboardButton("⬅️ CRM", callback_data="crm:home"),
+            InlineKeyboardButton("🏠 ADMIN", callback_data="adm:home"),
+        ],
     ])
+    buttons = InlineKeyboardMarkup(rows)
     return text, buttons
 
 

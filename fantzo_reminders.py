@@ -184,6 +184,22 @@ def _due_stage(row, now_utc: datetime):
     return stage + 1 if elapsed >= thresholds[stage] else None
 
 
+def _verification_due_stage(row, now_utc: datetime):
+    last_activity = _parse_dt(str(row["last_activity"]))
+    if not last_activity:
+        return None
+    elapsed = now_utc - last_activity
+    stage = int(row["reminder_stage"] or 0)
+    thresholds = [
+        timedelta(minutes=45),
+        timedelta(hours=6),
+        timedelta(hours=24),
+    ]
+    if stage >= len(thresholds):
+        return None
+    return stage + 1 if elapsed >= thresholds[stage] else None
+
+
 def _copy_for(interest: str, stage: int, source: str, user_id: int = 0):
     if interest == "cricket":
         subject = "🏏 IBETIN Live Line is ready"
@@ -291,7 +307,10 @@ def _verification_reminder_copy(stage: int):
         f"<b>{intro}</b>\n\n"
         "Verify the mobile number linked to your Telegram account. "
         "You only need to do this once.\n\n"
-        "Tap <b>📱 VERIFY & CONTINUE</b> below."
+        "Tap <b>📱 VERIFY & CONTINUE</b> below. By continuing, you agree that "
+        "the IBETIN team may contact you about your request by phone call and WhatsApp. "
+        "You can opt out anytime.\n\n"
+        "🔞 <b>18+ only • Play responsibly</b>"
     )
     markup = ReplyKeyboardMarkup(
         [[KeyboardButton("📱 VERIFY & CONTINUE", request_contact=True)]],
@@ -410,7 +429,7 @@ async def run_due_reminders(application) -> None:
             if str(row["source"]) != "bot":
                 continue
 
-            stage = _due_stage(row, now)
+            stage = _verification_due_stage(row, now)
             if not stage:
                 continue
 

@@ -102,7 +102,7 @@ def ensure_tables() -> None:
         if "business_customers" in tables:
             rows = conn.execute(
                 """
-                SELECT customer_id, MIN(first_seen) first_seen, MAX(last_seen) last_seen
+                SELECT customer_id, MIN(last_seen) first_seen, MAX(last_seen) last_seen
                 FROM business_customers
                 WHERE customer_id IS NOT NULL
                 GROUP BY customer_id

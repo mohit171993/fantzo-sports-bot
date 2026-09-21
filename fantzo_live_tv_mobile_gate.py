@@ -29,6 +29,7 @@ _handlers_registered = False
 _PENDING_KEY = "fantzo_live_tv_mobile_pending"
 _PENDING_SOURCE_KEY = "fantzo_live_tv_mobile_source"
 LIVE_TV_START_ARGS = {"livetv_business", "livetv_banner"}
+BUSINESS_VERIFY_START_ARG = "verify_business_dm"
 
 
 def ensure_tables() -> None:
@@ -55,10 +56,40 @@ def ensure_tables() -> None:
             "CREATE INDEX IF NOT EXISTS idx_live_tv_mobile_created "
             "ON live_tv_mobile_users(created_at)"
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS mobile_verification_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                source TEXT NOT NULL,
+                event TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_mobile_verify_events_user "
+            "ON mobile_verification_events(user_id, created_at)"
+        )
 
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def track_verification_event(user_id: int, source: str, event: str) -> None:
+    ensure_tables()
+    with core.db() as conn:
+        conn.execute(
+            "INSERT INTO mobile_verification_events(user_id,source,event,created_at) "
+            "VALUES(?,?,?,?)",
+            (
+                int(user_id),
+                str(source or "unknown")[:64],
+                str(event or "unknown")[:64],
+                _now_iso(),
+            ),
+        )
 
 
 def normalize_telegram_mobile(value: str) -> tuple[str, str] | None:
@@ -157,8 +188,10 @@ async def _prompt_mobile(update: Update, context, source: str) -> None:
     if not user:
         return
 
+    source = str(source or "live_tv")[:64]
     context.user_data[_PENDING_KEY] = True
-    context.user_data[_PENDING_SOURCE_KEY] = str(source or "live_tv")[:64]
+    context.user_data[_PENDING_SOURCE_KEY] = source
+    track_verification_event(user.id, source, "prompt")
 
     query = update.callback_query
     message = update.effective_message
@@ -169,18 +202,30 @@ async def _prompt_mobile(update: Update, context, source: str) -> None:
         except Exception:
             pass
 
-    if message:
-        await message.reply_text(
-            "📱 <b>VERIFY MOBILE TO WATCH LIVE TV</b>\n"
-            "━━━━━━━━━━━━━━━━━━\n\n"
-            "Fantzo Live TV requires a verified Telegram-linked mobile number.\n\n"
-            "Tap <b>📱 VERIFY & CONTINUE</b> below. Telegram will share the "
-            "mobile number linked to your own Telegram account.\n\n"
-            "Numbers from <b>any country</b> are accepted. "
-            "Typed numbers are not accepted.",
-            parse_mode="HTML",
-            reply_markup=_verify_keyboard(),
+    if not message:
+        return
+
+    if source == "business_dm":
+        title = "📱 <b>VERIFY MOBILE TO CONTINUE</b>"
+        detail = (
+            "Before continuing from Fantzo Business DM, verify the mobile number "
+            "linked to your Telegram account."
         )
+    else:
+        title = "📱 <b>VERIFY MOBILE TO WATCH LIVE TV</b>"
+        detail = "Fantzo Live TV requires a verified Telegram-linked mobile number."
+
+    await message.reply_text(
+        f"{title}\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
+        f"{detail}\n\n"
+        "Tap <b>📱 VERIFY & CONTINUE</b> below. Telegram will share the "
+        "mobile number linked to your own Telegram account.\n\n"
+        "Numbers from <b>any country</b> are accepted. "
+        "Typed numbers are not accepted.",
+        parse_mode="HTML",
+        reply_markup=_verify_keyboard(),
+    )
 
 
 async def contact_handler(update: Update, context) -> None:
@@ -223,6 +268,15 @@ async def contact_handler(update: Update, context) -> None:
         contact.phone_number or "",
         source,
     )
+    track_verification_event(user.id, source, "verified")
+
+    try:
+        if source == "business_dm":
+            core.track(user.id, "business_dm:verified")
+        else:
+            core.track(user.id, f"mobile_verified:{source}")
+    except Exception:
+        logger.exception("Could not track Fantzo mobile verification")
 
     context.user_data.pop(_PENDING_KEY, None)
     context.user_data.pop(_PENDING_SOURCE_KEY, None)
@@ -231,6 +285,22 @@ async def contact_handler(update: Update, context) -> None:
         masked = e164[:4] + "••••" + e164[-4:]
     else:
         masked = e164
+
+    import fantzo_business_flow_fix as live_flow
+
+    if source == "business_dm":
+        await message.reply_text(
+            "✅ <b>Telegram mobile verified</b>\n\n"
+            f"Verified number: <code>{masked}</code>\n"
+            "Verification complete.",
+            parse_mode="HTML",
+            reply_markup=ReplyKeyboardRemove(),
+        )
+        await message.reply_text(
+            "Choose what you want to do next 👇",
+            reply_markup=live_flow.business_funnel_buttons("business_verified"),
+        )
+        return
 
     await message.reply_text(
         "✅ <b>Telegram mobile verified</b>\n\n"
@@ -241,8 +311,6 @@ async def contact_handler(update: Update, context) -> None:
     )
 
     # Continue immediately into the already-tested Live TV status screen.
-    import fantzo_business_flow_fix as live_flow
-
     await live_flow.send_live_tv_status_from_start(update, context)
 
 
@@ -287,6 +355,34 @@ def install() -> None:
         user = update.effective_user
         arg = context.args[0].lower() if context.args else ""
 
+        if user and arg == BUSINESS_VERIFY_START_ARG:
+            try:
+                core.touch_user(update)
+                core.track(user.id, "business_dm:verify_open")
+            except Exception:
+                logger.exception("Could not track Business verification deep link")
+
+            track_verification_event(user.id, "business_dm", "verify_open")
+
+            if is_registered(user.id):
+                track_verification_event(user.id, "business_dm", "already_verified")
+                import fantzo_business_flow_fix as live_flow
+
+                await update.effective_message.reply_text(
+                    "✅ <b>Your Telegram mobile is already verified.</b>\n\n"
+                    "Continue with Fantzo below.",
+                    parse_mode="HTML",
+                    reply_markup=ReplyKeyboardRemove(),
+                )
+                await update.effective_message.reply_text(
+                    "Choose what you want to do next 👇",
+                    reply_markup=live_flow.business_funnel_buttons("business_verified"),
+                )
+                return
+
+            await _prompt_mobile(update, context, "business_dm")
+            return
+
         if user and arg in LIVE_TV_START_ARGS:
             if not is_registered(user.id):
                 await _prompt_mobile(update, context, _source_from_start_arg(arg))
@@ -312,7 +408,7 @@ def install() -> None:
     tracked.app.core.callback_router = gated_router
 
     logger.info(
-        "Fantzo Live TV mobile gate installed: Telegram self-contact required; all countries accepted"
+        "Fantzo mobile verification installed: Business DM handoff + Live TV gate; all countries accepted"
     )
 
 

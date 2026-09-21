@@ -22,6 +22,14 @@ WELCOME_REPLY = (
     f"{RESPONSIBLE_NOTE}"
 )
 
+VERIFY_REPLY = (
+    "👋 <b>Welcome to Fantzo</b>\n\n"
+    "Before continuing, please verify the mobile number linked to your Telegram account.\n\n"
+    "Tap <b>📱 VERIFY MOBILE</b> below. After verification, the normal Fantzo options will continue.\n\n"
+    f"{RESPONSIBLE_NOTE}"
+)
+
+
 
 def ensure_tables() -> None:
     with core.db() as conn:
@@ -72,6 +80,27 @@ def _save_connection(connection) -> None:
             ),
         )
 
+
+
+def _is_mobile_verified(user_id: int) -> bool:
+    if not user_id:
+        return False
+    try:
+        with core.db() as conn:
+            table = conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='live_tv_mobile_users' LIMIT 1"
+            ).fetchone()
+            if not table:
+                return False
+            row = conn.execute(
+                "SELECT 1 FROM live_tv_mobile_users "
+                "WHERE user_id=? AND capture_method='telegram_contact' LIMIT 1",
+                (int(user_id),),
+            ).fetchone()
+        return bool(row)
+    except Exception:
+        logger.exception("Could not check Fantzo Business mobile verification")
+        return False
 
 def _owner_user_id(connection_id: str):
     if not connection_id:
@@ -330,25 +359,49 @@ async def business_auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE
     # photo, voice, video, document, etc. Mark only after a successful send so
     # transient Telegram failures can retry on the customer's next message.
     if customer_id and connection_id and not _has_been_welcomed(connection_id, customer_id):
+        verified = _is_mobile_verified(customer_id)
         logger.info(
-            "Fantzo first Business DM: connection=%s customer=%s sending welcome",
+            "Fantzo first Business DM: connection=%s customer=%s verified=%s",
             connection_id,
             customer_id,
+            verified,
         )
 
-        await _reply_with_retry(message, WELCOME_REPLY, _welcome_buttons())
+        if verified:
+            await _reply_with_retry(
+                message,
+                WELCOME_REPLY,
+                _funnel_buttons("business_welcome"),
+            )
+        else:
+            await _reply_with_retry(message, VERIFY_REPLY, _welcome_buttons())
+
         _mark_welcomed(connection_id, customer_id)
 
         try:
-            core.track(customer_id, "business_dm:welcome")
+            core.track(
+                customer_id,
+                "business_dm:welcome_verified" if verified else "business_dm:verify_required",
+            )
         except Exception:
             logger.exception("Could not track Fantzo Business DM welcome")
 
         logger.info(
-            "Fantzo Business DM welcome sent: connection=%s customer=%s",
+            "Fantzo Business DM welcome sent: connection=%s customer=%s verified=%s",
             connection_id,
             customer_id,
+            verified,
         )
+        return
+
+    # Keep Business users on the verification step until Telegram verification
+    # succeeds. This prevents later DMs from exposing the normal funnel early.
+    if customer_id and not _is_mobile_verified(customer_id):
+        try:
+            core.track(customer_id, "business_dm:verify_required")
+        except Exception:
+            logger.exception("Could not track Fantzo Business verification requirement")
+        await _reply_with_retry(message, VERIFY_REPLY, _welcome_buttons())
         return
 
     # After the one-time welcome, only text messages go through the smart

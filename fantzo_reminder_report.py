@@ -71,5 +71,14 @@ async def report_loop(application):
             logger.exception("Fantzo reminder report failed")
 
 
-def start(application):
+async def _start_report_when_running(application):
+    while not application.running:
+        await asyncio.sleep(0.2)
     application.create_task(report_loop(application))
+
+
+def start(application):
+    asyncio.create_task(
+        _start_report_when_running(application),
+        name="fantzo-reminder-report-starter",
+    )

@@ -360,7 +360,12 @@ def get_lead(user_id: int):
     return dict(row) if row else None
 
 
-def set_status(user_id: int, status: str) -> bool:
+def set_status(
+    user_id: int,
+    status: str,
+    actor_id: int = 0,
+    actor_name: str = "",
+) -> bool:
     status = str(status or "").strip().lower()
     if status not in ALLOWED_STATUSES or not user_id:
         return False
@@ -379,22 +384,50 @@ def set_status(user_id: int, status: str) -> bool:
             "SELECT 1 FROM ibetin_leads WHERE user_id=?",
             (int(user_id),),
         ).fetchone()
+
         if not row:
             conn.execute(
                 """
                 INSERT INTO ibetin_leads(
                     user_id, campaign, source, first_seen_at, last_seen_at,
-                    lead_status, updated_at
+                    lead_status, assigned_to, assigned_name,
+                    updated_by, updated_by_name, updated_at
                 )
-                VALUES (?, 'direct', 'bot', ?, ?, ?, ?)
+                VALUES (?, 'direct', 'bot', ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (int(user_id), now, now, status, now),
+                (
+                    int(user_id),
+                    now,
+                    now,
+                    status,
+                    int(actor_id or 0) or None,
+                    str(actor_name or "")[:128] or None,
+                    int(actor_id or 0) or None,
+                    str(actor_name or "")[:128] or None,
+                    now,
+                ),
             )
         else:
             conn.execute(
-                "UPDATE ibetin_leads SET lead_status=?, updated_at=? WHERE user_id=?",
-                (status, now, int(user_id)),
+                """
+                UPDATE ibetin_leads
+                SET lead_status=?,
+                    assigned_to=COALESCE(assigned_to, ?),
+                    assigned_name=COALESCE(assigned_name, ?),
+                    updated_by=?, updated_by_name=?, updated_at=?
+                WHERE user_id=?
+                """,
+                (
+                    status,
+                    int(actor_id or 0) or None,
+                    str(actor_name or "")[:128] or None,
+                    int(actor_id or 0) or None,
+                    str(actor_name or "")[:128] or None,
+                    now,
+                    int(user_id),
+                ),
             )
+
         if timestamp_column:
             conn.execute(
                 f"UPDATE ibetin_leads "
@@ -402,6 +435,14 @@ def set_status(user_id: int, status: str) -> bool:
                 "WHERE user_id=?",
                 (now, now, int(user_id)),
             )
+
+    add_history(
+        int(user_id),
+        "status",
+        status,
+        int(actor_id or 0),
+        str(actor_name or ""),
+    )
     return True
 
 
@@ -547,32 +588,58 @@ def search_leads(term: str, limit: int = 10):
     raw = str(term or "").strip()
     if not raw:
         return []
+
+    username_term = raw.lstrip("@")
     digits = re.sub(r"\D", "", raw)
-    like = f"%{raw.lstrip('@')}%"
+    like = f"%{username_term}%"
+
     with _connect() as conn:
-        params = [like, like]
-        phone_clause = ""
-        if digits:
-            phone_clause = (
-                " OR EXISTS (SELECT 1 FROM liveline_verified_users v "
-                "WHERE v.user_id=l.user_id AND "
-                "replace(replace(replace(replace(v.phone_number,'+',''),' ',''),'-',''),'(', '') "
-                "LIKE ?)"
+        tables = {
+            str(row["name"])
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+
+        conditions = ["CAST(l.user_id AS TEXT) LIKE ?"]
+        params = [f"%{raw}%"]
+
+        if "users" in tables:
+            conditions.append(
+                "EXISTS (SELECT 1 FROM users u "
+                "WHERE u.user_id=l.user_id AND COALESCE(u.username,'') LIKE ?)"
+            )
+            params.append(like)
+
+        if "business_customers" in tables:
+            conditions.append(
+                "EXISTS (SELECT 1 FROM business_customers b "
+                "WHERE b.customer_id=l.user_id "
+                "AND COALESCE(b.username,'') LIKE ?)"
+            )
+            params.append(like)
+
+        if digits and "liveline_verified_users" in tables:
+            conditions.append(
+                "EXISTS (SELECT 1 FROM liveline_verified_users v "
+                "WHERE v.user_id=l.user_id "
+                "AND replace(replace(replace(replace(replace("
+                "v.phone_number,'+',''),' ',''),'-',''),'(',''),')','') LIKE ?)"
             )
             params.append(f"%{digits}%")
+
+        where = " OR ".join(conditions)
         rows = conn.execute(
             f"""
             SELECT l.user_id
             FROM ibetin_leads l
-            LEFT JOIN users u ON u.user_id=l.user_id
-            WHERE CAST(l.user_id AS TEXT) LIKE ?
-               OR COALESCE(u.username,'') LIKE ?
-               {phone_clause}
+            WHERE {where}
             ORDER BY COALESCE(l.verified_at, l.first_seen_at) DESC
             LIMIT ?
             """,
             (*params, int(limit)),
         ).fetchall()
+
     return [int(r["user_id"]) for r in rows]
 
 

@@ -89,36 +89,260 @@ def _fmt_dt(value) -> str:
         return escape(text[:40])
 
 
+def _admin_dashboard_text() -> str:
+    day, _, now = _cutoffs()
+    with core.db() as conn:
+        leads = _scalar(conn, "SELECT COUNT(*) FROM sales_leads") if _table_exists(conn, "sales_leads") else 0
+        new = _scalar(conn, "SELECT COUNT(*) FROM sales_leads WHERE status='NEW'") if _table_exists(conn, "sales_leads") else 0
+        contacted = _scalar(conn, "SELECT COUNT(*) FROM sales_leads WHERE status='CONTACTED'") if _table_exists(conn, "sales_leads") else 0
+        no_answer = _scalar(conn, "SELECT COUNT(*) FROM sales_leads WHERE status='NO_ANSWER'") if _table_exists(conn, "sales_leads") else 0
+        interested = _scalar(conn, "SELECT COUNT(*) FROM sales_leads WHERE status='INTERESTED'") if _table_exists(conn, "sales_leads") else 0
+        converted = _scalar(conn, "SELECT COUNT(*) FROM sales_leads WHERE status='CONVERTED'") if _table_exists(conn, "sales_leads") else 0
+        dnc = _scalar(conn, "SELECT COUNT(*) FROM sales_leads WHERE status='DO_NOT_CONTACT'") if _table_exists(conn, "sales_leads") else 0
+
+        new_24 = _scalar(conn, "SELECT COUNT(*) FROM sales_leads WHERE created_at>=?", (day,)) if _table_exists(conn, "sales_leads") else 0
+        converted_24 = _scalar(
+            conn,
+            "SELECT COUNT(*) FROM sales_leads WHERE converted_at IS NOT NULL AND converted_at>=?",
+            (day,),
+        ) if _table_exists(conn, "sales_leads") else 0
+
+        ad_starts_24 = _scalar(
+            conn,
+            "SELECT COUNT(DISTINCT user_id) FROM lead_attribution "
+            "WHERE campaign LIKE 'ad_%' AND first_seen_at>=?",
+            (day,),
+        ) if _table_exists(conn, "lead_attribution") else 0
+
+        ad_unverified = 0
+        if _table_exists(conn, "lead_attribution") and _table_exists(conn, "lead_user_map"):
+            ad_unverified = _scalar(
+                conn,
+                "SELECT COUNT(DISTINCT a.user_id) "
+                "FROM lead_attribution a "
+                "LEFT JOIN lead_user_map m ON m.user_id=a.user_id "
+                "WHERE a.campaign LIKE 'ad_%' AND m.user_id IS NULL"
+            )
+
+        verified_24 = 0
+        if _table_exists(conn, "lead_events"):
+            verified_24 = _scalar(
+                conn,
+                "SELECT COUNT(DISTINCT user_id) FROM lead_events "
+                "WHERE event='verified_mobile' AND created_at>=?",
+                (day,),
+            )
+
+    conversion = (float(converted) / float(leads) * 100.0) if leads else 0.0
+    hot = int(new) + int(interested)
+
+    return (
+        "🧭 <b>FANTZO TEAM DASHBOARD</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
+        "<b>WHAT NEEDS ATTENTION</b>\n"
+        f"🔥 Hot leads: <b>{_fmt_int(hot)}</b> "
+        f"(🆕 {_fmt_int(new)} new · ⭐ {_fmt_int(interested)} interested)\n"
+        f"📵 Follow up / no answer: <b>{_fmt_int(no_answer)}</b>\n"
+        f"☎️ Contacted: <b>{_fmt_int(contacted)}</b>\n"
+        f"🚫 Do not contact: <b>{_fmt_int(dnc)}</b>\n\n"
+        "<b>LAST 24 HOURS</b>\n"
+        f"📣 Paid-ad starts: <b>{_fmt_int(ad_starts_24)}</b>\n"
+        f"📱 Verified leads: <b>{_fmt_int(verified_24)}</b>\n"
+        f"🔥 New mobile leads: <b>{_fmt_int(new_24)}</b>\n"
+        f"✅ Converted: <b>{_fmt_int(converted_24)}</b>\n\n"
+        "<b>OVERALL</b>\n"
+        f"🎯 Total leads: <b>{_fmt_int(leads)}</b>\n"
+        f"✅ Converted: <b>{_fmt_int(converted)}</b> "
+        f"(<b>{conversion:.1f}%</b>)\n"
+        f"⏳ Ad users not yet verified: <b>{_fmt_int(ad_unverified)}</b>\n\n"
+        "Start with <b>💼 CRM</b>. The team should work NEW and INTERESTED leads first, "
+        "update every lead after contact, then check campaign performance.\n\n"
+        f"🕒 {now.strftime('%d %b %Y %H:%M UTC')}"
+    )
+
+
+def _admin_dashboard_menu() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [
+            _styled_button("💼 CRM", "crm:home", "success"),
+            _styled_button("🆕 NEW LEADS", "crm:list:NEW", "success"),
+        ],
+        [
+            _styled_button("⭐ INTERESTED", "crm:list:INTERESTED", "success"),
+            _styled_button("📵 NO ANSWER", "crm:list:NO_ANSWER", "primary"),
+        ],
+        [
+            _styled_button("📣 CAMPAIGNS", "adm:campaigns", "primary"),
+            _styled_button("🎯 FUNNEL", "rpt:leads", "primary"),
+        ],
+        [
+            _styled_button("📱 VERIFIED LEADS", "rpt:mobile", "primary"),
+            _styled_button("🔔 FOLLOW-UP", "rpt:reminders", "primary"),
+        ],
+        [
+            _styled_button("📈 REPORTS", "rpt:home", "primary"),
+            InlineKeyboardButton("🧰 TOOLS", callback_data="adm:tools"),
+        ],
+        [InlineKeyboardButton("❓ TEAM GUIDE", callback_data="adm:guide")],
+    ])
+
+
+def _campaigns_text() -> str:
+    with core.db() as conn:
+        if not _table_exists(conn, "lead_attribution"):
+            return "📣 <b>CAMPAIGNS</b>\n\nNo campaign data yet."
+
+        rows = _rows(
+            conn,
+            """
+            SELECT a.campaign,
+                   COUNT(DISTINCT a.user_id) starts,
+                   COUNT(DISTINCT m.user_id) verified,
+                   COUNT(DISTINCT s.mobile_e164) leads,
+                   COUNT(DISTINCT CASE WHEN s.status='INTERESTED' THEN s.mobile_e164 END) interested,
+                   COUNT(DISTINCT CASE WHEN s.status='CONVERTED' THEN s.mobile_e164 END) converted
+            FROM lead_attribution a
+            LEFT JOIN lead_user_map m ON m.user_id=a.user_id
+            LEFT JOIN sales_leads s ON s.mobile_e164=m.mobile_e164
+            WHERE a.campaign LIKE 'ad_%' OR a.campaign LIKE 'ref_%'
+            GROUP BY a.campaign
+            ORDER BY starts DESC, verified DESC
+            LIMIT 12
+            """
+        )
+
+    lines = []
+    for row in rows:
+        starts = int(row["starts"] or 0)
+        verified = int(row["verified"] or 0)
+        rate = (verified / starts * 100.0) if starts else 0.0
+        lines.append(
+            f"• <code>{escape(str(row['campaign']))}</code>\n"
+            f"  {_fmt_int(starts)} starts → {_fmt_int(verified)} verified "
+            f"(<b>{rate:.1f}%</b>) → ⭐ {_fmt_int(row['interested'])} "
+            f"→ ✅ {_fmt_int(row['converted'])}"
+        )
+
+    body = "\n".join(lines) or "• No paid/referral campaigns tracked yet."
+    return (
+        "📣 <b>TELEGRAM ADS · CAMPAIGNS</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
+        f"{body}\n\n"
+        "<b>How the team should use this</b>\n"
+        "1. Give every ad its own tracking code.\n"
+        "2. Compare start → verified percentage.\n"
+        "3. Compare interested and converted leads, not just bot starts.\n"
+        "4. Stop spending on campaigns that create starts but weak verified/converted leads.\n\n"
+        "Create a link with: <code>/adlink cricket_01</code>"
+    )
+
+
+def _campaigns_menu() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [_styled_button("🎯 FULL FUNNEL", "rpt:leads", "success")],
+        [InlineKeyboardButton("🏠 ADMIN HOME", callback_data="adm:home")],
+    ])
+
+
+def _tools_text() -> str:
+    return (
+        "🧰 <b>FANTZO ADMIN TOOLS</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
+        "<b>USE REGULARLY</b>\n"
+        "📣 <code>/adlink NAME</code> — create a tracked Telegram Ads link.\n"
+        "💼 <code>/lead USER</code> — find a lead directly.\n"
+        "👤 <code>/leadassign USER AGENT</code> — assign a salesperson.\n"
+        "📝 <code>/leadnote USER NOTE</code> — save sales notes.\n\n"
+        "<b>MARKETING / CONTENT</b>\n"
+        "📢 <code>/broadcast MESSAGE</code> — send a message to bot users. Use carefully.\n"
+        "🖼 <code>/banners</code> — manage the Live TV banner queue.\n"
+        "🖼 <code>/setbanner</code> — change the Fantzo home banner.\n\n"
+        "<b>TECHNICAL · NOT DAILY TEAM WORK</b>\n"
+        "🩺 <code>/apistatus</code> — sports API health.\n"
+        "💾 <code>/backupstatus</code> / <code>/backupnow</code> — database backups.\n"
+        "📺 <code>/livetvadmin</code> — Live TV admin access.\n"
+        "🤖 <code>/autoreply</code>, <code>/stats</code>, <code>/trialtv</code> — diagnostics/testing.\n\n"
+        "<i>Technical options are intentionally kept off the main dashboard so the team can focus on leads.</i>"
+    )
+
+
+def _tools_menu() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📈 REPORTS", callback_data="rpt:home")],
+        [InlineKeyboardButton("🧪 ADVANCED REPORTS", callback_data="adm:advanced_reports")],
+        [InlineKeyboardButton("🏠 ADMIN HOME", callback_data="adm:home")],
+    ])
+
+
+def _team_guide_text() -> str:
+    return (
+        "❓ <b>FANTZO TEAM WORKFLOW</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
+        "<b>1 · WORK HOT LEADS FIRST</b>\n"
+        "Open <b>🆕 NEW</b>, then <b>⭐ INTERESTED</b>. Contact them quickly by phone/WhatsApp.\n\n"
+        "<b>2 · UPDATE EVERY CONTACT</b>\n"
+        "After every attempt choose CONTACTED, NO ANSWER, INTERESTED, CONVERTED, "
+        "NOT INTERESTED or DO NOT CONTACT. This is what makes campaign reporting accurate.\n\n"
+        "<b>3 · USE NOTES & ASSIGNMENT</b>\n"
+        "Use <code>/leadassign</code> to show who owns the lead and <code>/leadnote</code> "
+        "for the latest sales context.\n\n"
+        "<b>4 · RESPECT DO NOT CONTACT</b>\n"
+        "Never call or WhatsApp a lead marked DO NOT CONTACT.\n\n"
+        "<b>5 · CHECK CAMPAIGNS</b>\n"
+        "Judge ads on verified leads and conversions, not only clicks/starts.\n\n"
+        "<b>6 · END OF SHIFT</b>\n"
+        "NEW should be close to zero, NO ANSWER should have a clear follow-up plan, "
+        "and every converted lead should be marked CONVERTED."
+    )
+
+
+def _team_guide_menu() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [_styled_button("💼 OPEN CRM", "crm:home", "success")],
+        [InlineKeyboardButton("🏠 ADMIN HOME", callback_data="adm:home")],
+    ])
+
+
 def _report_menu() -> InlineKeyboardMarkup:
+    """Reports that matter to the sales/marketing team day to day."""
     return InlineKeyboardMarkup(
         [
             [
-                _styled_button("📊 OVERVIEW", "rpt:overview", "primary"),
-                _styled_button("👥 USERS", "rpt:users", "primary"),
+                _styled_button("📊 BUSINESS OVERVIEW", "rpt:overview", "primary"),
+                _styled_button("🎯 LEAD FUNNEL", "rpt:leads", "success"),
             ],
             [
-                _styled_button("🎯 ENGAGEMENT", "rpt:engagement", "primary"),
-                _styled_button("📺 LIVE TV", "rpt:livetv", "success"),
-            ],
-            [
-                _styled_button("🌐 FANTZO OPENS", "rpt:web", "primary"),
+                _styled_button("📱 VERIFIED LEADS", "rpt:mobile", "success"),
                 _styled_button("💬 BUSINESS DMs", "rpt:business", "primary"),
             ],
             [
-                _styled_button("🔔 REMINDERS", "rpt:reminders", "primary"),
-                _styled_button("⭐ FAVOURITES", "rpt:favourites", "primary"),
+                _styled_button("🔔 FOLLOW-UP", "rpt:reminders", "primary"),
+                _styled_button("📅 DAILY ACTIVITY", "rpt:daily", "primary"),
+            ],
+            [_styled_button("⬇️ EXPORT DATA", "rpt:downloads", "success")],
+            [InlineKeyboardButton("🧪 ADVANCED REPORTS", callback_data="adm:advanced_reports")],
+            [InlineKeyboardButton("🏠 ADMIN HOME", callback_data="adm:home")],
+        ]
+    )
+
+
+def _advanced_reports_menu() -> InlineKeyboardMarkup:
+    """Lower-frequency diagnostic reports, kept away from the main workflow."""
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton("👥 All Users", callback_data="rpt:users"),
+                InlineKeyboardButton("🎯 Raw Engagement", callback_data="rpt:engagement"),
             ],
             [
-                _styled_button("🎯 LEAD FUNNEL", "rpt:leads", "success"),
-                _styled_button("💼 CRM", "crm:home", "success"),
+                InlineKeyboardButton("📺 Live TV", callback_data="rpt:livetv"),
+                InlineKeyboardButton("🌐 Fantzo Opens", callback_data="rpt:web"),
             ],
-            [_styled_button("📱 VERIFIED NUMBERS", "rpt:mobile", "success")],
             [
-                _styled_button("📅 DAILY", "rpt:daily", "primary"),
-                _styled_button("🖼 BANNERS", "rpt:banners", "primary"),
+                InlineKeyboardButton("⭐ Favourites", callback_data="rpt:favourites"),
+                InlineKeyboardButton("🖼 Banner Queue", callback_data="rpt:banners"),
             ],
-            [_styled_button("⬇️ DOWNLOADS", "rpt:downloads", "success")],
-            [_styled_button("📦 DOWNLOAD ALL REPORTS", "rptdl:all", "success")],
+            [InlineKeyboardButton("⬅️ REPORTS", callback_data="rpt:home")],
         ]
     )
 
@@ -127,7 +351,10 @@ def _back_menu(download_key: str | None = None) -> InlineKeyboardMarkup:
     rows = []
     if download_key:
         rows.append([_styled_button("⬇️ DOWNLOAD CSV", f"rptdl:{download_key}", "success")])
-    rows.append([InlineKeyboardButton("⬅️ REPORTS", callback_data="rpt:home")])
+    rows.append([
+        InlineKeyboardButton("⬅️ REPORTS", callback_data="rpt:home"),
+        InlineKeyboardButton("🏠 ADMIN", callback_data="adm:home"),
+    ])
     return InlineKeyboardMarkup(rows)
 
 
@@ -155,6 +382,7 @@ def _downloads_menu() -> InlineKeyboardMarkup:
             [InlineKeyboardButton("🖼 Banners CSV", callback_data="rptdl:banners")],
             [_styled_button("📦 COMPLETE ZIP", "rptdl:all", "success")],
             [InlineKeyboardButton("⬅️ REPORTS", callback_data="rpt:home")],
+            [InlineKeyboardButton("🏠 ADMIN HOME", callback_data="adm:home")],
         ]
     )
 
@@ -1138,11 +1366,36 @@ async def _handle_report_callback(update, context) -> bool:
         data.startswith(REPORT_PREFIX)
         or data.startswith(DOWNLOAD_PREFIX)
         or data.startswith("crm:")
+        or data.startswith("adm:")
     ):
         return False
 
     if not _is_admin(update):
         await query.answer("Restricted to Fantzo admin.", show_alert=True)
+        return True
+
+    if data.startswith("adm:"):
+        action = data.split(":", 1)[1] if ":" in data else "home"
+        await query.answer()
+
+        if action == "home":
+            await _show(query, _admin_dashboard_text(), _admin_dashboard_menu())
+        elif action == "campaigns":
+            await _show(query, _campaigns_text(), _campaigns_menu())
+        elif action == "tools":
+            await _show(query, _tools_text(), _tools_menu())
+        elif action == "guide":
+            await _show(query, _team_guide_text(), _team_guide_menu())
+        elif action == "advanced_reports":
+            await _show(
+                query,
+                "🧪 <b>ADVANCED REPORTS</b>\n━━━━━━━━━━━━━━━━━━\n\n"
+                "These reports are useful for diagnostics and product analysis, "
+                "but they are not part of the team's daily lead workflow.",
+                _advanced_reports_menu(),
+            )
+        else:
+            await query.answer("Unknown admin action.", show_alert=True)
         return True
 
     if data.startswith("crm:"):
@@ -1206,9 +1459,9 @@ async def _handle_report_callback(update, context) -> bool:
     if action == "home":
         await _show(
             query,
-            "📊 <b>FANTZO ADMIN · REPORTS</b>\n━━━━━━━━━━━━━━━━━━\n\n"
-            "View operational reports or download the underlying data.\n\n"
-            "All downloads are generated live from the production database and are admin-only.",
+            "📈 <b>FANTZO REPORTS</b>\n━━━━━━━━━━━━━━━━━━\n\n"
+            "Daily reports are shown first. Raw diagnostic reports are under Advanced Reports.\n\n"
+            "All exports are generated live from the production database and are admin-only.",
             _report_menu(),
         )
     elif action == "overview":
@@ -1248,13 +1501,12 @@ async def _handle_report_callback(update, context) -> bool:
 
 
 async def send_reports_panel(message) -> None:
+    """Backward-compatible entry point: /admin now opens the team dashboard."""
     await message.reply_text(
-        "📊 <b>FANTZO ADMIN · REPORTS</b>\n"
-        "━━━━━━━━━━━━━━━━━━\n\n"
-        "View live summaries or download detailed CSV reports.\n"
-        "Use <b>Download All Reports</b> for one complete ZIP.",
+        _admin_dashboard_text(),
         parse_mode="HTML",
-        reply_markup=_report_menu(),
+        reply_markup=_admin_dashboard_menu(),
+        disable_web_page_preview=True,
     )
 
 
@@ -1268,8 +1520,10 @@ def install() -> None:
     original_router = tracked.app.core.callback_router
 
     async def admin_with_reports(update, context):
-        await original_admin(update, context)
-        if _is_admin(update) and update.effective_message:
+        if not _is_admin(update):
+            await original_admin(update, context)
+            return
+        if update.effective_message:
             await send_reports_panel(update.effective_message)
 
     async def router_with_reports(update, context):
@@ -1279,4 +1533,4 @@ def install() -> None:
 
     tracked.app.core.admin = admin_with_reports
     tracked.app.core.callback_router = router_with_reports
-    logger.info("Fantzo admin reports installed: view summaries, CSV downloads and complete ZIP")
+    logger.info("Fantzo team admin dashboard installed: CRM-first workflow, campaigns, reports and advanced tools")

@@ -3,7 +3,12 @@ import logging
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from telegram import (\n    InlineKeyboardButton,\n    InlineKeyboardMarkup,\n    KeyboardButton,\n    ReplyKeyboardMarkup,\n)
+from telegram import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    KeyboardButton,
+    ReplyKeyboardMarkup,
+)
 from telegram.error import BadRequest, Forbidden, RetryAfter
 
 import bot as core

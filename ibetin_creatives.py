@@ -353,6 +353,20 @@ def _find_target_username(username: str):
         ).fetchone()
 
 
+def _latest_channel_creative():
+    ensure_tables()
+    with core.db() as conn:
+        return conn.execute(
+            """
+            SELECT *
+            FROM creative_assets
+            WHERE active = 1 AND pool = 'channel'
+            ORDER BY id DESC
+            LIMIT 1
+            """
+        ).fetchone()
+
+
 def _latest_test_creative():
     ensure_tables()
     with core.db() as conn:
@@ -678,6 +692,123 @@ async def _startup_creative_status_and_test(application) -> None:
         )
 
 
+async def _startup_channel_preview_test(application) -> None:
+    import asyncio
+    await asyncio.sleep(8)
+
+    username = (
+        os.getenv("IBETIN_CHANNEL_PREVIEW_USERNAME", "")
+        .strip()
+        .lstrip("@")
+    )
+    if not username:
+        return
+
+    campaign_key = (
+        "channel-preview:"
+        + username.casefold()
+        + ":"
+        + os.getenv("IBETIN_CHANNEL_PREVIEW_KEY", "v1").strip()
+    )
+
+    try:
+        creative = _latest_channel_creative()
+        target = _find_target_username(username)
+
+        if not creative:
+            logger.warning("IBETIN channel preview skipped: no channel creative")
+            return
+        if not target:
+            logger.warning(
+                "IBETIN channel preview skipped: bot target not found username=%s",
+                username,
+            )
+            return
+
+        with core.db() as conn:
+            existing = conn.execute(
+                "SELECT status FROM creative_test_sends WHERE campaign_key=?",
+                (campaign_key,),
+            ).fetchone()
+        if existing and str(existing["status"]) == "sent":
+            logger.info(
+                "IBETIN channel preview already sent campaign=%s",
+                campaign_key,
+            )
+            return
+
+        target_user_id = int(target["user_id"])
+        if phone_verify.is_verified(target_user_id):
+            live_button = InlineKeyboardButton(
+                "🏏 OPEN IBETIN LIVE LINE",
+                web_app=WebAppInfo(
+                    url=phone_verify.live_line_url(target_user_id, LIVE_LINE_URL)
+                ),
+            )
+        else:
+            live_button = InlineKeyboardButton(
+                "🏏 OPEN IBETIN LIVE LINE",
+                callback_data="liveline_access",
+            )
+
+        caption = (
+            "🏏 <b>IBETIN LIVE LINE</b>\n\n"
+            "Live cricket scores, Match Pulse, scorecards, fixtures and results — "
+            "inside Telegram.\n\n"
+            "⚡ Fast live updates\n"
+            "📊 Match Pulse & scorecards\n"
+            "🗓 Fixtures & results\n\n"
+            "Tap below to open Live Line."
+        )
+
+        msg = await _send_creative_as_photo(
+            application.bot,
+            creative,
+            {
+                "chat_id": target_user_id,
+                "caption": caption,
+                "parse_mode": "HTML",
+                "reply_markup": InlineKeyboardMarkup([[live_button]]),
+            },
+        )
+
+        with core.db() as conn:
+            conn.execute(
+                """
+                INSERT INTO creative_test_sends(
+                    campaign_key, target_username, target_user_id,
+                    creative_id, sent_at, status
+                )
+                VALUES (?, ?, ?, ?, ?, 'sent')
+                ON CONFLICT(campaign_key) DO UPDATE SET
+                    target_user_id=excluded.target_user_id,
+                    creative_id=excluded.creative_id,
+                    sent_at=excluded.sent_at,
+                    status='sent'
+                """,
+                (
+                    campaign_key,
+                    username,
+                    target_user_id,
+                    int(creative["id"]),
+                    core.now_iso(),
+                ),
+            )
+
+        logger.info(
+            "IBETIN CHANNEL PREVIEW SENT username=%s creative_id=%s message_id=%s",
+            username,
+            int(creative["id"]),
+            int(msg.message_id),
+        )
+    except Exception as exc:
+        logger.warning(
+            "IBETIN channel preview failed username=%s error=%s",
+            username,
+            str(exc)[:180],
+        )
+
+
 def install(application) -> None:
     if application.bot_data.get("ibetin_creative_manager_installed"):
         return
@@ -702,5 +833,9 @@ def install(application) -> None:
     application.bot_data["ibetin_creative_startup_test_task"] = asyncio.create_task(
         _startup_creative_status_and_test(application),
         name="ibetin-creative-startup-test",
+    )
+    application.bot_data["ibetin_channel_preview_test_task"] = asyncio.create_task(
+        _startup_channel_preview_test(application),
+        name="ibetin-channel-preview-test",
     )
     logger.info("IBETIN creative manager installed: bulk upload + pools + DM test")

@@ -1008,6 +1008,18 @@ async def live_tv_admin_command(update, context) -> None:
 # =========================================================
 
 async def configure_telegram_ui(application) -> None:
+    # Telegram shows these before a new user presses START. Keep the copy
+    # factual, sports-focused and useful for paid-traffic landing clarity.
+    await application.bot.set_my_short_description(
+        "IBETIN Sports Hub • Live Line • Match updates • News • Alerts"
+    )
+    await application.bot.set_my_description(
+        "Welcome to IBETIN Sports Hub. Follow cricket and football updates, "
+        "open IBETIN Live Line, view match results and sports news, manage "
+        "match alerts, and access official support. Verify your Telegram-linked "
+        "mobile once to continue. 18+ • Play responsibly."
+    )
+
     await application.bot.set_my_commands(
         [
             BotCommand("start", "Open IBETIN Mini App Hub"),

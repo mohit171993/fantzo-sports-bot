@@ -13,6 +13,7 @@ from telegram.ext import ApplicationHandlerStop, ContextTypes
 import bot as core
 import fantzo_autoreply
 import ibetin_phone_verify as phone_verify
+import ibetin_leads
 
 logger = logging.getLogger(__name__)
 
@@ -48,9 +49,12 @@ WELCOME_REPLY = (
 
 VERIFY_REPLY = (
     "👋 <b>Welcome to IBETIN</b>\n\n"
-    "Before continuing, verify the mobile number linked to your Telegram account.\n\n"
-    "Tap <b>📱 VERIFY & CONTINUE</b> below. You only need to verify once — "
-    "the same verification is reused everywhere in IBETIN, including Live Line."
+    "Verify the mobile number linked to your Telegram account once to unlock "
+    "IBETIN and Live Line.\n\n"
+    "Tap <b>📱 VERIFY & CONTINUE</b> below. By continuing, you agree that the "
+    "IBETIN team may contact you about your request by <b>phone call and WhatsApp</b>. "
+    "You can opt out anytime.\n\n"
+    "🔞 <b>18+ only • Play responsibly</b>"
 )
 
 
@@ -552,6 +556,8 @@ async def business_verification_guard(
 
     if connection_id and message.from_user:
         _save_business_customer(connection_id, message.from_user)
+
+    ibetin_leads.record_start(customer_id, source="business_dm")
 
     if phone_verify.is_verified(customer_id):
         return

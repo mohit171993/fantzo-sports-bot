@@ -624,7 +624,10 @@ async def business_auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE
                 connection_id,
                 customer_id,
             )
-            await _reply_with_retry(message, ai_reply, None)
+            support_markup = None
+            if ibetin_ai.is_off_topic(text) or ibetin_ai.needs_support_redirect(text):
+                support_markup = ibetin_ai.support_keyboard()
+            await _reply_with_retry(message, ai_reply, support_markup)
             return
 
     # Test the exact production follow-up renderer in the same Business DM.

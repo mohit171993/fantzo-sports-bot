@@ -306,7 +306,7 @@ def run() -> None:
     app.add_handler(BusinessConnectionHandler(fantzo_business.business_connection_update))
     app.add_handler(
         MessageHandler(
-            filters.UpdateType.BUSINESS_MESSAGE & filters.TEXT,
+            filters.UpdateType.BUSINESS_MESSAGE,
             fantzo_business.business_auto_reply,
         )
     )

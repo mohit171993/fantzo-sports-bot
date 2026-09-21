@@ -10,6 +10,7 @@ _installed = False
 
 FANTZO_MINI_APP_DEEP_LINK = "https://t.me/fantzoofficialbot?startapp=business_dm"
 LIVE_TV_STATUS_DEEP_LINK = "https://t.me/fantzoofficialbot?start=livetv_business"
+BUSINESS_VERIFY_DEEP_LINK = "https://t.me/fantzoofficialbot?start=verify_business_dm"
 LIVE_TV_START_ARGS = {"livetv_business", "livetv_banner"}
 
 
@@ -17,6 +18,19 @@ def _styled_button(*args, style: str | None = None, **kwargs) -> InlineKeyboardB
     if style:
         kwargs["api_kwargs"] = {"style": style}
     return InlineKeyboardButton(*args, **kwargs)
+
+
+def business_verify_buttons() -> InlineKeyboardMarkup:
+    """Business messages cannot request a contact directly; hand off to the bot."""
+    return InlineKeyboardMarkup([
+        [
+            _styled_button(
+                "📱 VERIFY MOBILE",
+                url=BUSINESS_VERIFY_DEEP_LINK,
+                style="success",
+            )
+        ],
+    ])
 
 
 def business_funnel_buttons(source: str = "business", destination: str = "home") -> InlineKeyboardMarkup:
@@ -208,7 +222,7 @@ def install() -> None:
     # Business messages cannot use WebAppInfo buttons when sent on behalf of a
     # business account, so PLAY FANTZO uses Telegram's Mini App deep link.
     business._funnel_buttons = business_funnel_buttons
-    business._welcome_buttons = lambda: business_funnel_buttons("business_welcome")
+    business._welcome_buttons = business_verify_buttons
 
     # Keep the existing Live TV status engine and cache, changing only its
     # presentation to native Telegram button colors.
@@ -226,5 +240,5 @@ def install() -> None:
 
     tracked.app.start = start_with_live_tv_deeplink
     logger.info(
-        "Fantzo Business flow fix installed: Mini App + Live TV status deep link + colored buttons"
+        "Fantzo Business flow fix installed: verification handoff + Mini App + Live TV status deep link + colored buttons"
     )

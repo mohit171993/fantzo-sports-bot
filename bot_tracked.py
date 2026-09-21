@@ -23,7 +23,6 @@ import ibetin_creatives
 import ibetin_news as news
 import ibetin_phone_verify as phone_verify
 import ibetin_reports
-import ibetin_ai
 import private_apk_upload
 import trial_live_tv
 
@@ -672,65 +671,6 @@ async def start_button_handler(update, context) -> None:
     await smart_start(update, context)
 
 
-async def verified_ai_text_handler(update, context) -> None:
-    user = update.effective_user
-    message = update.effective_message
-    if not user or not message or not message.text:
-        return
-
-    text = message.text.strip()
-    if not text or text.startswith("/"):
-        return
-
-    # Pending verification is handled earlier in group -10 and stops the update.
-    # Only verified users can reach the AI assistant.
-    if not phone_verify.is_verified(user.id):
-        await _prompt_mobile_verification(update, context, "bot_start")
-        return
-
-    ai_reply = await ibetin_ai.reply(user.id, text)
-    support_markup = None
-
-    if not ai_reply:
-        # Never leave a verified user unanswered while the AI provider is not
-        # configured or temporarily unavailable.
-        lower = " ".join(text.casefold().split())
-        if lower in {"hi", "hii", "hello", "hey", "namaste", "hi sir", "hello sir"}:
-            ai_reply = "👋 Hi! How can I help you with IBETIN today?"
-        elif ibetin_ai.needs_support_redirect(text):
-            ai_reply = (
-                "🛟 This looks like an account or transaction issue. "
-                "Please use official IBETIN Support."
-            )
-            support_markup = ibetin_ai.support_keyboard()
-        elif ibetin_ai.is_off_topic(text):
-            ai_reply = ibetin_ai.OFF_TOPIC_REPLY
-            support_markup = ibetin_ai.support_keyboard()
-        else:
-            ai_reply = (
-                "I can help with IBETIN, Live Line, sports, match alerts, "
-                "account, payments or support. What do you need?"
-            )
-
-    try:
-        app.core.touch_user(update)
-        app.core.track(user.id, "bot:ai" if ibetin_ai.enabled() else "bot:fallback")
-    except Exception:
-        logger.exception("Could not track IBETIN main-bot reply")
-
-    if support_markup is None and (
-        ibetin_ai.is_off_topic(text) or ibetin_ai.needs_support_redirect(text)
-    ):
-        support_markup = ibetin_ai.support_keyboard()
-
-    logger.info("IBETIN main-bot reply sent user_id=%s ai_enabled=%s", user.id, ibetin_ai.enabled())
-    await message.reply_text(
-        ai_reply,
-        reply_markup=support_markup,
-        disable_web_page_preview=True,
-    )
-
-
 async def smart_start(update, context) -> None:
     user = update.effective_user
     message = update.effective_message
@@ -991,16 +931,6 @@ async def configure_telegram_ui(application) -> None:
             & filters.Regex(r"^▶️ START$"),
             start_button_handler,
         )
-    )
-    application.add_handler(
-        MessageHandler(
-            filters.UpdateType.MESSAGE
-            & filters.TEXT
-            & ~filters.COMMAND
-            & ~filters.Regex(r"^▶️ START$"),
-            verified_ai_text_handler,
-        ),
-        group=5,
     )
     application.add_handler(CommandHandler("livetvadmin", live_tv_admin_command))
 

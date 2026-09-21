@@ -277,13 +277,31 @@ def run_navigation_self_test() -> None:
                 if button.web_app is None:
                     errors.append(f"direct-autoreply/{button.text}: expected web_app")
 
-    # Use customer_id=0 so the self-test always exercises the unverified path
-    # regardless of persistent production verification rows.
+    # Business DM has two explicit states:
+    # 1) unverified -> one VERIFY MOBILE handoff button
+    # 2) verified -> the normal three-button IBETIN menu
+    verify_markup = business.verification_keyboard()
+    verify_buttons = _buttons(verify_markup)
+    if len(verify_buttons) != 1:
+        errors.append(
+            f"business-verification: expected 1 button, got {len(verify_buttons)}"
+        )
+    else:
+        button = verify_buttons[0]
+        if "VERIFY MOBILE" not in str(button.text or "").upper():
+            errors.append("business-verification: wrong button label")
+        if not button.url or "start=verify_business_dm" not in button.url.lower():
+            errors.append(
+                "business-verification: must hand off to verify_business_dm"
+            )
+        if button.web_app is not None:
+            errors.append("business-verification: must use Telegram URL handoff")
+
     business_markup = business.business_keyboard(0)
     business_buttons = _buttons(business_markup)
     business_count = len(business_buttons)
     if business_count != 3:
-        errors.append(f"business-autoreply: expected 3 buttons, got {business_count}")
+        errors.append(f"business-autoreply: expected 3 verified-menu buttons, got {business_count}")
     else:
         labels = {str(button.text or "") for button in business_buttons}
         expected_labels = {
@@ -302,16 +320,8 @@ def run_navigation_self_test() -> None:
                     errors.append("business-autoreply/JOIN CHANNEL: wrong Telegram channel URL")
                 if button.web_app is not None:
                     errors.append("business-autoreply/JOIN CHANNEL: Business message cannot use web_app")
-            elif "WATCH IBETIN LIVE LINE" in text:
-                if not button.url or "t.me/" not in button.url.lower() or "start=verifyliveline" not in button.url.lower():
-                    errors.append("business-autoreply/WATCH LIVE LINE: unverified user must go to bot verification")
-                if button.web_app is not None:
-                    errors.append("business-autoreply/WATCH LIVE LINE: Business message cannot use web_app")
-            elif "JOIN IBETIN" in text:
-                if _business_start(button.url or "") != "home":
-                    errors.append("business-autoreply/JOIN IBETIN: must launch startapp=home")
-                if button.web_app is not None:
-                    errors.append("business-autoreply/JOIN IBETIN: Business message cannot use web_app")
+            elif button.web_app is not None:
+                errors.append(f"business-autoreply/{text}: Business message cannot use web_app")
 
     _, business_reminder = reminders._copy_for("general", 1, "business_dm")
     business_reminder_buttons = _buttons(business_reminder)

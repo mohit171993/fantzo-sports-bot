@@ -348,6 +348,13 @@ async def run_due_reminders(application) -> None:
     for row in rows:
         if sent_count >= MAX_SENDS_PER_RUN:
             break
+
+        # One-time account verification is mandatory before any normal IBETIN
+        # reminder/follow-up. Old pre-verification rows are intentionally kept
+        # for analytics but cannot message the user until verification exists.
+        if not phone_verify.is_verified(int(row["user_id"])):
+            continue
+
         stage = _due_stage(row, now)
         if not stage:
             continue

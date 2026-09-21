@@ -543,11 +543,17 @@ def register_handlers(application) -> None:
 
     # Negative group runs before the normal direct-message auto-reply handlers.
     application.add_handler(
-        MessageHandler(filters.CONTACT, contact_handler),
+        MessageHandler(
+            filters.UpdateType.MESSAGE & filters.CONTACT,
+            contact_handler,
+        ),
         group=-10,
     )
     application.add_handler(
-        MessageHandler(filters.TEXT & ~filters.COMMAND, pending_text_handler),
+        MessageHandler(
+            filters.UpdateType.MESSAGE & filters.TEXT & ~filters.COMMAND,
+            pending_text_handler,
+        ),
         group=-10,
     )
     logger.info("Fantzo global Telegram-only mobile verification handlers registered")

@@ -253,10 +253,13 @@ def on_verification_prompt(user_id: int, source: str) -> None:
     record_event(user_id, "verification_prompt", str(source or "unknown"))
 
 
-def on_verified(user_id: int, mobile_e164: str, source: str) -> None:
-    """Create/update one sales lead per verified mobile number."""
+def on_verified(user_id: int, mobile_e164: str, source: str) -> bool:
+    """Create/update one sales lead per verified mobile number.
+
+    Returns True only when this mobile number becomes a new deduplicated lead.
+    """
     if not user_id or not mobile_e164:
-        return
+        return False
 
     ensure_tables()
     now = _now_iso()
@@ -279,6 +282,8 @@ def on_verified(user_id: int, mobile_e164: str, source: str) -> None:
             "FROM sales_leads WHERE mobile_e164=?",
             (str(mobile_e164),),
         ).fetchone()
+
+        is_new_lead = not bool(existing)
 
         if existing:
             existing_campaign = str(existing["campaign"] or "direct")
@@ -307,6 +312,47 @@ def on_verified(user_id: int, mobile_e164: str, source: str) -> None:
             )
 
     record_event(user_id, "verified_mobile", f"{source}|{campaign}")
+    return is_new_lead
+
+
+
+async def notify_admin_verified(application, user_id: int, mobile_e164: str, source: str, is_new_lead: bool) -> None:
+    """Notify the Fantzo admin immediately when a new deduplicated lead verifies."""
+    if not is_new_lead:
+        return
+
+    campaign = campaign_for_user(user_id)
+    ensure_tables()
+    with core.db() as conn:
+        user = conn.execute(
+            "SELECT username,first_name FROM users WHERE user_id=?",
+            (int(user_id),),
+        ).fetchone()
+
+    username = str(user["username"] or "") if user else ""
+    first_name = str(user["first_name"] or "") if user else ""
+
+    try:
+        await application.bot.send_message(
+            chat_id=core.ADMIN_USER_ID,
+            text=(
+                "🔥 <b>NEW VERIFIED FANTZO LEAD</b>\n"
+                "━━━━━━━━━━━━━━━━━━\n\n"
+                f"Mobile: <code>{escape(str(mobile_e164))}</code>\n"
+                f"Telegram: @{escape(username) if username else '—'}\n"
+                f"Name: {escape(first_name or '—')}\n"
+                f"Campaign: <code>{escape(campaign)}</code>\n"
+                f"Verification source: <code>{escape(str(source or 'unknown'))}</code>\n"
+                f"User ID: <code>{int(user_id)}</code>\n\n"
+                f"Lead status: <b>NEW</b>\n"
+                f"Open: <code>/lead {int(user_id)}</code>\n"
+                f"After contact: <code>/leadstatus {int(user_id)} CONTACTED</code>"
+            ),
+            parse_mode="HTML",
+            disable_web_page_preview=True,
+        )
+    except Exception:
+        logger.exception("Could not send Fantzo new-lead admin alert")
 
 
 def record_post_verify_view(user_id: int) -> None:

@@ -400,8 +400,17 @@ async def reminder_loop(application) -> None:
         await asyncio.sleep(CHECK_INTERVAL_SECONDS)
 
 
-def start_background_loop(application) -> None:
+async def _start_background_loop_when_running(application) -> None:
+    while not application.running:
+        await asyncio.sleep(0.2)
     application.create_task(reminder_loop(application))
+
+
+def start_background_loop(application) -> None:
+    asyncio.create_task(
+        _start_background_loop_when_running(application),
+        name="fantzo-reminder-loop-starter",
+    )
 
 
 def stats() -> dict:

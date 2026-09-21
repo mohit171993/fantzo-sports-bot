@@ -948,6 +948,13 @@ async def configure_telegram_ui(application) -> None:
             "IBETIN mobile verification username reset applied rows=%s",
             username_reset_count,
         )
+
+    user_id_reset_count = phone_verify.apply_requested_user_id_reset()
+    if user_id_reset_count:
+        logger.info(
+            "IBETIN mobile verification exact-user reset applied rows=%s",
+            user_id_reset_count,
+        )
     reminders.ensure_tables()
     reminders.start_background_loop(application)
     ibetin_creatives.install(application)

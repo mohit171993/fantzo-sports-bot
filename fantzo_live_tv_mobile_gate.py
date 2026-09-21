@@ -21,6 +21,7 @@ from telegram import (
 from telegram.ext import ApplicationHandlerStop, MessageHandler, filters
 
 import bot_tracked as tracked
+import fantzo_autoreply
 
 logger = logging.getLogger(__name__)
 core = tracked.app.core
@@ -379,7 +380,7 @@ async def contact_handler(update: Update, context) -> None:
         )
         return
 
-    if source == "bot_start":
+    if source in {"bot_start", "bot_dm"}:
         await message.reply_text(
             "✅ <b>Telegram mobile verified</b>\n\n"
             f"Verified number: <code>{masked}</code>\n"
@@ -387,7 +388,7 @@ async def contact_handler(update: Update, context) -> None:
             parse_mode="HTML",
             reply_markup=ReplyKeyboardRemove(),
         )
-        # The account is now verified, so the global /start gate falls through
+        # The account is now verified, so the global start gate falls through
         # immediately to the normal existing Fantzo home flow.
         await tracked.app.start(update, context)
         return
@@ -440,6 +441,7 @@ def install() -> None:
 
     original_start = tracked.app.start
     original_router = tracked.app.core.callback_router
+    original_auto_reply = fantzo_autoreply.auto_reply
 
     async def gated_start(update, context):
         user = update.effective_user
@@ -514,6 +516,24 @@ def install() -> None:
 
         await original_start(update, context)
 
+    async def gated_auto_reply(update, context):
+        """Gate every normal private-bot text message until one-time verification."""
+        user = update.effective_user
+        message = update.effective_message
+
+        if user and message and message.text and not is_registered(user.id):
+            try:
+                core.touch_user(update)
+                core.track(user.id, "mobile_verify:bot_dm")
+            except Exception:
+                logger.exception("Could not track bot-DM verification requirement")
+
+            track_verification_event(user.id, "bot_dm", "prompt_from_message")
+            await _prompt_mobile(update, context, "bot_dm")
+            return
+
+        await original_auto_reply(update, context)
+
     async def gated_router(update, context):
         query = update.callback_query
         user = update.effective_user
@@ -529,9 +549,10 @@ def install() -> None:
 
     tracked.app.start = gated_start
     tracked.app.core.callback_router = gated_router
+    fantzo_autoreply.auto_reply = gated_auto_reply
 
     logger.info(
-        "Fantzo mobile verification installed: global bot gate + Business DM handoff + shared Live TV verification; all countries accepted"
+        "Fantzo mobile verification installed: global bot start + bot DM gate + Business DM handoff + shared Live TV verification; all countries accepted"
     )
 
 

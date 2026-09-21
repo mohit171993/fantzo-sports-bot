@@ -213,3 +213,24 @@ def apply_requested_username_reset() -> int:
             deleted += int(cur.rowcount or 0)
 
     return deleted
+
+
+def apply_requested_user_id_reset() -> int:
+    """One-time operator reset by exact Telegram user ID."""
+    raw = os.getenv("IBETIN_RESET_VERIFICATION_USER_ID", "").strip()
+    if not raw:
+        return 0
+    try:
+        user_id = int(raw)
+    except Exception:
+        return 0
+    if user_id <= 0:
+        return 0
+
+    ensure_tables()
+    with _connect() as conn:
+        cur = conn.execute(
+            "DELETE FROM liveline_verified_users WHERE user_id = ?",
+            (user_id,),
+        )
+        return int(cur.rowcount or 0)

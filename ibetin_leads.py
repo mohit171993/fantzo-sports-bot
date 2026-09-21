@@ -55,6 +55,12 @@ def ensure_tables() -> None:
                 converted_at TEXT,
                 no_answer_at TEXT,
                 dnc_at TEXT,
+                assigned_to INTEGER,
+                assigned_name TEXT,
+                next_followup_at TEXT,
+                last_note TEXT,
+                updated_by INTEGER,
+                updated_by_name TEXT,
                 updated_at TEXT NOT NULL
             )
             """
@@ -66,6 +72,42 @@ def ensure_tables() -> None:
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_ibetin_leads_status "
             "ON ibetin_leads(lead_status)"
+        )
+
+        columns = {
+            str(row["name"])
+            for row in conn.execute("PRAGMA table_info(ibetin_leads)").fetchall()
+        }
+        migrations = (
+            ("assigned_to", "INTEGER"),
+            ("assigned_name", "TEXT"),
+            ("next_followup_at", "TEXT"),
+            ("last_note", "TEXT"),
+            ("updated_by", "INTEGER"),
+            ("updated_by_name", "TEXT"),
+        )
+        for name, sql_type in migrations:
+            if name not in columns:
+                conn.execute(
+                    f"ALTER TABLE ibetin_leads ADD COLUMN {name} {sql_type}"
+                )
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ibetin_lead_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                action TEXT NOT NULL,
+                value TEXT,
+                actor_id INTEGER,
+                actor_name TEXT,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ibetin_lead_history_user "
+            "ON ibetin_lead_history(user_id, created_at)"
         )
 
         tables = {
@@ -373,3 +415,180 @@ def status_counts() -> dict:
     for row in rows:
         counts[str(row["lead_status"] or "new")] = int(row["c"] or 0)
     return counts
+
+
+def add_history(
+    user_id: int,
+    action: str,
+    value: str = "",
+    actor_id: int = 0,
+    actor_name: str = "",
+) -> None:
+    if not user_id:
+        return
+    ensure_tables()
+    with _connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO ibetin_lead_history(
+                user_id, action, value, actor_id, actor_name, created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                int(user_id),
+                str(action or "")[:64],
+                str(value or "")[:1000],
+                int(actor_id or 0) or None,
+                str(actor_name or "")[:128],
+                _now(),
+            ),
+        )
+
+
+def assign_lead(
+    user_id: int,
+    actor_id: int,
+    actor_name: str,
+) -> bool:
+    if not user_id or not actor_id:
+        return False
+    ensure_tables()
+    now = _now()
+    with _connect() as conn:
+        cur = conn.execute(
+            """
+            UPDATE ibetin_leads
+            SET assigned_to=?, assigned_name=?,
+                updated_by=?, updated_by_name=?, updated_at=?
+            WHERE user_id=?
+            """,
+            (
+                int(actor_id),
+                str(actor_name or "")[:128],
+                int(actor_id),
+                str(actor_name or "")[:128],
+                now,
+                int(user_id),
+            ),
+        )
+    if int(cur.rowcount or 0):
+        add_history(user_id, "assigned", actor_name, actor_id, actor_name)
+        return True
+    return False
+
+
+def add_note(
+    user_id: int,
+    note: str,
+    actor_id: int = 0,
+    actor_name: str = "",
+) -> bool:
+    note = str(note or "").strip()
+    if not user_id or not note:
+        return False
+    ensure_tables()
+    now = _now()
+    with _connect() as conn:
+        cur = conn.execute(
+            """
+            UPDATE ibetin_leads
+            SET last_note=?, updated_by=?, updated_by_name=?, updated_at=?
+            WHERE user_id=?
+            """,
+            (
+                note[:1000],
+                int(actor_id or 0) or None,
+                str(actor_name or "")[:128],
+                now,
+                int(user_id),
+            ),
+        )
+    if int(cur.rowcount or 0):
+        add_history(user_id, "note", note, actor_id, actor_name)
+        return True
+    return False
+
+
+def set_followup(
+    user_id: int,
+    followup_at: str,
+    actor_id: int = 0,
+    actor_name: str = "",
+) -> bool:
+    if not user_id:
+        return False
+    ensure_tables()
+    now = _now()
+    value = str(followup_at or "").strip()
+    with _connect() as conn:
+        cur = conn.execute(
+            """
+            UPDATE ibetin_leads
+            SET next_followup_at=?, updated_by=?, updated_by_name=?, updated_at=?
+            WHERE user_id=?
+            """,
+            (
+                value or None,
+                int(actor_id or 0) or None,
+                str(actor_name or "")[:128],
+                now,
+                int(user_id),
+            ),
+        )
+    if int(cur.rowcount or 0):
+        add_history(user_id, "followup", value or "cleared", actor_id, actor_name)
+        return True
+    return False
+
+
+def search_leads(term: str, limit: int = 10):
+    ensure_tables()
+    raw = str(term or "").strip()
+    if not raw:
+        return []
+    digits = re.sub(r"\D", "", raw)
+    like = f"%{raw.lstrip('@')}%"
+    with _connect() as conn:
+        params = [like, like]
+        phone_clause = ""
+        if digits:
+            phone_clause = (
+                " OR EXISTS (SELECT 1 FROM liveline_verified_users v "
+                "WHERE v.user_id=l.user_id AND "
+                "replace(replace(replace(replace(v.phone_number,'+',''),' ',''),'-',''),'(', '') "
+                "LIKE ?)"
+            )
+            params.append(f"%{digits}%")
+        rows = conn.execute(
+            f"""
+            SELECT l.user_id
+            FROM ibetin_leads l
+            LEFT JOIN users u ON u.user_id=l.user_id
+            WHERE CAST(l.user_id AS TEXT) LIKE ?
+               OR COALESCE(u.username,'') LIKE ?
+               {phone_clause}
+            ORDER BY COALESCE(l.verified_at, l.first_seen_at) DESC
+            LIMIT ?
+            """,
+            (*params, int(limit)),
+        ).fetchall()
+    return [int(r["user_id"]) for r in rows]
+
+
+def recent_history(user_id: int, limit: int = 5):
+    if not user_id:
+        return []
+    ensure_tables()
+    with _connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT action, value, actor_name, created_at
+            FROM ibetin_lead_history
+            WHERE user_id=?
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (int(user_id), int(limit)),
+        ).fetchall()
+    return [dict(r) for r in rows]

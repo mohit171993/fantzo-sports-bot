@@ -174,6 +174,21 @@ def _overview_text() -> str:
         favourites = _scalar(conn, "SELECT COUNT(*) FROM user_favourites WHERE alerts_enabled=1") if _table_exists(conn, "user_favourites") else 0
         queued_banners = _scalar(conn, "SELECT COUNT(*) FROM live_tv_banners WHERE status='queued'") if _table_exists(conn, "live_tv_banners") else 0
         mobile_users = _scalar(conn, "SELECT COUNT(*) FROM live_tv_mobile_users WHERE capture_method='telegram_contact'") if _table_exists(conn, "live_tv_mobile_users") else 0
+        business_verified = _scalar(
+            conn,
+            "SELECT COUNT(*) FROM live_tv_mobile_users "
+            "WHERE capture_method='telegram_contact' AND source='business_dm'"
+        ) if _table_exists(conn, "live_tv_mobile_users") else 0
+        if _table_exists(conn, "mobile_verification_events"):
+            business_verified = _scalar(
+                conn,
+                "SELECT COUNT(*) FROM ("
+                "SELECT user_id FROM live_tv_mobile_users WHERE capture_method='telegram_contact' AND source='business_dm' "
+                "UNION "
+                "SELECT user_id FROM mobile_verification_events "
+                "WHERE source='business_dm' AND event IN ('verified','already_verified')"
+                ")"
+            )
 
     return (
         "📊 <b>FANTZO REPORTS · OVERVIEW</b>\n"
@@ -185,6 +200,7 @@ def _overview_text() -> str:
         f"🎯 Bot actions: <b>{_fmt_int(clicks)}</b> total · <b>{_fmt_int(clicks_24)}</b> in 24h\n"
         f"📺 Live TV opens: <b>{_fmt_int(live_tv)}</b> from <b>{_fmt_int(live_tv_users)}</b> users\n"
         f"📱 Telegram-verified numbers: <b>{_fmt_int(mobile_users)}</b>\n"
+        f"💬 Business DM verified: <b>{_fmt_int(business_verified)}</b>\n"
         f"🌐 Fantzo web opens: <b>{_fmt_int(web_opens)}</b>\n"
         f"💬 Business DM events: <b>{_fmt_int(business)}</b>\n"
         f"📨 Reminders sent: <b>{_fmt_int(reminder_sent)}</b>\n"
@@ -314,11 +330,45 @@ def _mobile_text() -> str:
             "SELECT COUNT(*) FROM live_tv_mobile_users "
             "WHERE capture_method!='telegram_contact'"
         )
+
+        business_verified = _scalar(
+            conn,
+            "SELECT COUNT(*) FROM live_tv_mobile_users "
+            "WHERE capture_method='telegram_contact' AND source='business_dm'"
+        )
+        bot_verified = _scalar(
+            conn,
+            "SELECT COUNT(*) FROM live_tv_mobile_users "
+            "WHERE capture_method='telegram_contact' AND source!='business_dm'"
+        )
+        verify_opens = 0
+
+        if _table_exists(conn, "mobile_verification_events"):
+            business_verified = _scalar(
+                conn,
+                "SELECT COUNT(*) FROM ("
+                "SELECT user_id FROM live_tv_mobile_users WHERE capture_method='telegram_contact' AND source='business_dm' "
+                "UNION "
+                "SELECT user_id FROM mobile_verification_events "
+                "WHERE source='business_dm' AND event IN ('verified','already_verified')"
+                ")"
+            )
+            verify_opens = _scalar(
+                conn,
+                "SELECT COUNT(DISTINCT user_id) FROM mobile_verification_events "
+                "WHERE source='business_dm' AND event='verify_open'"
+            )
+
+        welcomed = _scalar(
+            conn,
+            "SELECT COUNT(DISTINCT customer_id) FROM business_welcomes"
+        ) if _table_exists(conn, "business_welcomes") else 0
+
         sources = _rows(
             conn,
             "SELECT source, COUNT(*) c FROM live_tv_mobile_users "
             "WHERE capture_method='telegram_contact' "
-            "GROUP BY source ORDER BY c DESC LIMIT 6"
+            "GROUP BY source ORDER BY c DESC LIMIT 8"
         )
         latest = _rows(
             conn,
@@ -328,6 +378,8 @@ def _mobile_text() -> str:
             "WHERE m.capture_method='telegram_contact' "
             "ORDER BY m.created_at DESC LIMIT 6"
         )
+
+    conversion = (float(business_verified) / float(welcomed) * 100.0) if welcomed else 0.0
 
     source_text = "\n".join(
         f"• {escape(str(r['source']))}: <b>{_fmt_int(r['c'])}</b>" for r in sources
@@ -343,15 +395,21 @@ def _mobile_text() -> str:
     return (
         "📱 <b>TELEGRAM VERIFIED NUMBERS</b>\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
-        f"Telegram-verified users: <b>{_fmt_int(verified)}</b>\n"
+        f"Total verified users: <b>{_fmt_int(verified)}</b>\n"
         f"Unique verified numbers: <b>{_fmt_int(unique_numbers)}</b>\n"
-        f"New verifications: <b>{_fmt_int(count_24)}</b> (24h) · <b>{_fmt_int(count_7)}</b> (7d)\n"
+        f"New verifications: <b>{_fmt_int(count_24)}</b> (24h) · <b>{_fmt_int(count_7)}</b> (7d)\n\n"
+        f"🤖 Bot / Live TV source: <b>{_fmt_int(bot_verified)}</b>\n"
+        f"💬 Business DM verified: <b>{_fmt_int(business_verified)}</b>\n"
+        f"↗️ Business verify opens: <b>{_fmt_int(verify_opens)}</b>\n"
+        f"👋 Business DM customers welcomed: <b>{_fmt_int(welcomed)}</b>\n"
+        f"📈 Business DM → verified: <b>{conversion:.1f}%</b>\n\n"
         f"Legacy/unverified records: <b>{_fmt_int(legacy_unverified)}</b>\n\n"
-        f"<b>Verification sources</b>\n{source_text}\n\n"
+        f"<b>Stored verification sources</b>\n{source_text}\n\n"
         f"<b>Latest verified users · masked</b>\n{latest_text}\n\n"
         "<i>Only Telegram self-contact shares count as verified. "
         "Full verified numbers and country codes remain admin-only in the CSV export.</i>"
     )
+
 def _web_text() -> str:
     day, week, _ = _cutoffs()
     with core.db() as conn:
@@ -384,20 +442,51 @@ def _business_text() -> str:
         count_24 = _scalar(conn, "SELECT COUNT(*) FROM clicks WHERE action LIKE 'business_dm:%' AND created_at>=?", (day,)) if clicks_available else 0
         count_7 = _scalar(conn, "SELECT COUNT(*) FROM clicks WHERE action LIKE 'business_dm:%' AND created_at>=?", (week,)) if clicks_available else 0
         categories = _rows(conn, "SELECT action, COUNT(*) c FROM clicks WHERE action LIKE 'business_dm:%' GROUP BY action ORDER BY c DESC LIMIT 8") if clicks_available else []
-        welcomed = _scalar(conn, "SELECT COUNT(*) FROM business_welcomes") if _table_exists(conn, "business_welcomes") else 0
+        welcomed = _scalar(conn, "SELECT COUNT(DISTINCT customer_id) FROM business_welcomes") if _table_exists(conn, "business_welcomes") else 0
         connections = _scalar(conn, "SELECT COUNT(*) FROM business_connections WHERE enabled=1") if _table_exists(conn, "business_connections") else 0
-    cat_text = "\n".join(f"• {escape(str(r['action']).replace('business_dm:', ''))}: <b>{_fmt_int(r['c'])}</b>" for r in categories) or "• No Business DM activity"
+
+        verified = _scalar(
+            conn,
+            "SELECT COUNT(*) FROM live_tv_mobile_users "
+            "WHERE capture_method='telegram_contact' AND source='business_dm'"
+        ) if _table_exists(conn, "live_tv_mobile_users") else 0
+        verify_opens = 0
+
+        if _table_exists(conn, "mobile_verification_events"):
+            verified = _scalar(
+                conn,
+                "SELECT COUNT(*) FROM ("
+                "SELECT user_id FROM live_tv_mobile_users WHERE capture_method='telegram_contact' AND source='business_dm' "
+                "UNION "
+                "SELECT user_id FROM mobile_verification_events "
+                "WHERE source='business_dm' AND event IN ('verified','already_verified')"
+                ")"
+            )
+            verify_opens = _scalar(
+                conn,
+                "SELECT COUNT(DISTINCT user_id) FROM mobile_verification_events "
+                "WHERE source='business_dm' AND event='verify_open'"
+            )
+
+    conversion = (float(verified) / float(welcomed) * 100.0) if welcomed else 0.0
+    cat_text = "\n".join(
+        f"• {escape(str(r['action']).replace('business_dm:', ''))}: <b>{_fmt_int(r['c'])}</b>"
+        for r in categories
+    ) or "• No Business DM activity"
+
     return (
         "💬 <b>BUSINESS DM REPORT</b>\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
         f"DM events: <b>{_fmt_int(total)}</b>\n"
         f"Unique customers: <b>{_fmt_int(unique)}</b>\n"
-        f"24h: <b>{_fmt_int(count_24)}</b> · 7d: <b>{_fmt_int(count_7)}</b>\n"
-        f"Customers welcomed: <b>{_fmt_int(welcomed)}</b>\n"
-        f"Enabled Business connections: <b>{_fmt_int(connections)}</b>\n\n"
-        f"<b>Categories</b>\n{cat_text}"
+        f"24h: <b>{_fmt_int(count_24)}</b> · 7d: <b>{_fmt_int(count_7)}</b>\n\n"
+        f"👋 Customers welcomed: <b>{_fmt_int(welcomed)}</b>\n"
+        f"↗️ Opened verification: <b>{_fmt_int(verify_opens)}</b>\n"
+        f"✅ Telegram verified: <b>{_fmt_int(verified)}</b>\n"
+        f"📈 Welcome → verified: <b>{conversion:.1f}%</b>\n"
+        f"🔗 Enabled Business connections: <b>{_fmt_int(connections)}</b>\n\n"
+        f"<b>Business actions</b>\n{cat_text}"
     )
-
 
 def _reminders_text() -> str:
     day, week, _ = _cutoffs()
@@ -624,16 +713,17 @@ def _all_reports_zip() -> tuple[str, bytes]:
         "02_engagement_clicks.csv": _table_csv("clicks"),
         "03_live_tv.csv": _report_csv("livetv")[1],
         "04_live_tv_mobile_numbers.csv": _table_csv("live_tv_mobile_users"),
-        "05_fantzo_web_opens.csv": _table_csv("web_events"),
-        "06_growth_events.csv": _table_csv("growth_events"),
-        "07_business_welcomes.csv": _table_csv("business_welcomes"),
-        "08_business_connections.csv": _table_csv("business_connections"),
-        "09_reminder_users.csv": _table_csv("reminder_users"),
-        "10_reminder_sends.csv": _table_csv("reminder_sends"),
-        "11_favourites.csv": _table_csv("user_favourites"),
-        "12_daily_activity.csv": _daily_csv(),
-        "13_live_tv_banners.csv": _table_csv("live_tv_banners"),
-        "14_live_tv_banner_settings.csv": _table_csv("live_tv_banner_settings"),
+        "05_mobile_verification_events.csv": _table_csv("mobile_verification_events"),
+        "06_fantzo_web_opens.csv": _table_csv("web_events"),
+        "07_growth_events.csv": _table_csv("growth_events"),
+        "08_business_welcomes.csv": _table_csv("business_welcomes"),
+        "09_business_connections.csv": _table_csv("business_connections"),
+        "10_reminder_users.csv": _table_csv("reminder_users"),
+        "11_reminder_sends.csv": _table_csv("reminder_sends"),
+        "12_favourites.csv": _table_csv("user_favourites"),
+        "13_daily_activity.csv": _daily_csv(),
+        "14_live_tv_banners.csv": _table_csv("live_tv_banners"),
+        "15_live_tv_banner_settings.csv": _table_csv("live_tv_banner_settings"),
     }
     readme = (
         "FANTZO ADMIN REPORT PACK\n"
@@ -641,6 +731,8 @@ def _all_reports_zip() -> tuple[str, bytes]:
         "Definitions:\n"
         "- Live TV canonical opens: clicks.action = live_tv_status\n"
         "- Mobile verification: Telegram self-contact only; all countries accepted\n"
+        "- Business DM verification handoff uses source=business_dm\n"
+        "- mobile_verification_events stores verify opens and verification completions\n"
         "- Full mobile numbers are admin-only in live_tv_mobile_users/CSV exports\n"
         "- Fantzo web opens: web_events.event = fantzo_open\n"
         "- Business DM activity: clicks.action starts with business_dm:\n"

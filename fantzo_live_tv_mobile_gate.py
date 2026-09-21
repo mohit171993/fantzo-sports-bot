@@ -71,6 +71,28 @@ def ensure_tables() -> None:
             "CREATE INDEX IF NOT EXISTS idx_mobile_verify_events_user "
             "ON mobile_verification_events(user_id, created_at)"
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS business_verification_pending (
+                user_id INTEGER PRIMARY KEY,
+                requested_at TEXT NOT NULL,
+                source TEXT NOT NULL DEFAULT 'business_dm'
+            )
+            """
+        )
+        # The temporary Railway maintenance command used reset_pending for a
+        # one-time test. Ignore any future repeat of that maintenance update.
+        conn.execute(
+            """
+            CREATE TRIGGER IF NOT EXISTS block_repeat_reset_pending
+            BEFORE UPDATE OF capture_method ON live_tv_mobile_users
+            WHEN NEW.capture_method='reset_pending'
+                 AND OLD.capture_method='telegram_contact'
+            BEGIN
+                SELECT RAISE(IGNORE);
+            END
+            """
+        )
 
 
 def _now_iso() -> str:
@@ -89,6 +111,35 @@ def track_verification_event(user_id: int, source: str, event: str) -> None:
                 str(event or "unknown")[:64],
                 _now_iso(),
             ),
+        )
+
+
+def business_verification_pending(user_id: int, max_age_hours: int = 24) -> bool:
+    ensure_tables()
+    with core.db() as conn:
+        row = conn.execute(
+            "SELECT requested_at FROM business_verification_pending WHERE user_id=?",
+            (int(user_id),),
+        ).fetchone()
+    if not row or not row["requested_at"]:
+        return False
+    try:
+        requested = datetime.fromisoformat(str(row["requested_at"]).replace("Z", "+00:00"))
+        if requested.tzinfo is None:
+            requested = requested.replace(tzinfo=timezone.utc)
+        age = datetime.now(timezone.utc) - requested.astimezone(timezone.utc)
+        return age.total_seconds() <= max_age_hours * 3600
+    except Exception:
+        logger.exception("Could not parse Business verification pending timestamp")
+        return False
+
+
+def clear_business_verification_pending(user_id: int) -> None:
+    ensure_tables()
+    with core.db() as conn:
+        conn.execute(
+            "DELETE FROM business_verification_pending WHERE user_id=?",
+            (int(user_id),),
         )
 
 
@@ -289,6 +340,7 @@ async def contact_handler(update: Update, context) -> None:
     import fantzo_business_flow_fix as live_flow
 
     if source == "business_dm":
+        clear_business_verification_pending(user.id)
         await message.reply_text(
             "✅ <b>Telegram mobile verified</b>\n\n"
             f"Verified number: <code>{masked}</code>\n"
@@ -355,16 +407,29 @@ def install() -> None:
         user = update.effective_user
         arg = context.args[0].lower() if context.args else ""
 
-        if user and arg == BUSINESS_VERIFY_START_ARG:
+        business_handoff = bool(
+            user
+            and (
+                arg == BUSINESS_VERIFY_START_ARG
+                or business_verification_pending(user.id)
+            )
+        )
+
+        if business_handoff:
             try:
                 core.touch_user(update)
                 core.track(user.id, "business_dm:verify_open")
             except Exception:
-                logger.exception("Could not track Business verification deep link")
+                logger.exception("Could not track Business verification handoff")
 
-            track_verification_event(user.id, "business_dm", "verify_open")
+            track_verification_event(
+                user.id,
+                "business_dm",
+                "verify_open_payload" if arg == BUSINESS_VERIFY_START_ARG else "verify_open_fallback",
+            )
 
             if is_registered(user.id):
+                clear_business_verification_pending(user.id)
                 track_verification_event(user.id, "business_dm", "already_verified")
                 import fantzo_business_flow_fix as live_flow
 
@@ -380,6 +445,12 @@ def install() -> None:
                 )
                 return
 
+            logger.info(
+                "Fantzo Business verification start: user=%s arg=%s fallback=%s",
+                user.id,
+                arg or "(none)",
+                arg != BUSINESS_VERIFY_START_ARG,
+            )
             await _prompt_mobile(update, context, "business_dm")
             return
 
@@ -408,7 +479,7 @@ def install() -> None:
     tracked.app.core.callback_router = gated_router
 
     logger.info(
-        "Fantzo mobile verification installed: Business DM handoff + Live TV gate; all countries accepted"
+        "Fantzo mobile verification installed: persistent Business DM handoff + Live TV gate; all countries accepted"
     )
 
 

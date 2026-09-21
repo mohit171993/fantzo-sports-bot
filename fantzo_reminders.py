@@ -43,6 +43,10 @@ IBETIN_LIVE_LINE_MINI_APP_URL = os.getenv(
 ).strip()
 LIVELINE_CHANNEL_CAMPAIGN_KEY = "liveline-v40-launch-20260918"
 SPORTS_BOT_URL = os.getenv("IBETIN_SPORTS_BOT_URL", IBETIN_HOME_URL).strip()
+CHANNEL_AUTOPOST_ENABLED = os.getenv("IBETIN_CHANNEL_AUTOPOST_ENABLED", "false").strip().lower() in {"1", "true", "yes", "on"}
+CHANNEL_AUTOPOST_HOUR = max(0, min(23, int(os.getenv("IBETIN_CHANNEL_AUTOPOST_HOUR", "10"))))
+CHANNEL_AUTOPOST_MINUTE = max(0, min(59, int(os.getenv("IBETIN_CHANNEL_AUTOPOST_MINUTE", "0"))))
+IBETIN_CHANNEL_CHAT_ID = "@ibetinoffcial"
 
 
 def ensure_tables() -> None:
@@ -526,6 +530,157 @@ async def run_due_reminders(application) -> None:
             _mark_send(str(row["source"]), int(row["user_id"]), stage, campaign_key, "failed")
 
 
+def _daily_channel_campaign_key(local_now: datetime) -> str:
+    return f"liveline-daily-{local_now.strftime('%Y%m%d')}"
+
+
+def _channel_daily_creative(local_now: datetime):
+    try:
+        import ibetin_creatives as creatives
+        creatives.ensure_tables()
+        with core.db() as conn:
+            rows = conn.execute(
+                """
+                SELECT *
+                FROM creative_assets
+                WHERE active = 1 AND pool = 'channel'
+                ORDER BY id ASC
+                """
+            ).fetchall()
+        if not rows:
+            return None, creatives
+        index = local_now.toordinal() % len(rows)
+        return rows[index], creatives
+    except Exception as exc:
+        logger.warning("IBETIN channel creative lookup failed: %s", str(exc)[:180])
+        return None, None
+
+
+async def send_liveline_channel_daily(application, local_now: datetime | None = None) -> bool:
+    """Send one scheduled Live Line channel post per Dubai calendar day."""
+    if not CHANNEL_AUTOPOST_ENABLED:
+        return False
+
+    ensure_tables()
+    local_now = local_now or datetime.now(APP_TZ)
+    campaign_key = _daily_channel_campaign_key(local_now)
+
+    with core.db() as conn:
+        existing = conn.execute(
+            "SELECT status FROM channel_campaigns WHERE campaign_key = ?",
+            (campaign_key,),
+        ).fetchone()
+    if existing and str(existing["status"]) == "sent":
+        logger.info("IBETIN daily channel post already sent campaign=%s", campaign_key)
+        return True
+
+    caption = (
+        "🏏 <b>IBETIN LIVE LINE</b>\n\n"
+        "Live cricket scores, Match Pulse, scorecards, fixtures and results — inside Telegram.\n\n"
+        "⚡ Fast live updates\n"
+        "📊 Match Pulse & scorecards\n"
+        "🗓 Fixtures & results\n\n"
+        "Tap below to open Live Line."
+    )
+    markup = InlineKeyboardMarkup(
+        [[TelegramInlineKeyboardButton(
+            "🏏 OPEN IBETIN LIVE LINE",
+            url=IBETIN_LIVE_LINE_MINI_APP_URL,
+        )]]
+    )
+
+    try:
+        creative, creatives = _channel_daily_creative(local_now)
+        if creative is not None and creatives is not None:
+            msg = await creatives._send_creative_as_photo(
+                application.bot,
+                creative,
+                {
+                    "chat_id": IBETIN_CHANNEL_CHAT_ID,
+                    "caption": caption,
+                    "parse_mode": "HTML",
+                    "reply_markup": markup,
+                },
+            )
+            creative_id = int(creative["id"])
+        else:
+            msg = await application.bot.send_message(
+                chat_id=IBETIN_CHANNEL_CHAT_ID,
+                text=caption,
+                parse_mode="HTML",
+                reply_markup=markup,
+                disable_web_page_preview=True,
+            )
+            creative_id = None
+
+        with core.db() as conn:
+            conn.execute(
+                """
+                INSERT INTO channel_campaigns(campaign_key, sent_at, message_id, status)
+                VALUES (?, ?, ?, 'sent')
+                ON CONFLICT(campaign_key) DO UPDATE SET
+                    sent_at = excluded.sent_at,
+                    message_id = excluded.message_id,
+                    status = 'sent'
+                """,
+                (campaign_key, _now_iso(), int(msg.message_id)),
+            )
+        logger.info(
+            "IBETIN daily channel post sent channel=%s message_id=%s campaign=%s creative_id=%s",
+            IBETIN_CHANNEL_CHAT_ID,
+            msg.message_id,
+            campaign_key,
+            creative_id,
+        )
+        return True
+    except Exception as exc:
+        with core.db() as conn:
+            conn.execute(
+                """
+                INSERT INTO channel_campaigns(campaign_key, sent_at, message_id, status)
+                VALUES (?, ?, NULL, 'failed')
+                ON CONFLICT(campaign_key) DO UPDATE SET
+                    sent_at = excluded.sent_at,
+                    status = 'failed'
+                """,
+                (campaign_key, _now_iso()),
+            )
+        logger.warning("IBETIN daily channel post failed: %s", str(exc)[:180])
+        return False
+
+
+async def channel_autopost_loop(application) -> None:
+    if not CHANNEL_AUTOPOST_ENABLED:
+        logger.info("IBETIN daily channel autopost disabled")
+        return
+
+    while True:
+        now = datetime.now(APP_TZ)
+        target = now.replace(
+            hour=CHANNEL_AUTOPOST_HOUR,
+            minute=CHANNEL_AUTOPOST_MINUTE,
+            second=0,
+            microsecond=0,
+        )
+        if target <= now:
+            target += timedelta(days=1)
+
+        logger.info(
+            "IBETIN daily channel autopost scheduled next=%s channel=%s",
+            target.isoformat(),
+            IBETIN_CHANNEL_CHAT_ID,
+        )
+        await asyncio.sleep(max(1.0, (target - now).total_seconds()))
+        try:
+            await send_liveline_channel_daily(application, datetime.now(APP_TZ))
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("IBETIN daily channel autopost loop error")
+        await asyncio.sleep(65)
+
+
+
 async def send_liveline_channel_launch(application) -> bool:
     """Send the V40 Live Line launch post once to the IBETIN channel."""
     ensure_tables()
@@ -632,7 +787,17 @@ def start_background_loop(application) -> None:
         _send_liveline_channel_launch_after_start(application),
         name="ibetin-liveline-channel-launch",
     )
-    logger.info("IBETIN reminder and real-time match-alert workers started")
+    if CHANNEL_AUTOPOST_ENABLED:
+        application.bot_data["ibetin_channel_autopost_task"] = asyncio.create_task(
+            channel_autopost_loop(application),
+            name="ibetin-channel-autopost",
+        )
+    logger.info(
+        "IBETIN reminder and real-time match-alert workers started; channel_autopost=%s time=%02d:%02d Asia/Dubai",
+        CHANNEL_AUTOPOST_ENABLED,
+        CHANNEL_AUTOPOST_HOUR,
+        CHANNEL_AUTOPOST_MINUTE,
+    )
 
 
 def stats() -> dict:

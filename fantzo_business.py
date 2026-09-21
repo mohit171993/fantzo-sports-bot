@@ -646,6 +646,30 @@ async def business_auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE
     if not text or text.startswith("/"):
         return
 
+    normalized = " ".join(text.casefold().split())
+    if normalized in {
+        "stop",
+        "unsubscribe",
+        "do not contact",
+        "dont contact",
+        "don't contact",
+        "no calls",
+        "no whatsapp",
+    }:
+        import fantzo_reminders as reminders
+
+        ibetin_leads.set_status(customer_id, "dnc")
+        reminders.set_opt_out("business_dm", customer_id, True)
+        reminders.set_opt_out("bot", customer_id, True)
+        await _reply_with_retry(
+            message,
+            "✅ <b>Contact preference updated.</b>\n\n"
+            "We will stop promotional follow-up to this Telegram lead. "
+            "You can still use IBETIN and official support anytime.",
+            None,
+        )
+        return
+
     # Test the exact production follow-up renderer in the same Business DM.
     if " ".join(text.lower().split()) in {"test followup", "followup test", "test reminder"}:
         import fantzo_reminders as reminders

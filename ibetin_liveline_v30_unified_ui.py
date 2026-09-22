@@ -8,6 +8,7 @@ import threading
 import time
 import zlib
 from urllib.parse import parse_qs, urlparse
+from urllib.request import Request, urlopen
 
 # Use Railway persistent storage whenever the volume is mounted. This executes
 # before the bot/data modules import DB_PATH, so all SQLite users share one file.
@@ -313,6 +314,32 @@ def _decode_roanuz_webhook(raw: bytes):
     raise ValueError("Invalid webhook payload")
 
 
+def _forward_dura_webhook(raw: bytes) -> None:
+    url = os.getenv("DURA_FEED_RELAY_URL", "").strip()
+    secret = os.getenv("DURA_FEED_RELAY_SECRET", "").strip()
+    if not url or not secret or not raw:
+        return
+
+    try:
+        request = Request(
+            url,
+            data=raw,
+            headers={
+                "Content-Type": "application/octet-stream",
+                "x-dura-relay-key": secret,
+            },
+            method="POST",
+        )
+        with urlopen(request, timeout=8) as response:
+            status = int(getattr(response, "status", 0) or 0)
+        if 200 <= status < 300:
+            logger.info("IBETIN DURA feed relay delivered status=%s", status)
+        else:
+            logger.warning("IBETIN DURA feed relay HTTP %s", status)
+    except Exception as exc:
+        logger.warning("IBETIN DURA feed relay failed: %s", str(exc)[:160])
+
+
 def _install_roanuz_webhook_route() -> None:
     handler_cls = v23.liveline.base.ibetin_start.ibetin_entry.analytics.TrackingHandler
     if getattr(handler_cls, "_ibetin_roanuz_webhook_installed", False):
@@ -373,6 +400,12 @@ def _install_roanuz_webhook_route() -> None:
             self.end_headers()
             self.wfile.write(body)
             logger.info("IBETIN Roanuz webhook accepted key=%s", key)
+            threading.Thread(
+                target=_forward_dura_webhook,
+                args=(raw,),
+                daemon=True,
+                name="ibetin-dura-feed-relay",
+            ).start()
         except Exception as exc:
             _webhook_rejected_count += 1
             logger.warning("IBETIN Roanuz webhook rejected: %s", str(exc)[:180])

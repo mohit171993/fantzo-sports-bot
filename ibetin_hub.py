@@ -19,6 +19,7 @@ from telegram import (
 from telegram.ext import CommandHandler
 
 import bot as core
+import ibetin_match_alerts as match_alerts
 
 logger = logging.getLogger(__name__)
 
@@ -173,7 +174,7 @@ def _get_preferences(user_id: int) -> dict:
             "SELECT subscribed, language FROM users WHERE user_id = ?",
             (user_id,),
         ).fetchone()
-    return {
+    prefs = {
         "subscribed": bool(row["subscribed"]) if row else False,
         "language": (
             str(row["language"])
@@ -181,6 +182,8 @@ def _get_preferences(user_id: int) -> dict:
             else "en"
         ),
     }
+    prefs.update(match_alerts.get_preferences(int(user_id)))
+    return prefs
 
 
 def _set_preferences(user_id: int, payload: dict) -> dict:
@@ -201,6 +204,25 @@ def _set_preferences(user_id: int, payload: dict) -> dict:
             core.track(user_id, f"mini_language_{language}")
         except Exception:
             logger.exception("Could not track IBETIN language preference")
+
+    if "cricket_alerts" in payload or "football_alerts" in payload:
+        match_alerts.set_preferences(
+            user_id,
+            cricket_alerts=(
+                bool(payload.get("cricket_alerts"))
+                if "cricket_alerts" in payload
+                else None
+            ),
+            football_alerts=(
+                bool(payload.get("football_alerts"))
+                if "football_alerts" in payload
+                else None
+            ),
+        )
+        try:
+            core.track(user_id, "mini_alert_sports_updated")
+        except Exception:
+            logger.exception("Could not track IBETIN sport alert preference")
 
     return _get_preferences(user_id)
 
@@ -350,50 +372,92 @@ def _page(section: str) -> str:
         <section class="hero">
           <div class="eyebrow">PERSONAL NOTIFICATIONS</div>
           <h1>My Match Alerts</h1>
-          <p>Turn IBETIN Telegram sports notifications on or off for your account.</p>
+          <p>Choose which sports you want IBETIN to notify you about.</p>
         </section>
         <section class="section">
           <h2>Telegram alerts</h2>
-          <p>Your choice is saved directly to your IBETIN bot profile.</p>
+          <p>Your choices are saved directly to your IBETIN bot profile.</p>
           <div class="row">
-            <div><b>Sports notifications</b><div class="status" id="alertStatus">Checking your preference…</div></div>
+            <div><b>Match notifications</b><div class="status" id="alertStatus">Checking your preference…</div></div>
             <label class="switch"><input id="alertsToggle" type="checkbox" disabled><span class="slider"></span></label>
           </div>
-          <p class="note">You can change this anytime. No password or OTP is required.</p>
+          <div class="row">
+            <div><b>🏏 Cricket</b><div class="status">Toss, start, innings break and result alerts</div></div>
+            <label class="switch"><input id="cricketToggle" type="checkbox" disabled><span class="slider"></span></label>
+          </div>
+          <div class="row">
+            <div><b>⚽ Football</b><div class="status">Start, half-time and result alerts</div></div>
+            <label class="switch"><input id="footballToggle" type="checkbox" disabled><span class="slider"></span></label>
+          </div>
+          <p class="note">Cricket is the default. Football is optional. You can change this anytime.</p>
         </section>
         """
         script = """
 const toggle = document.getElementById('alertsToggle');
+const cricketToggle = document.getElementById('cricketToggle');
+const footballToggle = document.getElementById('footballToggle');
 const status = document.getElementById('alertStatus');
+
+function applyAlertState(data) {
+  toggle.checked = !!data.subscribed;
+  cricketToggle.checked = data.cricket_alerts !== false;
+  footballToggle.checked = !!data.football_alerts;
+  toggle.disabled = false;
+  cricketToggle.disabled = false;
+  footballToggle.disabled = false;
+  status.textContent = data.subscribed ? 'Alerts are ON' : 'Alerts are OFF';
+}
+
 async function loadAlerts() {
   if (!initData) {
     status.textContent = 'Open this Mini App from @ibtnofficialbot to manage alerts.';
     return;
   }
   try {
-    const data = await prefs({action:'get'});
-    toggle.checked = !!data.subscribed;
-    toggle.disabled = false;
-    status.textContent = data.subscribed ? 'Alerts are ON' : 'Alerts are OFF';
+    applyAlertState(await prefs({action:'get'}));
   } catch (e) {
     status.textContent = e.message;
   }
 }
+
 toggle.addEventListener('change', async () => {
   toggle.disabled = true;
   try {
     const data = await prefs({action:'set', subscribed:toggle.checked});
-    toggle.checked = !!data.subscribed;
-    status.textContent = data.subscribed ? 'Alerts are ON' : 'Alerts are OFF';
+    applyAlertState(data);
     toast(data.subscribed ? 'Match alerts enabled' : 'Match alerts disabled');
   } catch (e) {
     toggle.checked = !toggle.checked;
     status.textContent = e.message;
     toast('Could not save');
-  } finally {
     toggle.disabled = false;
   }
 });
+
+cricketToggle.addEventListener('change', async () => {
+  cricketToggle.disabled = true;
+  try {
+    applyAlertState(await prefs({action:'set', cricket_alerts:cricketToggle.checked}));
+    toast('Cricket alert preference saved');
+  } catch (e) {
+    cricketToggle.checked = !cricketToggle.checked;
+    toast('Could not save');
+    cricketToggle.disabled = false;
+  }
+});
+
+footballToggle.addEventListener('change', async () => {
+  footballToggle.disabled = true;
+  try {
+    applyAlertState(await prefs({action:'set', football_alerts:footballToggle.checked}));
+    toast('Football alert preference saved');
+  } catch (e) {
+    footballToggle.checked = !footballToggle.checked;
+    toast('Could not save');
+    footballToggle.disabled = false;
+  }
+});
+
 loadAlerts();
 """
     elif section == "settings":

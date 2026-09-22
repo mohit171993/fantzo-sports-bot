@@ -358,6 +358,52 @@ def ensure_tables() -> None:
                 )
 
 
+        # 7) Recover identities from older activity/reminder tables.
+        # These tables can outlive the original users/business rows, so they are
+        # valid all-time CRM identities even when no mobile was ever captured.
+        historical_identity_sources = (
+            ("business_verification_pending", "user_id", "requested_at", "business_dm"),
+            ("reminder_users", "user_id", "last_activity", "reminder_history"),
+            ("reminder_sends", "user_id", "sent_at", "reminder_history"),
+            ("clicks", "user_id", "created_at", "bot_history"),
+            ("lead_events", "user_id", "created_at", "lead_history"),
+            ("growth_events", "user_id", "created_at", "growth_history"),
+            ("user_favourites", "user_id", "created_at", "bot_history"),
+            ("lead_contact_opt_outs", "user_id", "opted_out_at", "lead_history"),
+            ("mobile_verification_events", "user_id", "created_at", "verification_history"),
+        )
+        for table, id_col, time_col, source in historical_identity_sources:
+            if not _table_exists(conn, table):
+                continue
+            cols = _columns(conn, table)
+            if id_col not in cols or time_col not in cols:
+                continue
+            rows = conn.execute(
+                f"""
+                SELECT {id_col} user_id,
+                       MIN({time_col}) first_seen,
+                       MAX({time_col}) last_seen
+                FROM {table}
+                WHERE {id_col} IS NOT NULL
+                GROUP BY {id_col}
+                """
+            ).fetchall()
+            for row in rows:
+                uid = int(row["user_id"] or 0)
+                if not uid:
+                    continue
+                first_seen = str(row["first_seen"] or row["last_seen"] or now)
+                last_seen = str(row["last_seen"] or first_seen)
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO fantzo_crm_users(
+                        user_id,campaign,source,first_seen_at,last_seen_at,status,updated_at
+                    ) VALUES(?,'direct',?,?,?,'NEW',?)
+                    """,
+                    (uid, source, first_seen, last_seen, last_seen),
+                )
+
+
 def _mobile_for_user(conn, user_id: int) -> str:
     uid = int(user_id)
     if _table_exists(conn, "fantzo_crm_users"):

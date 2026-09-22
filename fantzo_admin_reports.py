@@ -12,14 +12,19 @@ import csv
 import io
 import logging
 import os
+import re
 import zipfile
 from datetime import datetime, timedelta, timezone
 from html import escape
+from zoneinfo import ZoneInfo
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, InputFile
-from telegram.ext import CommandHandler
+from telegram.ext import ApplicationHandlerStop, CommandHandler, MessageHandler, filters
 
 import bot_tracked as tracked
+import fantzo_banner_queue as banner_queue
+import fantzo_crm_ops as crm_ops
+import fantzo_reminders as reminders
 
 logger = logging.getLogger(__name__)
 core = tracked.app.core
@@ -27,6 +32,8 @@ _installed = False
 
 REPORT_PREFIX = "rpt:"
 DOWNLOAD_PREFIX = "rptdl:"
+DUBAI_TZ = ZoneInfo("Asia/Dubai")
+CRM_BATCH_SIZE = 10
 
 
 def _styled_button(label: str, callback_data: str, style: str | None = None) -> InlineKeyboardButton:
@@ -126,96 +133,326 @@ def _fmt_dt(value) -> str:
         return escape(text[:40])
 
 
-def _admin_dashboard_text() -> str:
-    """Compact iBetin-style Fantzo admin overview."""
-    day, week, now = _cutoffs()
-    with core.db() as conn:
-        total_users = _scalar(conn, "SELECT COUNT(*) FROM users") if _table_exists(conn, "users") else 0
-        active_24 = _scalar(conn, "SELECT COUNT(*) FROM users WHERE last_seen>=?", (day,)) if _table_exists(conn, "users") else 0
-        active_7 = _scalar(conn, "SELECT COUNT(*) FROM users WHERE last_seen>=?", (week,)) if _table_exists(conn, "users") else 0
+def _ops_dashboard_text() -> str:
+    """Operational Fantzo dashboard modelled on the proven iBetin team screen."""
+    crm_ops.ensure_tables()
+    day, _, _ = _cutoffs()
+    counts = crm_ops.status_counts()
+    due = crm_ops.due_count()
+    follow_up = int(counts["CONTACTED"]) + int(counts["NO_ANSWER"])
 
+    with core.db() as conn:
+        total = _scalar(conn, "SELECT COUNT(*) FROM users") if _table_exists(conn, "users") else 0
+        mobile = _scalar(
+            conn,
+            "SELECT COUNT(DISTINCT mobile_e164) FROM live_tv_mobile_users "
+            "WHERE COALESCE(mobile_e164,'')!=''"
+        ) if _table_exists(conn, "live_tv_mobile_users") else 0
         verified = _scalar(
             conn,
-            "SELECT COUNT(*) FROM live_tv_mobile_users WHERE capture_method='telegram_contact'"
+            "SELECT COUNT(*) FROM live_tv_mobile_users "
+            "WHERE capture_method='telegram_contact'"
         ) if _table_exists(conn, "live_tv_mobile_users") else 0
-
-        leads = _scalar(conn, "SELECT COUNT(*) FROM sales_leads") if _table_exists(conn, "sales_leads") else 0
-        new = _scalar(conn, "SELECT COUNT(*) FROM sales_leads WHERE status='NEW'") if _table_exists(conn, "sales_leads") else 0
-        interested = _scalar(conn, "SELECT COUNT(*) FROM sales_leads WHERE status='INTERESTED'") if _table_exists(conn, "sales_leads") else 0
-        converted = _scalar(conn, "SELECT COUNT(*) FROM sales_leads WHERE status='CONVERTED'") if _table_exists(conn, "sales_leads") else 0
-
-        dm_users = _scalar(
+        sent_24 = _scalar(
             conn,
-            "SELECT COUNT(DISTINCT customer_id) FROM business_welcomes"
-        ) if _table_exists(conn, "business_welcomes") else 0
+            "SELECT COUNT(*) FROM reminder_sends "
+            "WHERE status='sent' AND sent_at>=?",
+            (day,),
+        ) if _table_exists(conn, "reminder_sends") else 0
 
-        reminder_users = _scalar(
-            conn,
-            "SELECT COUNT(DISTINCT user_id) FROM reminder_users"
-        ) if _table_exists(conn, "reminder_users") else 0
-        opted_out = _scalar(
-            conn,
-            "SELECT COUNT(*) FROM reminder_users WHERE opted_out=1"
-        ) if _table_exists(conn, "reminder_users") else 0
+    not_verified = max(int(total) - int(verified), 0)
+    # Same working logic as iBetin: users not yet verified are still unworked
+    # acquisition records; verified NEW leads are immediately contactable.
+    new_unworked = not_verified + int(counts["NEW"])
+    assigned_new = crm_ops.new_assigned_count()
 
-        ad_campaigns = _scalar(
-            conn,
-            "SELECT COUNT(DISTINCT campaign) FROM lead_attribution WHERE campaign LIKE 'ad_%'"
-        ) if _table_exists(conn, "lead_attribution") else 0
-
-        actions = _scalar(conn, "SELECT COUNT(*) FROM clicks") if _table_exists(conn, "clicks") else 0
-        web_opens = _scalar(
-            conn,
-            "SELECT COUNT(*) FROM web_events WHERE event='fantzo_open'"
-        ) if _table_exists(conn, "web_events") else 0
-
-    conversion = (float(converted) / float(leads) * 100.0) if leads else 0.0
+    reminders_on = not reminders.is_paused()
+    channel_on = not banner_queue.is_paused()
 
     return (
-        "📊 <b>FANTZO ADMIN CENTER</b>\n"
+        "📊 <b>FANTZO TEAM DASHBOARD</b>\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
-        f"👥 Bot users: <b>{_fmt_int(total_users)}</b>\n"
-        f"⚡ Active 24h: <b>{_fmt_int(active_24)}</b>\n"
-        f"📅 Active 7d: <b>{_fmt_int(active_7)}</b>\n\n"
-        f"📱 Verified users: <b>{_fmt_int(verified)}</b>\n"
-        f"💼 CRM leads: <b>{_fmt_int(leads)}</b>\n"
-        f"🆕 New: <b>{_fmt_int(new)}</b> · ⭐ Interested: <b>{_fmt_int(interested)}</b>\n"
-        f"✅ Converted: <b>{_fmt_int(converted)}</b> · <b>{conversion:.1f}%</b>\n\n"
-        f"💬 DM users: <b>{_fmt_int(dm_users)}</b>\n"
-        f"⏰ Follow-up users: <b>{_fmt_int(reminder_users)}</b> · 🔕 {_fmt_int(opted_out)} opted out\n"
-        f"📣 Paid campaigns: <b>{_fmt_int(ad_campaigns)}</b>\n"
-        f"🖱 Bot actions: <b>{_fmt_int(actions)}</b>\n"
-        f"🌐 Fantzo opens: <b>{_fmt_int(web_opens)}</b>\n\n"
-        "Use <b>💼 CRM / LEADS</b> for daily sales work. "
-        "Campaigns and reports are for performance review.\n\n"
-        f"🕒 {now.strftime('%d %b %Y %H:%M UTC')}"
+        "<b>LEADS</b>\n"
+        f"👥 Total: <b>{_fmt_int(total)}</b> · "
+        f"📱 Mobile: <b>{_fmt_int(mobile)}</b> · "
+        f"✅ Verified: <b>{_fmt_int(verified)}</b>\n"
+        f"🆕 New/Unworked: <b>{_fmt_int(new_unworked)}</b> · "
+        f"⏰ Due: <b>{_fmt_int(due)}</b> · "
+        f"📞 Follow-up: <b>{_fmt_int(follow_up)}</b>\n"
+        f"⭐ Interested: <b>{_fmt_int(counts['INTERESTED'])}</b> · "
+        f"✅ Converted: <b>{_fmt_int(counts['CONVERTED'])}</b>\n\n"
+        "<b>AUTOMATION</b>\n"
+        f"🔔 Reminders: {'🟢 ON' if reminders_on else '🔴 OFF'} "
+        f"· sent 24h: <b>{_fmt_int(sent_24)}</b>\n"
+        f"📣 Channel: {'🟢 ON' if channel_on else '🔴 OFF'} "
+        f"· daily <b>{escape(banner_queue.schedule_text())}</b>\n\n"
+        f"⚠️ Not verified: <b>{_fmt_int(not_verified)}</b> · "
+        f"👨‍💼 New already assigned: <b>{_fmt_int(assigned_new)}</b>"
     )
 
 
+def _ops_dashboard_menu() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [
+            _styled_button("🆕 NEW / UNWORKED", "ops:queue:new", "primary"),
+            _styled_button("⏰ DUE NOW", "ops:queue:due", "primary"),
+        ],
+        [
+            _styled_button("👥 ALL LEADS", "ops:queue:all", "primary"),
+            _styled_button("📱 SAVED MOBILES", "ops:saved", "primary"),
+        ],
+        [
+            _styled_button("📞 FOLLOW-UP", "ops:queue:followup", "primary"),
+            _styled_button("⭐ INTERESTED", "ops:queue:interested", "primary"),
+        ],
+        [
+            _styled_button("🔎 SEARCH", "ops:search", "primary"),
+            _styled_button("📥 CSV EXPORT", "ops:export", "primary"),
+        ],
+        [
+            _styled_button("✅ CONVERTED", "ops:queue:converted", "success"),
+            _styled_button("🎯 AD PERFORMANCE", "ops:adperformance", "primary"),
+        ],
+        [
+            _styled_button("🤖 AUTOMATION", "ops:automation", "primary"),
+            _styled_button("📚 TEAM GUIDE", "ops:guide", "primary"),
+        ],
+    ])
+
+
+# Backward-compatible aliases: /admin and old admin-home callbacks now use
+# the same operational dashboard.
+def _admin_dashboard_text() -> str:
+    return _ops_dashboard_text()
+
+
 def _admin_dashboard_menu(user_id: int | None = None) -> InlineKeyboardMarkup:
-    """Fantzo equivalent of iBetin's compact report center."""
-    rows = [
-        [InlineKeyboardButton("📊 OVERVIEW", callback_data="adm:home")],
-        [
-            _styled_button("💼 CRM / LEADS", "crm:home", "success"),
-            _styled_button("📱 VERIFIED USERS + MOBILE", "rpt:mobile", "success"),
-        ],
-        [InlineKeyboardButton("💬 DM USERS", callback_data="rpt:business")],
-        [
-            InlineKeyboardButton("⏰ FOLLOW-UP", callback_data="rpt:reminders"),
-            InlineKeyboardButton("🖱 ACTIVITY", callback_data="rpt:daily"),
-        ],
-        [
-            InlineKeyboardButton("🌐 WEB OPENS", callback_data="rpt:web"),
-            InlineKeyboardButton("📣 CAMPAIGNS", callback_data="adm:campaigns"),
-        ],
-        [_styled_button("📦 DOWNLOAD ALL REPORTS", "rptdl:all", "success")],
+    del user_id
+    return _ops_dashboard_menu()
+
+
+def _actor(update) -> tuple[int, str]:
+    user = update.effective_user
+    if not user:
+        return 0, ""
+    name = str(user.username or user.first_name or user.id)
+    return int(user.id), name[:128]
+
+
+def _fmt_dubai(value) -> str:
+    if not value:
+        return "—"
+    try:
+        dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        return dt.astimezone(DUBAI_TZ).strftime("%d %b %Y, %H:%M")
+    except Exception:
+        return str(value)[:18].replace("T", " ")
+
+
+def _ops_lead_card(user_id: int) -> str:
+    lead = crm_ops.get_lead(user_id)
+    if not lead:
+        return "⚠️ <b>Lead not available.</b>"
+
+    status = str(lead.get("status") or "NEW").upper()
+    icon = {
+        "NEW": "🆕",
+        "CONTACTED": "📞",
+        "NO_ANSWER": "📵",
+        "INTERESTED": "⭐",
+        "CONVERTED": "✅",
+        "NOT_INTERESTED": "➖",
+        "DO_NOT_CONTACT": "🚫",
+    }.get(status, "📌")
+
+    username = str(lead.get("username") or "")
+    telegram = f"@{escape(username)}" if username else "—"
+    name = escape(str(lead.get("first_name") or "—"))
+    mobile = escape(str(lead.get("mobile_e164") or "—"))
+    campaign = escape(str(lead.get("campaign") or "direct"))
+    source = escape(str(lead.get("verification_source") or "bot"))
+    assigned = escape(str(lead.get("assigned_agent") or "UNASSIGNED"))
+    note = escape(str(lead.get("last_note") or lead.get("notes") or "")[:180])
+    followup = str(lead.get("next_followup_at") or "")
+    consent = bool(lead.get("contact_permission_at"))
+
+    lines = [
+        f"{icon} <b>{escape(status.replace('_', ' '))}</b>",
+        "━━━━━━━━━━━━━━━━━━",
+        f"👤 <b>{name}</b> · {telegram}",
+        f"📱 <code>{mobile}</code>",
+        f"🎯 Campaign: <code>{campaign}</code>",
+        f"📥 Source: <b>{source}</b>",
+        f"🕒 Verified: <b>{escape(_fmt_dubai(lead.get('verified_at')))}</b>",
+        f"👨‍💼 Assigned: <b>{assigned}</b>",
+        f"🔐 {'✅ Contact permission recorded' if consent else '⚠️ Contact permission not recorded'}",
     ]
+    if followup:
+        lines.append(f"⏰ Next follow-up: <b>{escape(_fmt_dubai(followup))}</b>")
+    if note:
+        lines.append(f"📝 Note: {note}")
+    return "\n".join(lines)
 
-    if user_id and int(user_id) == int(core.ADMIN_USER_ID):
-        rows.append([InlineKeyboardButton("🧰 OWNER TOOLS", callback_data="adm:tools")])
 
+def _ops_lead_keyboard(user_id: int) -> InlineKeyboardMarkup:
+    lead = crm_ops.get_lead(user_id) or {}
+    digits = re.sub(r"\D", "", str(lead.get("mobile_e164") or ""))[:15]
+    status = str(lead.get("status") or "NEW").upper()
+
+    rows = [
+        [
+            InlineKeyboardButton("🙋 ASSIGN TO ME", callback_data=f"ops:assign:{user_id}"),
+            InlineKeyboardButton("📝 NOTE", callback_data=f"ops:note:{user_id}"),
+        ],
+        [
+            InlineKeyboardButton("⏰ FOLLOW-UP", callback_data=f"ops:followup:{user_id}"),
+            InlineKeyboardButton("🕘 HISTORY", callback_data=f"ops:history:{user_id}"),
+        ],
+        [
+            InlineKeyboardButton("📞 CONTACTED", callback_data=f"ops:set:{user_id}:CONTACTED"),
+            InlineKeyboardButton("⭐ INTERESTED", callback_data=f"ops:set:{user_id}:INTERESTED"),
+        ],
+        [
+            InlineKeyboardButton("✅ CONVERTED", callback_data=f"ops:set:{user_id}:CONVERTED"),
+            InlineKeyboardButton("📵 NO ANSWER", callback_data=f"ops:set:{user_id}:NO_ANSWER"),
+        ],
+        [
+            InlineKeyboardButton("🚫 DNC", callback_data=f"ops:set:{user_id}:DO_NOT_CONTACT"),
+            InlineKeyboardButton("↩️ NEW", callback_data=f"ops:set:{user_id}:NEW"),
+        ],
+    ]
+    if digits and status != "DO_NOT_CONTACT":
+        rows.append([
+            InlineKeyboardButton(
+                "💬 OPEN WHATSAPP",
+                url=f"https://wa.me/{digits}",
+                api_kwargs={"style": "success"},
+            )
+        ])
+    rows.append([InlineKeyboardButton("⬅️ DASHBOARD", callback_data="ops:home")])
     return InlineKeyboardMarkup(rows)
+
+
+def _ops_queue_title(queue: str) -> str:
+    return {
+        "new": "🆕 NEW / UNWORKED",
+        "due": "⏰ DUE NOW",
+        "all": "👥 ALL CRM LEADS",
+        "followup": "📞 FOLLOW-UP",
+        "interested": "⭐ INTERESTED",
+        "converted": "✅ CONVERTED",
+    }.get(queue, "👥 CRM LEADS")
+
+
+def _ops_queue_intro(queue: str, count: int) -> str:
+    text = (
+        f"{_ops_queue_title(queue)}\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
+        f"Showing <b>{count}</b> contactable lead(s)."
+    )
+    if queue == "new":
+        with core.db() as conn:
+            total = _scalar(conn, "SELECT COUNT(*) FROM users") if _table_exists(conn, "users") else 0
+            verified = _scalar(
+                conn,
+                "SELECT COUNT(*) FROM live_tv_mobile_users WHERE capture_method='telegram_contact'"
+            ) if _table_exists(conn, "live_tv_mobile_users") else 0
+        pending = max(int(total) - int(verified), 0)
+        text += (
+            f"\n\n⚠️ <b>{_fmt_int(pending)}</b> additional bot user(s) are still "
+            "unverified and become contactable only after mobile verification."
+        )
+    return text
+
+
+def _automation_text() -> str:
+    day, _, _ = _cutoffs()
+    with core.db() as conn:
+        sent_24 = _scalar(
+            conn,
+            "SELECT COUNT(*) FROM reminder_sends WHERE status='sent' AND sent_at>=?",
+            (day,),
+        ) if _table_exists(conn, "reminder_sends") else 0
+        queued = _scalar(
+            conn,
+            "SELECT COUNT(*) FROM live_tv_banners WHERE status='queued'"
+        ) if _table_exists(conn, "live_tv_banners") else 0
+
+    return (
+        "🤖 <b>FANTZO AUTOMATION</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
+        f"🔔 Lead reminders: <b>{'ON' if not reminders.is_paused() else 'OFF'}</b>\n"
+        f"📨 Reminders sent 24h: <b>{_fmt_int(sent_24)}</b>\n"
+        f"🌙 Quiet hours: <b>22:00–08:00 Dubai</b>\n\n"
+        f"📣 Channel automation: <b>{'ON' if not banner_queue.is_paused() else 'OFF'}</b>\n"
+        f"🕒 Daily schedule: <b>{escape(banner_queue.schedule_text())}</b>\n"
+        f"🖼 Queued channel banners: <b>{_fmt_int(queued)}</b>"
+    )
+
+
+def _automation_menu() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton(
+                "⏸ REMINDERS" if not reminders.is_paused() else "▶️ REMINDERS",
+                callback_data="ops:toggle_reminders",
+            ),
+            InlineKeyboardButton(
+                "⏸ CHANNEL" if not banner_queue.is_paused() else "▶️ CHANNEL",
+                callback_data="ops:toggle_channel",
+            ),
+        ],
+        [InlineKeyboardButton("⬅️ DASHBOARD", callback_data="ops:home")],
+    ])
+
+
+def _followup_menu(user_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("⏰ +2 HOURS", callback_data=f"ops:fupset:{user_id}:2h"),
+            InlineKeyboardButton("🌅 TOMORROW 10AM", callback_data=f"ops:fupset:{user_id}:tom10"),
+        ],
+        [
+            InlineKeyboardButton("📅 +24 HOURS", callback_data=f"ops:fupset:{user_id}:24h"),
+            InlineKeyboardButton("📆 +3 DAYS", callback_data=f"ops:fupset:{user_id}:3d"),
+        ],
+        [InlineKeyboardButton("🧹 CLEAR FOLLOW-UP", callback_data=f"ops:fupset:{user_id}:clear")],
+        [InlineKeyboardButton("⬅️ LEAD", callback_data=f"ops:lead:{user_id}")],
+    ])
+
+
+def _followup_iso(option: str) -> str:
+    now = datetime.now(timezone.utc)
+    if option == "2h":
+        return (now + timedelta(hours=2)).isoformat()
+    if option == "24h":
+        return (now + timedelta(hours=24)).isoformat()
+    if option == "3d":
+        return (now + timedelta(days=3)).isoformat()
+    if option == "tom10":
+        local = datetime.now(DUBAI_TZ)
+        tomorrow = (local + timedelta(days=1)).date()
+        target = datetime(
+            tomorrow.year, tomorrow.month, tomorrow.day, 10, 0,
+            tzinfo=DUBAI_TZ,
+        )
+        return target.astimezone(timezone.utc).isoformat()
+    return ""
+
+
+def _history_text(user_id: int) -> str:
+    rows = crm_ops.recent_history(user_id)
+    if not rows:
+        return "🕘 <b>LEAD HISTORY</b>\n\nNo history yet."
+    lines = ["🕘 <b>LEAD HISTORY</b>", "━━━━━━━━━━━━━━━━━━", ""]
+    for row in rows:
+        actor = escape(str(row.get("actor_name") or "system"))
+        action = escape(str(row.get("action") or ""))
+        value = escape(str(row.get("value") or ""))
+        when = escape(_fmt_dubai(row.get("created_at")))
+        lines.append(f"• <b>{action}</b>: {value}\n  {actor} · {when}")
+    return "\n".join(lines)
+
 
 
 def _campaigns_text() -> str:

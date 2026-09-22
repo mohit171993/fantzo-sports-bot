@@ -93,6 +93,93 @@ def ensure_tables() -> None:
         )
 
 
+def _runtime_setting_bool(key: str, default: bool) -> bool:
+    ensure_tables()
+    with core.db() as conn:
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)"
+        )
+        row = conn.execute(
+            "SELECT value FROM settings WHERE key = ?",
+            (key,),
+        ).fetchone()
+    if not row:
+        return bool(default)
+    return str(row["value"] or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def set_automation_enabled(kind: str, enabled: bool) -> bool:
+    key_map = {
+        "reminders": "ibetin_reminders_enabled",
+        "channel": "ibetin_channel_autopost_enabled",
+    }
+    key = key_map.get(str(kind or "").strip().lower())
+    if not key:
+        return False
+    ensure_tables()
+    with core.db() as conn:
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)"
+        )
+        conn.execute(
+            """
+            INSERT INTO settings(key, value) VALUES(?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+            """,
+            (key, "1" if enabled else "0"),
+        )
+    logger.info("IBETIN automation setting changed kind=%s enabled=%s", kind, enabled)
+    return True
+
+
+def reminders_enabled() -> bool:
+    return _runtime_setting_bool("ibetin_reminders_enabled", True)
+
+
+def channel_autopost_enabled() -> bool:
+    return bool(CHANNEL_AUTOPOST_ENABLED) and _runtime_setting_bool(
+        "ibetin_channel_autopost_enabled", True
+    )
+
+
+def automation_status() -> dict:
+    ensure_tables()
+    with core.db() as conn:
+        last_channel = conn.execute(
+            """
+            SELECT campaign_key, sent_at, message_id, status
+            FROM channel_campaigns
+            ORDER BY sent_at DESC
+            LIMIT 1
+            """
+        ).fetchone()
+        reminder_sent_24h = conn.execute(
+            """
+            SELECT COUNT(*) AS c
+            FROM reminder_sends
+            WHERE status='sent' AND sent_at >= ?
+            """,
+            ((datetime.now(timezone.utc) - timedelta(hours=24)).isoformat(),),
+        ).fetchone()["c"]
+    now = datetime.now(APP_TZ)
+    target = now.replace(
+        hour=CHANNEL_AUTOPOST_HOUR,
+        minute=CHANNEL_AUTOPOST_MINUTE,
+        second=0,
+        microsecond=0,
+    )
+    if target <= now:
+        target += timedelta(days=1)
+    return {
+        "reminders_enabled": reminders_enabled(),
+        "channel_enabled": channel_autopost_enabled(),
+        "channel_time": f"{CHANNEL_AUTOPOST_HOUR:02d}:{CHANNEL_AUTOPOST_MINUTE:02d}",
+        "next_channel_at": target.isoformat(),
+        "reminder_sent_24h": int(reminder_sent_24h or 0),
+        "last_channel": dict(last_channel) if last_channel else None,
+    }
+
+
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -406,7 +493,7 @@ async def _send_with_retry(bot, row, stage: int) -> bool:
 
 
 async def run_due_reminders(application) -> None:
-    if _is_quiet_hours():
+    if not reminders_enabled() or _is_quiet_hours():
         return
     ensure_tables()
     now = datetime.now(timezone.utc)
@@ -558,7 +645,7 @@ def _channel_daily_creative(local_now: datetime):
 
 async def send_liveline_channel_daily(application, local_now: datetime | None = None) -> bool:
     """Send one scheduled Live Line channel post per Dubai calendar day."""
-    if not CHANNEL_AUTOPOST_ENABLED:
+    if not channel_autopost_enabled():
         return False
 
     ensure_tables()
@@ -651,10 +738,15 @@ async def send_liveline_channel_daily(application, local_now: datetime | None = 
 
 async def channel_autopost_loop(application) -> None:
     if not CHANNEL_AUTOPOST_ENABLED:
-        logger.info("IBETIN daily channel autopost disabled")
+        logger.info("IBETIN daily channel autopost feature disabled by environment")
         return
 
+    last_logged_target = ""
     while True:
+        if not channel_autopost_enabled():
+            await asyncio.sleep(30)
+            continue
+
         now = datetime.now(APP_TZ)
         target = now.replace(
             hour=CHANNEL_AUTOPOST_HOUR,
@@ -665,12 +757,23 @@ async def channel_autopost_loop(application) -> None:
         if target <= now:
             target += timedelta(days=1)
 
-        logger.info(
-            "IBETIN daily channel autopost scheduled next=%s channel=%s",
-            target.isoformat(),
-            IBETIN_CHANNEL_CHAT_ID,
-        )
-        await asyncio.sleep(max(1.0, (target - now).total_seconds()))
+        target_key = target.isoformat()
+        if target_key != last_logged_target:
+            logger.info(
+                "IBETIN daily channel autopost scheduled next=%s channel=%s",
+                target_key,
+                IBETIN_CHANNEL_CHAT_ID,
+            )
+            last_logged_target = target_key
+
+        wait_seconds = max(1.0, (target - now).total_seconds())
+        if wait_seconds > 60:
+            await asyncio.sleep(60)
+            continue
+
+        await asyncio.sleep(wait_seconds)
+        if not channel_autopost_enabled():
+            continue
         try:
             await send_liveline_channel_daily(application, datetime.now(APP_TZ))
         except asyncio.CancelledError:

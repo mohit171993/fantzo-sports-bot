@@ -125,7 +125,9 @@ def main():
                 width, height = w, h
                 repaired_dims += 1
 
-        target = classify(width, height, current)
+        # Preserve an explicit/manual Reminder or DM assignment. Only repair
+        # assets that are still sitting in Channel.
+        target = classify(width, height, current) if current == "channel" else current
         if target != current or width != int(row["width"] or 0) or height != int(row["height"] or 0):
             conn.execute(
                 "UPDATE creative_assets SET pool=?, width=?, height=? WHERE id=?",
@@ -135,6 +137,45 @@ def main():
             moved += 1
 
     conn.commit()
+
+    # If everything is landscape and all assets still landed in Channel,
+    # split the latest upload batch into Reminder so Channel and Reminder
+    # rotate independently. This mirrors the practical pool separation used
+    # in the IBETIN creative library; Reminder creatives do not technically
+    # require a square canvas to send correctly in Telegram.
+    existing = {"channel": 0, "dm": 0, "reminder": 0}
+    for row in conn.execute(
+        """
+        SELECT pool, COUNT(*) AS c
+        FROM creative_assets
+        WHERE active = 1
+        GROUP BY pool
+        """
+    ):
+        existing[str(row["pool"])] = int(row["c"])
+
+    batch_split = 0
+    if existing["reminder"] == 0 and existing["channel"] >= 4:
+        channel_rows = conn.execute(
+            """
+            SELECT id
+            FROM creative_assets
+            WHERE active = 1 AND pool = 'channel'
+            ORDER BY id ASC
+            """
+        ).fetchall()
+        reminder_count = len(channel_rows) // 2
+        reminder_ids = [int(r["id"]) for r in channel_rows[-reminder_count:]]
+        if reminder_ids:
+            marks = ",".join("?" for _ in reminder_ids)
+            conn.execute(
+                f"UPDATE creative_assets SET pool='reminder' WHERE id IN ({marks})",
+                reminder_ids,
+            )
+            batch_split = len(reminder_ids)
+            moved += batch_split
+            conn.commit()
+
     counts = {"channel": 0, "dm": 0, "reminder": 0}
     for row in conn.execute(
         """
@@ -148,7 +189,7 @@ def main():
 
     print(
         "DURA_CREATIVE_REPAIR "
-        f"moved={moved} dims_recovered={repaired_dims} "
+        f"moved={moved} dims_recovered={repaired_dims} batch_split={batch_split} "
         f"channel={counts['channel']} dm={counts['dm']} reminder={counts['reminder']}",
         flush=True,
     )

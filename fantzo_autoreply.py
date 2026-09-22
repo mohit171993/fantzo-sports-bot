@@ -14,7 +14,7 @@ IBETIN_LIVE_LINE_URL = os.getenv(
     "IBETIN_LIVE_LINE_URL",
     "https://ibetin-app-production.up.railway.app/liveline",
 ).strip()
-IBETIN_CHANNEL_URL = "https://t.me/ibetinoffcial"
+IBETIN_CHANNEL_URL = "https://t.me/durasportsofficial"
 SETTING_KEY = "auto_reply_enabled"
 
 IBETIN_HOME_URL = os.getenv("IBETIN_HOME_URL", "https://ibetin.com").strip().rstrip("/")
@@ -99,7 +99,7 @@ def _sports_keyboard() -> InlineKeyboardMarkup:
 def _account_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
-            [InlineKeyboardButton("⚡ OPEN IBETIN", url=_hub_url("home"))],
+            [InlineKeyboardButton("⚡ OPEN DURASPORTS", url=_hub_url("home"))],
             [
                 InlineKeyboardButton("💳 PAYMENTS", url=_hub_url("payments")),
                 InlineKeyboardButton("🛟 SUPPORT", url=_hub_url("support")),
@@ -118,14 +118,14 @@ def _support_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
             [InlineKeyboardButton("🛟 OPEN SUPPORT", url=_hub_url("support"))],
-            [InlineKeyboardButton("⚡ IBETIN HOME", url=_hub_url("home"))],
+            [InlineKeyboardButton("⚡ DURASPORTS HOME", url=_hub_url("home"))],
         ]
     )
 
 
 def standard_reply() -> str:
     return (
-        "👋 <b>Welcome to IBETIN</b>\n\n"
+        "👋 <b>Welcome to DURASPORTS</b>\n\n"
         "I can help with live sports, cricket, football, news, match alerts, payments and support.\n\n"
         "Choose an option below or simply type what you need."
     )
@@ -134,8 +134,8 @@ def standard_reply() -> str:
 def standard_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
-            [InlineKeyboardButton("🚀 JOIN IBETIN", url=_hub_url("home"))],
-            [InlineKeyboardButton("🏏 WATCH IBETIN LIVE LINE", url=IBETIN_LIVE_LINE_URL)],
+            [InlineKeyboardButton("🚀 JOIN DURASPORTS", url=_hub_url("home"))],
+            [InlineKeyboardButton("🏏 WATCH DURASPORTS LIVE LINE", url=IBETIN_LIVE_LINE_URL)],
             [
                 TelegramInlineKeyboardButton(
                     "📢 JOIN CHANNEL",
@@ -162,55 +162,55 @@ def classify_and_reply(text: str):
     if "live tv" in t or "watch live" in t or "live stream" in t or _contains(t, ["live"]):
         return (
             "live",
-            "🔴 <b>Live now</b>\n\nOpen the IBETIN live section inside Telegram.",
+            "🔴 <b>Live now</b>\n\nOpen the DURASPORTS live section inside Telegram.",
             _single_button("🔴 OPEN LIVE", "live"),
         )
 
     if _contains(t, ["news", "update", "updates", "headline", "headlines"]):
         return (
             "news",
-            "📰 <b>Sports News</b>\n\nOpen the latest IBETIN sports updates below.",
+            "📰 <b>Sports News</b>\n\nOpen the latest DURASPORTS sports updates below.",
             _news_button(),
         )
 
     if _contains(t, ["alert", "alerts", "notification", "notifications", "notify", "reminder", "reminders"]):
         return (
             "alerts",
-            "🔔 <b>Match Alerts</b>\n\nManage your Telegram sports notifications inside the IBETIN Mini App.",
+            "🔔 <b>Match Alerts</b>\n\nManage your Telegram sports notifications inside the DURASPORTS Mini App.",
             _alerts_keyboard(),
         )
 
     if _contains(t, ["deposit", "add money", "payment", "pay", "upi", "recharge", "withdraw", "withdrawal", "payout", "cashout", "cash out"]):
         return (
             "payments",
-            "💳 <b>Payments</b>\n\nOpen IBETIN payment information or support below. Never share passwords or OTPs in chat.",
+            "💳 <b>Payments</b>\n\nOpen DURASPORTS payment information or support below. Never share passwords or OTPs in chat.",
             _account_keyboard(),
         )
 
     if _contains(t, ["login", "password", "otp", "account", "register", "registration", "signup", "sign up", "bonus", "offer", "promo", "promotion"]):
         return (
             "account",
-            "👤 <b>Account Help</b>\n\nOpen IBETIN to continue. For account problems, use official support and never send your password or OTP here.",
+            "👤 <b>Account Help</b>\n\nOpen DURASPORTS to continue. For account problems, use official support and never send your password or OTP here.",
             _account_keyboard(),
         )
 
     if _contains(t, ["support", "help", "problem", "issue", "complaint", "failed", "pending", "stuck"]):
         return (
             "support",
-            "🛟 <b>IBETIN Support</b>\n\nOpen official support below. If the issue involves a transaction, keep the reference ID ready but do not send passwords, OTPs or full banking credentials.",
+            "🛟 <b>DURASPORTS Support</b>\n\nOpen official support below. If the issue involves a transaction, keep the reference ID ready but do not send passwords, OTPs or full banking credentials.",
             _support_keyboard(),
         )
 
     if _contains(t, ["thanks", "thank", "thx", "ok", "okay"]):
         return (
             "thanks",
-            "🙏 You're welcome. Open IBETIN anytime below.",
-            _single_button("⚡ OPEN IBETIN", "home"),
+            "🙏 You're welcome. Open DURASPORTS anytime below.",
+            _single_button("⚡ OPEN DURASPORTS", "home"),
         )
 
     return (
         "fallback",
-        "🤖 <b>IBETIN Assistant</b>\n\nYou can ask me about live sports, cricket, football, news, match alerts, payments or support.",
+        "🤖 <b>DURASPORTS Assistant</b>\n\nYou can ask me about live sports, cricket, football, news, match alerts, payments or support.",
         standard_keyboard(),
     )
 
@@ -232,7 +232,7 @@ async def auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     try:
         core.track(user.id, f"autoreply:{category}")
     except Exception:
-        logger.exception("Could not track IBETIN auto reply")
+        logger.exception("Could not track DURASPORTS auto reply")
 
     await message.reply_text(
         reply,
@@ -254,13 +254,13 @@ async def autoreply_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     arg = context.args[0].lower() if context.args else "status"
     if arg in {"on", "enable", "1"}:
         set_enabled(True)
-        await message.reply_text("✅ IBETIN smart auto reply is ON.")
+        await message.reply_text("✅ DURASPORTS smart auto reply is ON.")
     elif arg in {"off", "disable", "0"}:
         set_enabled(False)
-        await message.reply_text("⏸ IBETIN smart auto reply is OFF.")
+        await message.reply_text("⏸ DURASPORTS smart auto reply is OFF.")
     else:
         await message.reply_text(
-            f"🤖 IBETIN smart auto reply is currently <b>{'ON' if is_enabled() else 'OFF'}</b>.\n\n"
+            f"🤖 DURASPORTS smart auto reply is currently <b>{'ON' if is_enabled() else 'OFF'}</b>.\n\n"
             "Use <code>/autoreply on</code> or <code>/autoreply off</code>.",
             parse_mode="HTML",
         )

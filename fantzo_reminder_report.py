@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 import bot as core
 import fantzo_growth as growth
+import fantzo_crm_ops as crm_ops
 import fantzo_reminders as reminders
 
 logger = logging.getLogger(__name__)
@@ -76,6 +77,25 @@ def _report_stats():
     }
 
 
+def _log_acquisition_snapshot() -> None:
+    try:
+        crm = crm_ops.dashboard_counts()
+        statuses = crm_ops.status_counts()
+        payload = {
+            "total": int(crm.get("total", 0)),
+            "with_mobile": int(crm.get("with_mobile", 0)),
+            "verified": int(crm.get("verified", 0)),
+            "not_verified": int(crm.get("not_verified", 0)),
+            "new": int(crm.get("new", 0)),
+            "new_unassigned": int(crm.get("new_unassigned", 0)),
+            "interested": int(statuses.get("INTERESTED", 0)),
+            "converted": int(statuses.get("CONVERTED", 0)),
+        }
+        logger.info("FANTZO_ACQUISITION_SNAPSHOT %s", payload)
+    except Exception:
+        logger.exception("Fantzo acquisition snapshot failed")
+
+
 async def send_report(application):
     r = _report_stats()
     g = growth.growth_stats()
@@ -110,9 +130,13 @@ async def send_report(application):
 
 
 async def report_loop(application):
-    # Avoid an extra admin message every time Railway restarts.
-    await asyncio.sleep(REPORT_INTERVAL_SECONDS)
+    # Log a baseline shortly after startup without sending an extra admin message.
+    await asyncio.sleep(20)
+    _log_acquisition_snapshot()
+    remaining = max(1, REPORT_INTERVAL_SECONDS - 20)
+    await asyncio.sleep(remaining)
     while True:
+        _log_acquisition_snapshot()
         try:
             await send_report(application)
         except Exception:

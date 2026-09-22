@@ -58,18 +58,16 @@ def _is_stop_text(value: str) -> bool:
 
 WELCOME_REPLY = (
     "👋 <b>Welcome to IBETIN</b>\n\n"
-    "I can help with live sports, news, match alerts, payments and support.\n\n"
-    "Choose an option below or simply type what you need."
+    "Choose an option below or type what you need."
 )
 
 VERIFY_REPLY = (
-    "👋 <b>Welcome to IBETIN</b>\n\n"
-    "Verify the mobile number linked to your Telegram account once to unlock "
-    "IBETIN and Live Line.\n\n"
+    "📱 <b>VERIFY MOBILE TO CONTINUE</b>\n\n"
+    "Verify your Telegram-linked mobile once to continue with IBETIN Live Line.\n\n"
     "Tap <b>📱 VERIFY & CONTINUE</b> below. By continuing, you agree that the "
-    "IBETIN team may contact you about your request by <b>phone call and WhatsApp</b>. "
+    "IBETIN team may contact you by <b>phone call or WhatsApp</b>. "
     "You can opt out anytime.\n\n"
-    "🔞 <b>18+ only • Play responsibly</b>"
+    "🔞 <b>18+ • Play responsibly</b>"
 )
 
 

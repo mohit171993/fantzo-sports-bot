@@ -12,13 +12,17 @@ async def send_once(application):
         if not row:
             logger.info("Banner preview skipped: queue empty")
             return
+        banner_id = str(row["id"])
+        if banners._setting("private_preview_banner_id", "") == banner_id:
+            logger.info("Banner preview skipped: next queued banner already previewed")
+            return
         await banners.send_banner(
             application.bot,
             core.ADMIN_USER_ID,
             row,
             caption_prefix="🧪 <b>PRIVATE TEST PREVIEW</b>\n\n",
         )
-        banners._set_setting("private_preview_sent", "1")
+        banners._set_setting("private_preview_banner_id", banner_id)
         logger.info("Private banner preview sent to admin")
     except Exception:
         logger.exception("Automatic private banner preview failed")

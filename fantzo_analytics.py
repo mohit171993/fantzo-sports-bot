@@ -108,6 +108,18 @@ class TrackingHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
 
+        if parsed.path.rstrip("/") == "/meta-ch":
+            from ibetin_meta_landing import page_html
+            raw = page_html().encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Content-Length", str(len(raw)))
+            self.end_headers()
+            self.wfile.write(raw)
+            return
+
         if parsed.path == "/health":
             body = b"ok"
             self.send_response(200)

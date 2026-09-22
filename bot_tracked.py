@@ -7,6 +7,7 @@ from telegram import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     KeyboardButton,
+    MenuButtonCommands,
     MenuButtonWebApp,
     ReplyKeyboardMarkup,
     ReplyKeyboardRemove,
@@ -265,6 +266,52 @@ app.fantzo_business.InlineKeyboardButton = _mini_only_button
 reminders.InlineKeyboardButton = _mini_only_button
 
 
+STOP_PHRASES = {
+    "stop",
+    "unsubscribe",
+    "do not contact",
+    "dont contact",
+    "don't contact",
+    "no calls",
+    "no whatsapp",
+}
+
+
+def _is_stop_text(value: str) -> bool:
+    return " ".join(str(value or "").casefold().split()) in STOP_PHRASES
+
+
+async def _set_user_menu_button(bot, user_id: int, verified: bool) -> None:
+    try:
+        if verified:
+            await bot.set_chat_menu_button(
+                chat_id=int(user_id),
+                menu_button=MenuButtonWebApp(
+                    text="Open IBETIN",
+                    web_app=WebAppInfo(url=hub.hub_url("home")),
+                ),
+            )
+        else:
+            await bot.set_chat_menu_button(
+                chat_id=int(user_id),
+                menu_button=MenuButtonCommands(),
+            )
+    except Exception:
+        logger.exception("Could not update IBETIN per-user menu button")
+
+
+async def _require_verified(update, context, source: str = "bot_start") -> bool:
+    user = update.effective_user
+    if not user:
+        return False
+    if phone_verify.is_verified(user.id):
+        await _set_user_menu_button(context.bot, user.id, True)
+        return True
+    await _set_user_menu_button(context.bot, user.id, False)
+    await _prompt_mobile_verification(update, context, source)
+    return False
+
+
 # =========================================================
 # MAIN IBETIN HUB — COMPACT SIX-ACTION MENU
 # =========================================================
@@ -272,12 +319,12 @@ reminders.InlineKeyboardButton = _mini_only_button
 def premium_main_keyboard(user_id: int = 0) -> InlineKeyboardMarkup:
     if user_id and phone_verify.is_verified(user_id):
         live_line_button = site_button(
-            "🏏 WATCH IBETIN LIVE LINE",
+            "🏏 OPEN IBETIN LIVE LINE",
             phone_verify.live_line_url(user_id, IBETIN_LIVE_LINE_URL),
         )
     else:
         live_line_button = InlineKeyboardButton(
-            "🏏 WATCH IBETIN LIVE LINE",
+            "🏏 OPEN IBETIN LIVE LINE",
             callback_data="liveline_access",
         )
 
@@ -315,7 +362,7 @@ def conversion_keyboard(user_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
             [hub_button("🚀 JOIN IBETIN", "home")],
-            [site_button("🏏 WATCH IBETIN LIVE LINE", live_url)],
+            [site_button("🏏 OPEN IBETIN LIVE LINE", live_url)],
             [InlineKeyboardButton("📢 JOIN CHANNEL", url=IBETIN_CHANNEL_URL)],
         ]
     )
@@ -529,6 +576,12 @@ async def _prompt_mobile_verification(update, context, source: str = "bot_start"
 
     context.user_data["ibetin_mobile_verify_pending"] = True
     context.user_data["ibetin_mobile_verify_source"] = source
+    try:
+        # Verification happens in the normal bot chat even when the user came
+        # from Live Line or a Telegram Business handoff, so use the bot route.
+        reminders.touch_user("bot", user.id, "verification")
+    except Exception:
+        logger.exception("Could not register IBETIN verification reminder")
 
     if source == "business_dm":
         detail = (
@@ -642,6 +695,7 @@ async def mobile_contact_handler(update, context) -> None:
         return
 
     context.user_data.pop("ibetin_mobile_verify_pending", None)
+    await _set_user_menu_button(context.bot, user.id, True)
 
     phone = phone_verify.normalize_phone(contact.phone_number)
     masked = phone
@@ -711,8 +765,24 @@ async def pending_verification_text_handler(update, context) -> None:
     if phone_verify.is_verified(user.id):
         return
 
+    if _is_stop_text(message.text):
+        ibetin_leads.set_status(user.id, "dnc")
+        reminders.set_opt_out("bot", user.id, True)
+        reminders.set_opt_out("business_dm", user.id, True)
+        await message.reply_text(
+            "✅ <b>Contact preference updated.</b>\n\n"
+            "Promotional follow-up is stopped. You can still use official support anytime.",
+            parse_mode="HTML",
+            reply_markup=ReplyKeyboardRemove(),
+        )
+        raise ApplicationHandlerStop
+
     context.user_data["ibetin_mobile_verify_pending"] = True
     context.user_data.setdefault("ibetin_mobile_verify_source", "bot_start")
+    try:
+        reminders.touch_user("bot", user.id, "verification")
+    except Exception:
+        logger.exception("Could not register IBETIN verification reminder from text gate")
     await message.reply_text(
         "🔐 <b>Telegram verification is required.</b>\n\n"
         "Please tap <b>📱 VERIFY & CONTINUE</b> below. "
@@ -824,6 +894,7 @@ async def smart_start(update, context) -> None:
     # Telegram self-contact verification. Once verified, all IBETIN features
     # including Live Line reuse the same record and do not ask again.
     if not phone_verify.is_verified(user.id):
+        await _set_user_menu_button(context.bot, user.id, False)
         try:
             app.core.touch_user(update)
             reminders.touch_user("bot", user.id, "verification")
@@ -833,6 +904,7 @@ async def smart_start(update, context) -> None:
         await _prompt_mobile_verification(update, context, "bot_start")
         return
 
+    await _set_user_menu_button(context.bot, user.id, True)
     await message.reply_text(
         "👋 <b>Welcome to IBETIN</b>\n\n"
         "Your mobile is already verified. Choose what you want to do next 👇",
@@ -864,37 +936,52 @@ async def _mini_launcher(update, title: str, button: InlineKeyboardButton, actio
 
 
 async def website_command(update, context) -> None:
+    if not await _require_verified(update, context):
+        return
     await _mini_launcher(update, "🌐 <b>IBETIN MINI APP</b>", hub_button("OPEN IBETIN MINI APP", "home"), "website_hub")
 
 
 async def live_command(update, context) -> None:
+    if not await _require_verified(update, context):
+        return
     await _mini_launcher(update, "🔴 <b>IBETIN LIVE</b>", site_button("OPEN LIVE", IBETIN_LIVE_URL), "live")
 
 
 async def support_command(update, context) -> None:
+    if not await _require_verified(update, context):
+        return
     await _mini_launcher(update, "🛟 <b>IBETIN SUPPORT</b>", site_button("OPEN SUPPORT", IBETIN_SUPPORT_URL), "support")
 
 
 async def news_command(update, context) -> None:
+    if not await _require_verified(update, context):
+        return
     await _mini_launcher(update, "📰 <b>IBETIN SPORTS NEWS</b>", news.news_webapp_button("OPEN SPORTS NEWS"), "news:latest")
 
 
 async def sports_command(update, context) -> None:
+    if not await _require_verified(update, context):
+        return
     await _mini_launcher(update, "🏆 <b>IBETIN SPORTS</b>", site_button("OPEN SPORTS", IBETIN_SPORTS_URL), "sports")
 
 
 async def team_command(update, context) -> None:
+    if not await _require_verified(update, context):
+        return
     await _mini_launcher(update, "🔎 <b>FIND A TEAM</b>", site_button("OPEN SPORTS SEARCH", IBETIN_SPORTS_URL), "find_team")
 
 
 async def help_command(update, context) -> None:
+    user = update.effective_user
     message = update.effective_message
-    if not message:
+    if not message or not user:
+        return
+    if not await _require_verified(update, context):
         return
     await message.reply_text(
         "⚡ <b>IBETIN HELP</b>\n\nEvery option below opens as a Telegram Mini App.",
         parse_mode="HTML",
-        reply_markup=premium_main_keyboard(),
+        reply_markup=premium_main_keyboard(user.id),
         disable_web_page_preview=True,
     )
 
@@ -916,7 +1003,7 @@ async def smart_callback_router(update, context) -> None:
             await query.answer()
         except Exception:
             pass
-        await _prompt_mobile_verification(update, context)
+        await _prompt_mobile_verification(update, context, "liveline")
         return
 
     # Legacy callbacks can still arrive from old messages; keep them compatible.
@@ -1041,11 +1128,11 @@ async def configure_telegram_ui(application) -> None:
         ]
     )
 
+    # Default menu is Commands so an unverified user cannot bypass the
+    # verification gate through Telegram's native Menu button. A per-user
+    # "Open IBETIN" WebApp menu is enabled immediately after verification.
     await application.bot.set_chat_menu_button(
-        menu_button=MenuButtonWebApp(
-            text="Open IBETIN",
-            web_app=WebAppInfo(url=hub.hub_url("home")),
-        )
+        menu_button=MenuButtonCommands()
     )
 
     application.add_handler(CommandHandler("news", news_command))

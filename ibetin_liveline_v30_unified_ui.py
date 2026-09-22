@@ -314,11 +314,11 @@ def _decode_roanuz_webhook(raw: bytes):
     raise ValueError("Invalid webhook payload")
 
 
-def _forward_dura_webhook(raw: bytes) -> None:
+def _forward_dura_webhook(raw: bytes) -> bool:
     url = os.getenv("DURA_FEED_RELAY_URL", "").strip()
     secret = os.getenv("DURA_FEED_RELAY_SECRET", "").strip()
     if not url or not secret or not raw:
-        return
+        return False
 
     try:
         request = Request(
@@ -334,10 +334,34 @@ def _forward_dura_webhook(raw: bytes) -> None:
             status = int(getattr(response, "status", 0) or 0)
         if 200 <= status < 300:
             logger.info("IBETIN DURA feed relay delivered status=%s", status)
-        else:
-            logger.warning("IBETIN DURA feed relay HTTP %s", status)
+            return True
+        logger.warning("IBETIN DURA feed relay HTTP %s", status)
     except Exception as exc:
         logger.warning("IBETIN DURA feed relay failed: %s", str(exc)[:160])
+    return False
+
+
+def _relay_restored_dura_state() -> None:
+    # IBETIN persists the last non-terminal Roanuz webhook. After a restart,
+    # forward that restored live payload to DURA so both brands immediately
+    # show the same match without waiting for the provider's next push.
+    for attempt in range(8):
+        time.sleep(8 if attempt == 0 else 12)
+        try:
+            rows = v23._webhook_live_rows()
+            if not rows:
+                continue
+            raw = json.dumps(
+                rows[0], separators=(",", ":"), ensure_ascii=False
+            ).encode("utf-8")
+            if _forward_dura_webhook(raw):
+                logger.info("IBETIN restored live state relayed to DURA")
+                return
+        except Exception as exc:
+            logger.warning(
+                "IBETIN restored DURA relay attempt failed: %s",
+                str(exc)[:160],
+            )
 
 
 def _install_roanuz_webhook_route() -> None:
@@ -1911,6 +1935,11 @@ def _install_v35_preview_command() -> None:
 _install_v35_preview_route()
 _install_live_stream_routes()
 _install_roanuz_webhook_route()
+threading.Thread(
+    target=_relay_restored_dura_state,
+    daemon=True,
+    name="ibetin-dura-restored-feed-relay",
+).start()
 _install_v36_brand_preview_route()
 _install_v37_promo_preview_route()
 _install_v38_match_pulse_route()

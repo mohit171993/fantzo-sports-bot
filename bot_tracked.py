@@ -583,34 +583,20 @@ async def _prompt_mobile_verification(update, context, source: str = "bot_start"
     except Exception:
         logger.exception("Could not register IBETIN verification reminder")
 
-    if source == "business_dm":
-        detail = (
-            "Before continuing from IBETIN Business DM, verify the mobile number "
-            "linked to your Telegram account."
-        )
-    elif source == "liveline":
-        detail = (
-            "Verify the mobile number linked to your Telegram account once. "
-            "After verification, Live Line will open without asking again."
-        )
+    if source == "liveline":
+        detail = "Verify your Telegram-linked mobile once to open IBETIN Live Line."
+    elif source == "business_dm":
+        detail = "Verify your Telegram-linked mobile once to continue with IBETIN."
     else:
-        detail = (
-            "Before using IBETIN Bot, verify the mobile number linked to your "
-            "Telegram account. You only need to do this once."
-        )
+        detail = "Verify your Telegram-linked mobile once to continue with IBETIN."
 
     await message.reply_text(
-        "📱 <b>VERIFY MOBILE TO CONTINUE</b>\n"
-        "━━━━━━━━━━━━━━━━━━\n\n"
+        "📱 <b>VERIFY MOBILE TO CONTINUE</b>\n\n"
         f"{detail}\n\n"
-        "✅ Verify once to unlock IBETIN, Live Line and quick access.\n\n"
-        "Tap <b>📱 VERIFY & CONTINUE</b> below. Telegram will share the "
-        "mobile number linked to your own Telegram account.\n\n"
-        "By tapping Verify & Continue, you agree that the IBETIN team may "
-        "contact you about your request by <b>phone call and WhatsApp</b>. "
-        "You can opt out anytime.\n\n"
-        "Numbers from <b>any country</b> are accepted. Typed numbers are not accepted.\n"
-        "🔞 <b>18+ only • Play responsibly</b>",
+        "Tap <b>📱 VERIFY & CONTINUE</b> below. Telegram will share your linked mobile number.\n\n"
+        "By continuing, you agree that the IBETIN team may contact you by "
+        "<b>phone call or WhatsApp</b>. You can opt out anytime.\n\n"
+        "🔞 <b>18+ • Play responsibly</b>",
         parse_mode="HTML",
         reply_markup=_verification_reply_keyboard(),
     )
@@ -717,44 +703,44 @@ async def mobile_contact_handler(update, context) -> None:
         campaign,
     )
 
-    await message.reply_text(
-        "✅ <b>Telegram mobile verified</b>\n\n"
-        f"Verified number: <code>{masked}</code>\n"
-        "You will not be asked to verify again.",
-        parse_mode="HTML",
-        reply_markup=ReplyKeyboardRemove(),
-    )
-
     if not was_verified:
         await _notify_verified_lead(context, user, phone, source, campaign)
 
     if source == "liveline":
-        await message.reply_text(
-            "🏏 <b>IBETIN Live Line is ready.</b>",
-            parse_mode="HTML",
-            reply_markup=InlineKeyboardMarkup(
-                [[InlineKeyboardButton(
-                    "🏏 OPEN IBETIN LIVE LINE",
-                    web_app=WebAppInfo(
-                        url=phone_verify.live_line_url(user.id, IBETIN_LIVE_LINE_URL)
-                    ),
-                )]]
-            ),
+        success_markup = InlineKeyboardMarkup(
+            [[InlineKeyboardButton(
+                "🏏 OPEN IBETIN LIVE LINE",
+                web_app=WebAppInfo(
+                    url=phone_verify.live_line_url(user.id, IBETIN_LIVE_LINE_URL)
+                ),
+            )]]
         )
-        return
-
-    if source == "business_dm":
-        await message.reply_text(
-            "Choose what you want to do next 👇",
-            reply_markup=fantzo_business.business_keyboard(user.id),
+        success_text = (
+            "✅ <b>Mobile verified</b>\n"
+            f"<code>{masked}</code>\n\n"
+            "🏏 Live Line is ready."
         )
-        return
+    elif source == "business_dm":
+        success_markup = fantzo_business.business_keyboard(user.id)
+        success_text = (
+            "✅ <b>Mobile verified</b>\n"
+            f"<code>{masked}</code>\n\n"
+            "Choose what you want to do next."
+        )
+    else:
+        success_markup = conversion_keyboard(user.id)
+        success_text = (
+            "✅ <b>Mobile verified</b>\n"
+            f"<code>{masked}</code>\n\n"
+            "Choose what you want to do next."
+        )
 
     await message.reply_text(
-        "🎯 <b>You're ready.</b> Choose what you want to do next 👇",
+        success_text,
         parse_mode="HTML",
-        reply_markup=conversion_keyboard(user.id),
+        reply_markup=success_markup,
     )
+    return
 
 
 async def pending_verification_text_handler(update, context) -> None:
@@ -784,9 +770,8 @@ async def pending_verification_text_handler(update, context) -> None:
     except Exception:
         logger.exception("Could not register IBETIN verification reminder from text gate")
     await message.reply_text(
-        "🔐 <b>Telegram verification is required.</b>\n\n"
-        "Please tap <b>📱 VERIFY & CONTINUE</b> below. "
-        "Typed mobile numbers cannot verify your account.",
+        "📱 <b>Verification needed</b>\n\n"
+        "Typed numbers cannot verify your account. Tap <b>📱 VERIFY & CONTINUE</b> below.",
         parse_mode="HTML",
         reply_markup=_verification_reply_keyboard(),
     )
@@ -906,8 +891,7 @@ async def smart_start(update, context) -> None:
 
     await _set_user_menu_button(context.bot, user.id, True)
     await message.reply_text(
-        "👋 <b>Welcome to IBETIN</b>\n\n"
-        "Your mobile is already verified. Choose what you want to do next 👇",
+        "👋 <b>Welcome back to IBETIN</b>\n\nChoose what you want to do next.",
         parse_mode="HTML",
         reply_markup=conversion_keyboard(user.id),
         disable_web_page_preview=True,
@@ -979,7 +963,7 @@ async def help_command(update, context) -> None:
     if not await _require_verified(update, context):
         return
     await message.reply_text(
-        "⚡ <b>IBETIN HELP</b>\n\nEvery option below opens as a Telegram Mini App.",
+        "⚡ <b>IBETIN</b>\n\nChoose an option below.",
         parse_mode="HTML",
         reply_markup=premium_main_keyboard(user.id),
         disable_web_page_preview=True,

@@ -56,6 +56,7 @@ def patch_file(path: Path) -> bool:
 
 
 def main() -> None:
+    Path("/app/ibetin_bot_persistent").mkdir(parents=True, exist_ok=True)
     changed = 0
     for path in ROOT.glob("*.py"):
         if path.name == Path(__file__).name:

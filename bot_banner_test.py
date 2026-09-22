@@ -5,7 +5,6 @@ import bot_tracked as tracked
 import fantzo_banner_queue as banner_queue
 import fantzo_banner_preview as banner_preview
 import fantzo_reminder_report as reminder_report
-import fantzo_growth as growth
 import fantzo_growth_integration as growth_integration
 
 logger = logging.getLogger(__name__)
@@ -18,8 +17,7 @@ async def configure_telegram_ui_with_features(application) -> None:
     banner_queue.install(application)
     application.create_task(banner_preview.send_once(application))
     reminder_report.start(application)
-    growth.start(application)
-    logger.info("Fantzo banner queue, reminder report, favourites and growth report scheduled")
+    logger.info("Fantzo banner queue and combined automation report scheduled")
 
 
 tracked.app.configure_telegram_ui = configure_telegram_ui_with_features

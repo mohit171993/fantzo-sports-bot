@@ -332,7 +332,19 @@ def _install_roanuz_webhook_route() -> None:
 
         expected = os.getenv("ROANUZ_API_KEY", "").strip()
         supplied = str(self.headers.get("rs-api-key") or "").strip()
-        if not expected or not supplied or not hmac.compare_digest(expected, supplied):
+        relay_expected = os.getenv("DURA_FEED_RELAY_SECRET", "").strip()
+        relay_supplied = str(self.headers.get("x-dura-relay-key") or "").strip()
+
+        provider_ok = bool(
+            expected and supplied and hmac.compare_digest(expected, supplied)
+        )
+        relay_ok = bool(
+            relay_expected
+            and relay_supplied
+            and hmac.compare_digest(relay_expected, relay_supplied)
+        )
+
+        if not (provider_ok or relay_ok):
             _webhook_rejected_count += 1
             body = b'{"status":false}'
             self.send_response(403)

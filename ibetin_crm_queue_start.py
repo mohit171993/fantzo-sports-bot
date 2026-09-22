@@ -62,34 +62,9 @@ def snapshot(reports):
 
 
 def reset_test_once(reports):
-    """Reset only the requested test account once per release, preserving its phone."""
-    marker = "ibetin_crm_test_reset:" + VERSION
-    with reports.core.db() as conn:
-        conn.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY,value TEXT)")
-        ids = {int(r[0]) for r in conn.execute(
-            "SELECT user_id FROM users WHERE lower(username)=?", (TEST_USERNAME,)
-        ).fetchall()}
-        if reports._table_exists(conn, "business_customers"):
-            ids.update(int(r[0]) for r in conn.execute(
-                "SELECT DISTINCT customer_id FROM business_customers WHERE lower(username)=?", (TEST_USERNAME,)
-            ).fetchall())
-        if len(ids) != 1:
-            log.warning("IBETIN CRM test reset not applied: username match count=%s", len(ids))
-            return
-        uid = next(iter(ids))
-        if not conn.execute("SELECT 1 FROM settings WHERE key=?", (marker,)).fetchone():
-            conn.execute("""
-                UPDATE ibetin_leads SET mobile_number=COALESCE(NULLIF(TRIM(mobile_number),''),
-                    (SELECT phone_number FROM liveline_verified_users WHERE user_id=?))
-                WHERE user_id=?
-            """, (uid, uid))
-            conn.execute("DELETE FROM liveline_verified_users WHERE user_id=?", (uid,))
-            conn.execute("INSERT INTO settings(key,value) VALUES(?,?)", (marker, "applied"))
-        verified = bool(conn.execute("SELECT 1 FROM liveline_verified_users WHERE user_id=?", (uid,)).fetchone())
-        phone_saved = bool(conn.execute(
-            "SELECT 1 FROM ibetin_leads WHERE user_id=? AND COALESCE(TRIM(mobile_number),'')!=''", (uid,)
-        ).fetchone())
-    log.info("IBETIN CRM test account audit verified=%s phone_saved=%s release=%s", verified, phone_saved, VERSION)
+    """Legacy test reset is intentionally disabled in the final release."""
+    log.info("IBETIN CRM test-account reset disabled for final release")
+    return
 
 
 def install(reports):

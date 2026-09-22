@@ -431,12 +431,19 @@ async def contact_handler(update: Update, context) -> None:
 
 
 async def pending_text_handler(update: Update, context) -> None:
-    """Do not let typed numbers substitute for Telegram contact verification."""
+    """Gate all normal direct text until Telegram self-contact is verified."""
     user = update.effective_user
     message = update.effective_message
     if not user or not message or not message.text:
         return
-    if not context.user_data.get(_PENDING_KEY):
+
+    # Keep the owner/admin text path available for CRM search, notes and ops.
+    if int(user.id) == int(core.ADMIN_USER_ID):
+        return
+
+    pending = bool(context.user_data.get(_PENDING_KEY))
+    verified = is_registered(user.id)
+    if not pending and verified:
         return
 
     text = message.text.strip().lower()
@@ -450,6 +457,10 @@ async def pending_text_handler(update: Update, context) -> None:
             parse_mode="HTML",
             reply_markup=ReplyKeyboardRemove(),
         )
+        raise ApplicationHandlerStop
+
+    if not pending:
+        await _prompt_mobile(update, context, "bot_text")
         raise ApplicationHandlerStop
 
     await message.reply_text(
@@ -486,6 +497,20 @@ def install() -> None:
 
         if user:
             lead_funnel.record_start(user.id, arg)
+
+        # User opt-out must work even before verification and must take
+        # precedence over Business verification handoff state.
+        if user and arg == "stopreminders":
+            lead_funnel.stop_user_contact(user.id)
+            context.user_data.pop(_PENDING_KEY, None)
+            context.user_data.pop(_PENDING_SOURCE_KEY, None)
+            await update.effective_message.reply_text(
+                "✅ <b>Contact and reminder messages are OFF.</b>\n\n"
+                "You can still use Fantzo normally.",
+                parse_mode="HTML",
+                reply_markup=ReplyKeyboardRemove(),
+            )
+            return
 
         business_handoff = bool(
             user
@@ -576,17 +601,51 @@ def install() -> None:
         user = update.effective_user
         action = str(query.data or "") if query else ""
 
-        if user and action:
-            if is_registered(user.id):
-                lead_funnel.record_post_verify_action(user.id, action)
+        # Old inline sports/menu buttons must not bypass onboarding after a
+        # restart or verification reset. Owner/admin callbacks remain usable.
+        if (
+            user
+            and action
+            and int(user.id) != int(core.ADMIN_USER_ID)
+            and not is_registered(user.id)
+        ):
+            await _prompt_mobile(update, context, "bot_callback")
+            return
+
+        if user and action and is_registered(user.id):
+            lead_funnel.record_post_verify_action(user.id, action)
 
         if user and action == "live_tv_status":
-            if not is_registered(user.id):
-                await _prompt_mobile(update, context, "bot_live_tv")
-                return
             touch_live_tv_access(user.id)
 
         await original_router(update, context)
+
+    def _verified_command(original, source: str):
+        async def wrapped(update, context):
+            user = update.effective_user
+            if (
+                user
+                and int(user.id) != int(core.ADMIN_USER_ID)
+                and not is_registered(user.id)
+            ):
+                try:
+                    core.touch_user(update)
+                    core.track(user.id, f"mobile_verify:{source}")
+                except Exception:
+                    logger.exception("Could not track Fantzo command verification gate")
+                await _prompt_mobile(update, context, source)
+                return
+            await original(update, context)
+        return wrapped
+
+    for attr, source in (
+        ("help_command", "bot_help"),
+        ("sports_command", "bot_sports"),
+        ("team_command", "bot_team"),
+    ):
+        original = getattr(core, attr, None)
+        if original:
+            setattr(core, attr, _verified_command(original, source))
 
     tracked.app.start = gated_start
     tracked.app.core.callback_router = gated_router

@@ -108,12 +108,12 @@ class TrackingHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
 
-        if parsed.path.rstrip("/") == "/meta-ch":
+        if parsed.path.rstrip("/") in {"/meta-ch", "/meta-ch-v2"}:
             from ibetin_meta_landing import page_html
             raw = page_html().encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
-            self.send_header("Cache-Control", "no-store")
+            self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")\n            self.send_header("Pragma", "no-cache")\n            self.send_header("Expires", "0")
             self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("Content-Length", str(len(raw)))
             self.end_headers()

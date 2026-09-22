@@ -1,21 +1,24 @@
-"""DURA production branding bootstrap.
+"""DURA production branding/bootstrap layer.
 
-Keeps the proven IBETIN internal module/database names unchanged while
-rebranding user-visible copy and website defaults in the isolated DURA
-container before the application imports the runtime.
+Internal IBETIN module, table and environment names stay unchanged for
+compatibility. Only user-visible branding/default URLs are rewritten.
 """
 from __future__ import annotations
 
 import os
 import re
+import sqlite3
 from pathlib import Path
 
 ROOT = Path("/app")
+DB_PATH = Path(os.getenv("DB_PATH", "/app/ibetin_bot_persistent/ibetin_bot.db"))
 
 STATIC_REPLACEMENTS = [
     (re.compile(r"\bIBETIN\.COM\b"), "DURABET.COM"),
     (re.compile(r"\bIBETIN\b"), "DURA"),
     (re.compile(r"\bIbetin\b"), "Dura"),
+    (re.compile(r"\bDURASPORTS\b"), "DURA"),
+    (re.compile(r"\bDuraSports\b"), "Dura"),
     (re.compile(r"https://ibetin\.com"), "https://www.durabet.com"),
 ]
 
@@ -55,8 +58,37 @@ def patch_file(path: Path) -> bool:
     return True
 
 
+def ensure_base_schema() -> None:
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS users (
+                user_id INTEGER PRIMARY KEY,
+                username TEXT,
+                first_name TEXT,
+                language TEXT DEFAULT 'en',
+                subscribed INTEGER DEFAULT 0,
+                created_at TEXT,
+                last_seen TEXT
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS clicks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                action TEXT,
+                created_at TEXT
+            )
+            """
+        )
+
+
 def main() -> None:
-    Path("/app/ibetin_bot_persistent").mkdir(parents=True, exist_ok=True)
+    ensure_base_schema()
+
     changed = 0
     for path in ROOT.glob("*.py"):
         if path.name == Path(__file__).name:

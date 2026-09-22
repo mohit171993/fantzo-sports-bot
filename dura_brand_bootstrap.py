@@ -35,13 +35,15 @@ def replacements():
 
     channel_url = os.getenv("DURA_CHANNEL_URL", "").strip()
     if channel_url:
-        items.append((re.compile(r"https://t\.me/ibetinoffcial", re.I), channel_url))
         channel_suffix = channel_url.replace("https://", "").replace("http://", "")
-        items.append((re.compile(r"t\.me/ibetinoffcial", re.I), channel_suffix))
+        for old_channel in ("ibetinoffcial", "durasportsofficial"):
+            items.append((re.compile(rf"https://t\.me/{old_channel}", re.I), channel_url))
+            items.append((re.compile(rf"t\.me/{old_channel}", re.I), channel_suffix))
         if channel_url.startswith("https://t.me/"):
             channel_name = channel_url.rstrip("/").rsplit("/", 1)[-1]
             if channel_name:
-                items.append((re.compile(r"@ibetinoffcial", re.I), "@" + channel_name))
+                for old_channel in ("ibetinoffcial", "durasportsofficial"):
+                    items.append((re.compile(rf"@{old_channel}", re.I), "@" + channel_name))
 
     return items
 

@@ -407,78 +407,53 @@ def _campaign_primary(campaign: str) -> tuple[str, str]:
 
 
 def post_verify_keyboard(user_id: int) -> InlineKeyboardMarkup:
-    campaign = campaign_for_user(user_id)
-    label, action = _campaign_primary(campaign)
-    source = re.sub(r"[^a-zA-Z0-9_-]", "", campaign)[:40] or "direct"
-
+    """IBETIN-style first conversion funnel only: three clear actions."""
+    del user_id
     return InlineKeyboardMarkup(
         [
-            [_styled_button(label, style="primary", callback_data=action)],
             [
                 _styled_button(
-                    "✨ OPEN FANTZO",
+                    "🚀 JOIN FANTZO",
                     style="success",
                     web_app=WebAppInfo(
                         url=tracked.analytics.tracking_url(
-                            f"verified_{source}",
+                            "verified_join_fantzo",
                             "home",
                         )
                     ),
                 )
             ],
-            [InlineKeyboardButton("🏟 FULL SPORTS MENU", callback_data="back")],
+            [
+                _styled_button(
+                    "📺 WATCH LIVE TV",
+                    style="primary",
+                    callback_data="live_tv_status",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    "📢 JOIN CHANNEL",
+                    url="https://t.me/fantzoupdates",
+                )
+            ],
         ]
     )
 
 
 def post_verify_text(user_id: int) -> str:
-    campaign = campaign_for_user(user_id)
-    if "cricket" in campaign:
-        hook = "🏏 Cricket is ready for you."
-    elif "football" in campaign or "soccer" in campaign:
-        hook = "⚽ Football is ready for you."
-    elif "fixture" in campaign:
-        hook = "📅 Today's fixtures are ready."
-    else:
-        hook = "🔥 Your Fantzo sports experience is ready."
-
+    del user_id
     return (
-        "✅ <b>VERIFICATION COMPLETE</b>\n"
-        "━━━━━━━━━━━━━━━━━━\n\n"
-        f"{hook}\n\n"
-        "Live scores, fixtures, Live TV and Fantzo are now unlocked.\n\n"
-        "Choose where you want to go 👇"
+        "👋 <b>Welcome to FANTZO</b>\n\n"
+        "Choose what you want to do next."
     )
 
 
 async def send_post_verify(message, user_id: int) -> None:
     record_post_verify_view(user_id)
-    text = post_verify_text(user_id)
-    markup = post_verify_keyboard(user_id)
-
-    # Reuse the existing Fantzo home banner when one is configured, so the
-    # conversion screen feels visual without creating another asset workflow.
-    try:
-        banner_file_id = tracked.app.get_banner_file_id()
-    except Exception:
-        banner_file_id = ""
-
-    if banner_file_id:
-        try:
-            await message.reply_photo(
-                photo=banner_file_id,
-                caption=text,
-                parse_mode="HTML",
-                reply_markup=markup,
-            )
-            return
-        except Exception:
-            logger.exception("Could not send Fantzo post-verification hero banner")
-
     await message.reply_text(
-        text,
+        post_verify_text(user_id),
         parse_mode="HTML",
-        reply_markup=markup,
+        reply_markup=post_verify_keyboard(user_id),
         disable_web_page_preview=True,
     )
 

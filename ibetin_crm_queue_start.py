@@ -139,6 +139,68 @@ def reset_test_once(reports):
     log.info("IBETIN CRM legacy test reset repaired for the single test account")
 
 
+def force_test_unverified_once(reports):
+    """Explicit operator request: keep only mohit_97saxena unverified for testing."""
+    marker = "ibetin_test_unverified:2026-09-22"
+    with reports.core.db() as conn:
+        conn.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY,value TEXT)")
+        if conn.execute("SELECT 1 FROM settings WHERE key=?", (marker,)).fetchone():
+            return
+
+        ids = {int(r[0]) for r in conn.execute(
+            "SELECT user_id FROM users WHERE lower(username)=?", (TEST_USERNAME,)
+        ).fetchall()}
+        if reports._table_exists(conn, "business_customers"):
+            ids.update(int(r[0]) for r in conn.execute(
+                "SELECT DISTINCT customer_id FROM business_customers WHERE lower(username)=?",
+                (TEST_USERNAME,),
+            ).fetchall())
+        if len(ids) != 1:
+            log.warning("IBETIN test unverify skipped: username match count=%s", len(ids))
+            return
+
+        uid = next(iter(ids))
+        row = conn.execute(
+            "SELECT phone_number FROM liveline_verified_users WHERE user_id=?",
+            (uid,),
+        ).fetchone()
+        if row and str(row["phone_number"] or "").strip():
+            conn.execute(
+                """
+                UPDATE ibetin_leads
+                SET mobile_number=CASE
+                    WHEN COALESCE(NULLIF(TRIM(mobile_number),''),'')='' THEN ?
+                    ELSE mobile_number
+                END
+                WHERE user_id=?
+                """,
+                (str(row["phone_number"]), uid),
+            )
+
+        conn.execute(
+            "DELETE FROM liveline_verified_users WHERE user_id=?",
+            (uid,),
+        )
+        conn.execute(
+            "INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)",
+            (marker, "applied"),
+        )
+
+        verified = bool(conn.execute(
+            "SELECT 1 FROM liveline_verified_users WHERE user_id=?",
+            (uid,),
+        ).fetchone())
+        saved_mobile = bool(conn.execute(
+            "SELECT 1 FROM ibetin_leads WHERE user_id=? AND COALESCE(TRIM(mobile_number),'')!=''",
+            (uid,),
+        ).fetchone())
+    log.info(
+        "IBETIN test account forced unverified verified=%s saved_mobile=%s",
+        verified,
+        saved_mobile,
+    )
+
+
 def install(reports):
     if getattr(reports, "_crm_queue_release", None) == VERSION:
         return
@@ -397,6 +459,7 @@ def main():
     install(reports)
     reports.ensure_tables()
     reset_test_once(reports)
+    force_test_unverified_once(reports)
     log.info("IBETIN CRM QUEUE AUDIT release=%s counts=%s", VERSION, json.dumps(snapshot(reports), sort_keys=True))
     log.info("IBETIN CRM queue repair installed; all-time queues, phones and navigation enabled")
     runtime.app.base.ibetin_start.main()

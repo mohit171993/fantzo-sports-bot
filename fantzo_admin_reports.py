@@ -134,37 +134,20 @@ def _fmt_dt(value) -> str:
 
 
 def _ops_dashboard_text() -> str:
-    """Operational Fantzo dashboard modelled on the proven iBetin team screen."""
+    """Ibetin-style all-time Fantzo work queue backed by user-ID CRM records."""
     crm_ops.ensure_tables()
-    day, _, _ = _cutoffs()
     counts = crm_ops.status_counts()
+    data = crm_ops.dashboard_counts()
     due = crm_ops.due_count()
     follow_up = int(counts["CONTACTED"]) + int(counts["NO_ANSWER"])
 
+    day, _, _ = _cutoffs()
     with core.db() as conn:
-        total = _scalar(conn, "SELECT COUNT(*) FROM users") if _table_exists(conn, "users") else 0
-        mobile = _scalar(
-            conn,
-            "SELECT COUNT(DISTINCT mobile_e164) FROM live_tv_mobile_users "
-            "WHERE COALESCE(mobile_e164,'')!=''"
-        ) if _table_exists(conn, "live_tv_mobile_users") else 0
-        verified = _scalar(
-            conn,
-            "SELECT COUNT(*) FROM live_tv_mobile_users "
-            "WHERE capture_method='telegram_contact'"
-        ) if _table_exists(conn, "live_tv_mobile_users") else 0
         sent_24 = _scalar(
             conn,
-            "SELECT COUNT(*) FROM reminder_sends "
-            "WHERE status='sent' AND sent_at>=?",
+            "SELECT COUNT(*) FROM reminder_sends WHERE status='sent' AND sent_at>=?",
             (day,),
         ) if _table_exists(conn, "reminder_sends") else 0
-
-    not_verified = max(int(total) - int(verified), 0)
-    # Same working logic as iBetin: users not yet verified are still unworked
-    # acquisition records; verified NEW leads are immediately contactable.
-    new_unworked = not_verified + int(counts["NEW"])
-    assigned_new = crm_ops.new_assigned_count()
 
     reminders_on = not reminders.is_paused()
     channel_on = not banner_queue.is_paused()
@@ -172,13 +155,14 @@ def _ops_dashboard_text() -> str:
     return (
         "📊 <b>FANTZO TEAM DASHBOARD</b>\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
-        "<b>LEADS</b>\n"
-        f"👥 Total: <b>{_fmt_int(total)}</b> · "
-        f"📱 Mobile: <b>{_fmt_int(mobile)}</b> · "
-        f"✅ Verified: <b>{_fmt_int(verified)}</b>\n"
-        f"🆕 New/Unworked: <b>{_fmt_int(new_unworked)}</b> · "
-        f"⏰ Due: <b>{_fmt_int(due)}</b> · "
-        f"📞 Follow-up: <b>{_fmt_int(follow_up)}</b>\n"
+        "<b>LEADS · ALL TIME</b>\n"
+        f"👥 Total: <b>{_fmt_int(data['total'])}</b> · "
+        f"📱 Mobile: <b>{_fmt_int(data['with_mobile'])}</b> · "
+        f"✅ Verified: <b>{_fmt_int(data['verified'])}</b>\n"
+        f"🆕 New/Unworked: <b>{_fmt_int(data['new'])}</b> · "
+        f"👤 Unassigned: <b>{_fmt_int(data['new_unassigned'])}</b> · "
+        f"⏰ Due: <b>{_fmt_int(due)}</b>\n"
+        f"📞 Follow-up: <b>{_fmt_int(follow_up)}</b> · "
         f"⭐ Interested: <b>{_fmt_int(counts['INTERESTED'])}</b> · "
         f"✅ Converted: <b>{_fmt_int(counts['CONVERTED'])}</b>\n\n"
         "<b>AUTOMATION</b>\n"
@@ -186,10 +170,9 @@ def _ops_dashboard_text() -> str:
         f"· sent 24h: <b>{_fmt_int(sent_24)}</b>\n"
         f"📣 Channel: {'🟢 ON' if channel_on else '🔴 OFF'} "
         f"· daily <b>{escape(banner_queue.schedule_text())}</b>\n\n"
-        f"⚠️ Not verified: <b>{_fmt_int(not_verified)}</b> · "
-        f"👨‍💼 New already assigned: <b>{_fmt_int(assigned_new)}</b>"
+        f"⚠️ Not verified: <b>{_fmt_int(data['not_verified'])}</b> · "
+        f"👨‍💼 New already assigned: <b>{_fmt_int(data['new_assigned'])}</b>"
     )
-
 
 def _ops_dashboard_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
@@ -199,7 +182,7 @@ def _ops_dashboard_menu() -> InlineKeyboardMarkup:
         ],
         [
             _styled_button("👥 ALL LEADS", "ops:queue:all", "primary"),
-            _styled_button("📱 SAVED MOBILES", "ops:saved", "primary"),
+            _styled_button("📱 SAVED MOBILES", "ops:queue:mobile", "primary"),
         ],
         [
             _styled_button("📞 FOLLOW-UP", "ops:queue:followup", "primary"),
@@ -217,8 +200,8 @@ def _ops_dashboard_menu() -> InlineKeyboardMarkup:
             _styled_button("🤖 AUTOMATION", "ops:automation", "primary"),
             _styled_button("📚 TEAM GUIDE", "ops:guide", "primary"),
         ],
+        [InlineKeyboardButton("⚙️ ADVANCED REPORTS", callback_data="adm:advanced_reports")],
     ])
-
 
 # Backward-compatible aliases: /admin and old admin-home callbacks now use
 # the same operational dashboard.
@@ -265,34 +248,58 @@ def _ops_lead_card(user_id: int) -> str:
         "DO_NOT_CONTACT": "🚫",
     }.get(status, "📌")
 
+    uid = int(lead.get("user_id") or user_id)
     username = str(lead.get("username") or "")
     telegram = f"@{escape(username)}" if username else "—"
     name = escape(str(lead.get("first_name") or "—"))
-    mobile = escape(str(lead.get("mobile_e164") or "—"))
+    mobile_raw = str(lead.get("mobile_e164") or "").strip()
+    mobile = escape(mobile_raw) if mobile_raw else "Not captured"
     campaign = escape(str(lead.get("campaign") or "direct"))
-    source = escape(str(lead.get("verification_source") or "bot"))
+    source = escape(str(lead.get("verification_source") or lead.get("source") or "bot"))
     assigned = escape(str(lead.get("assigned_agent") or "UNASSIGNED"))
     note = escape(str(lead.get("last_note") or lead.get("notes") or "")[:180])
     followup = str(lead.get("next_followup_at") or "")
+    first_seen = escape(_fmt_dubai(str(lead.get("first_seen_at") or "")))
+    verified = bool(lead.get("is_currently_verified"))
+    verified_at = str(lead.get("verified_at") or "")
     consent = bool(lead.get("contact_permission_at"))
+
+    if verified:
+        verification_text = (
+            "✅ <b>VERIFIED</b>"
+            + (f" · {escape(_fmt_dubai(verified_at))}" if verified_at else "")
+        )
+        consent_text = (
+            "✅ Call + WhatsApp permission recorded"
+            if consent else
+            "⚠️ Verified mobile saved · contact permission not recorded"
+        )
+    else:
+        verification_text = "⚠️ <b>NOT VERIFIED</b>"
+        consent_text = (
+            "✅ Contact permission previously recorded"
+            if consent else
+            "ℹ️ Contact permission not recorded"
+        )
 
     lines = [
         f"{icon} <b>{escape(status.replace('_', ' '))}</b>",
         "━━━━━━━━━━━━━━━━━━",
         f"👤 <b>{name}</b> · {telegram}",
-        f"📱 <code>{mobile}</code>",
+        f"🆔 User ID: <code>{uid}</code>",
+        f"📱 Mobile: <code>{mobile}</code>" if mobile_raw else "📱 Mobile: <b>Not captured</b>",
+        f"🔐 Verification: {verification_text}",
+        f"🕒 First seen: <b>{first_seen}</b>",
         f"🎯 Campaign: <code>{campaign}</code>",
         f"📥 Source: <b>{source}</b>",
-        f"🕒 Verified: <b>{escape(_fmt_dubai(lead.get('verified_at')))}</b>",
         f"👨‍💼 Assigned: <b>{assigned}</b>",
-        f"🔐 {'✅ Contact permission recorded' if consent else '⚠️ Contact permission not recorded'}",
+        consent_text,
     ]
     if followup:
         lines.append(f"⏰ Next follow-up: <b>{escape(_fmt_dubai(followup))}</b>")
     if note:
         lines.append(f"📝 Note: {note}")
     return "\n".join(lines)
-
 
 def _ops_lead_keyboard(
     user_id: int,
@@ -304,6 +311,7 @@ def _ops_lead_keyboard(
     lead = crm_ops.get_lead(user_id) or {}
     digits = re.sub(r"\D", "", str(lead.get("mobile_e164") or ""))[:15]
     status = str(lead.get("status") or "NEW").upper()
+    consent = bool(lead.get("contact_permission_at"))
 
     suffix = f":{queue}:{int(index)}" if queue else ""
 
@@ -348,7 +356,7 @@ def _ops_lead_keyboard(
         ],
     ]
 
-    if digits and status != "DO_NOT_CONTACT":
+    if digits and consent and status != "DO_NOT_CONTACT":
         rows.append([
             InlineKeyboardButton(
                 "💬 OPEN WHATSAPP",
@@ -392,14 +400,14 @@ def _ops_lead_keyboard(
 
 
 def _ops_queue_page(queue: str, index: int = 0) -> tuple[str, InlineKeyboardMarkup]:
-    """Render exactly one lead from a queue, like a paged CRM work screen."""
+    """Render exactly one all-time CRM record with iBetin-style navigation."""
     total = crm_ops.queue_count(queue)
 
     if total <= 0:
         return (
             f"{_ops_queue_title(queue)}\n"
             "━━━━━━━━━━━━━━━━━━\n\n"
-            "✅ No contactable leads in this queue right now.",
+            "✅ No records in this queue right now.",
             InlineKeyboardMarkup([
                 [InlineKeyboardButton("⬅️ DASHBOARD", callback_data="ops:home")]
             ]),
@@ -419,62 +427,30 @@ def _ops_queue_page(queue: str, index: int = 0) -> tuple[str, InlineKeyboardMark
     header = (
         f"{_ops_queue_title(queue)}\n"
         "━━━━━━━━━━━━━━━━━━\n"
-        f"<b>Lead {safe_index + 1} of {total}</b>\n\n"
+        f"<b>Record {safe_index + 1} of {total}</b>\n\n"
     )
-
-    note = ""
-    if queue == "new":
-        with core.db() as conn:
-            users = _scalar(conn, "SELECT COUNT(*) FROM users") if _table_exists(conn, "users") else 0
-            verified = _scalar(
-                conn,
-                "SELECT COUNT(*) FROM live_tv_mobile_users "
-                "WHERE capture_method='telegram_contact'"
-            ) if _table_exists(conn, "live_tv_mobile_users") else 0
-        pending = max(int(users) - int(verified), 0)
-        if pending:
-            note = (
-                f"\n\n⚠️ <b>{_fmt_int(pending)}</b> additional user(s) are still "
-                "unverified and are not contactable yet."
-            )
-
     return (
-        header + _ops_lead_card(uid) + note,
+        header + _ops_lead_card(uid),
         _ops_lead_keyboard(uid, queue, safe_index, total),
     )
 
-
 def _ops_queue_title(queue: str) -> str:
     return {
-        "new": "🆕 NEW / UNWORKED",
+        "new": "🆕 NEW / UNWORKED · ALL TIME",
         "due": "⏰ DUE NOW",
-        "all": "👥 ALL CRM LEADS",
+        "all": "👥 ALL LEADS · ALL TIME",
+        "mobile": "📱 SAVED MOBILES · ALL TIME",
         "followup": "📞 FOLLOW-UP",
         "interested": "⭐ INTERESTED",
         "converted": "✅ CONVERTED",
     }.get(queue, "👥 CRM LEADS")
 
-
 def _ops_queue_intro(queue: str, count: int) -> str:
-    text = (
+    return (
         f"{_ops_queue_title(queue)}\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
-        f"Showing <b>{count}</b> contactable lead(s)."
+        f"Showing <b>{count}</b> all-time CRM record(s)."
     )
-    if queue == "new":
-        with core.db() as conn:
-            total = _scalar(conn, "SELECT COUNT(*) FROM users") if _table_exists(conn, "users") else 0
-            verified = _scalar(
-                conn,
-                "SELECT COUNT(*) FROM live_tv_mobile_users WHERE capture_method='telegram_contact'"
-            ) if _table_exists(conn, "live_tv_mobile_users") else 0
-        pending = max(int(total) - int(verified), 0)
-        text += (
-            f"\n\n⚠️ <b>{_fmt_int(pending)}</b> additional bot user(s) are still "
-            "unverified and become contactable only after mobile verification."
-        )
-    return text
-
 
 def _automation_text() -> str:
     day, _, _ = _cutoffs()
@@ -681,25 +657,19 @@ def _tools_menu() -> InlineKeyboardMarkup:
 
 def _team_guide_text() -> str:
     return (
-        "❓ <b>FANTZO TEAM WORKFLOW</b>\n"
+        "📚 <b>FANTZO CRM · TEAM GUIDE</b>\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
-        "<b>1 · WORK HOT LEADS FIRST</b>\n"
-        "Open <b>🆕 NEW</b>, then <b>⭐ INTERESTED</b>. Contact them quickly by phone/WhatsApp.\n\n"
-        "<b>2 · UPDATE EVERY CONTACT</b>\n"
-        "After every attempt choose CONTACTED, NO ANSWER, INTERESTED, CONVERTED, "
-        "NOT INTERESTED or DO NOT CONTACT. This is what makes campaign reporting accurate.\n\n"
-        "<b>3 · USE NOTES & ASSIGNMENT</b>\n"
-        "Use <code>/leadassign</code> to show who owns the lead and <code>/leadnote</code> "
-        "for the latest sales context.\n\n"
-        "<b>4 · RESPECT DO NOT CONTACT</b>\n"
-        "Never call or WhatsApp a lead marked DO NOT CONTACT.\n\n"
-        "<b>5 · CHECK CAMPAIGNS</b>\n"
-        "Judge ads on verified leads and conversions, not only clicks/starts.\n\n"
-        "<b>6 · END OF SHIFT</b>\n"
-        "NEW should be close to zero, NO ANSWER should have a clear follow-up plan, "
-        "and every converted lead should be marked CONVERTED."
+        "<b>New / Unworked:</b> Every historical Fantzo bot/DM identity that still has no CRM outcome. "
+        "Verified and unverified records both remain visible. Assigning an owner does not hide a NEW record.\n\n"
+        "<b>Saved Mobiles:</b> Every CRM identity with a stored mobile number, including older records. "
+        "The lead card separately shows whether that user is currently Telegram-verified.\n\n"
+        "<b>Lead card:</b> Always shows User ID, username/name when available, saved mobile, "
+        "verification state, first seen, campaign, source and owner.\n\n"
+        "<b>Workflow:</b> CONTACTED after a genuine attempt; NO ANSWER when there is no response; "
+        "INTERESTED for a positive response; CONVERTED after completion; DNC when contact must stop.\n\n"
+        "Use notes and follow-up times after every interaction. Previous / Next stays available so "
+        "the team can work the complete all-time queue one record at a time."
     )
-
 
 def _team_guide_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
@@ -1683,16 +1653,18 @@ def _report_csv(key: str) -> tuple[str, bytes]:
         )
     if key == "leads":
         crm_ops.ensure_tables()
-        return f"fantzo_lead_funnel_{stamp}.csv", _query_csv(
-            "SELECT s.mobile_e164,s.primary_user_id,u.username,u.first_name,"
-            "s.campaign,s.status,s.assigned_to,s.assigned_agent,"
-            "s.next_followup_at,s.last_note,s.notes,s.contact_permission_at,"
-            "s.created_at,s.updated_at,s.last_contact_at,s.contacted_at,"
-            "s.no_answer_at,s.interested_at,s.converted_at,s.dnc_at,"
-            "s.updated_by,s.updated_by_name,"
-            "(SELECT COUNT(*) FROM lead_user_map lm WHERE lm.mobile_e164=s.mobile_e164) AS telegram_accounts "
-            "FROM sales_leads s LEFT JOIN users u ON u.user_id=s.primary_user_id "
-            "ORDER BY s.created_at DESC"
+        return f"fantzo_crm_leads_{stamp}.csv", _query_csv(
+            "SELECT c.user_id,u.username,u.first_name,c.mobile_e164,"
+            "CASE WHEN EXISTS(SELECT 1 FROM live_tv_mobile_users m "
+            "WHERE m.user_id=c.user_id AND m.capture_method='telegram_contact') "
+            "THEN 'Verified' ELSE 'Not Verified' END AS verification_status,"
+            "c.campaign,c.source,c.status,c.assigned_to,c.assigned_agent,"
+            "c.next_followup_at,c.last_note,c.notes,c.contact_permission_at,"
+            "c.first_seen_at,c.last_seen_at,c.verified_at,c.updated_at,"
+            "c.contacted_at,c.no_answer_at,c.interested_at,c.converted_at,c.dnc_at,"
+            "c.updated_by,c.updated_by_name "
+            "FROM fantzo_crm_users c LEFT JOIN users u ON u.user_id=c.user_id "
+            "ORDER BY c.first_seen_at DESC,c.user_id DESC"
         )
     if key == "mobile":
         return f"fantzo_verified_mobile_numbers_{stamp}.csv", _query_csv(
@@ -1784,13 +1756,17 @@ async def _send_document(message, filename: str, data: bytes, caption: str) -> N
 
 
 async def _show(query, text: str, markup: InlineKeyboardMarkup) -> None:
-    await query.edit_message_text(
-        text,
-        parse_mode="HTML",
-        reply_markup=markup,
-        disable_web_page_preview=True,
-    )
-
+    try:
+        await query.edit_message_text(
+            text,
+            parse_mode="HTML",
+            reply_markup=markup,
+            disable_web_page_preview=True,
+        )
+    except Exception as exc:
+        if "message is not modified" in str(exc).lower():
+            return
+        raise
 
 async def _handle_report_callback(update, context) -> bool:
     query = update.callback_query

@@ -108,7 +108,7 @@ class TrackingHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
 
-        if parsed.path.rstrip("/") in {"/fb", "/meta-ch", "/meta-ch-v2"}:
+        if parsed.path.rstrip("/") in {"/shiko", "/fb", "/meta-ch", "/meta-ch-v2"}:
             from ibetin_meta_landing import page_html
             raw = page_html().encode("utf-8")
             self.send_response(200)

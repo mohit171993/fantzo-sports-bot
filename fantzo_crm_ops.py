@@ -389,8 +389,7 @@ def new_assigned_count() -> int:
     return int(row["c"] or 0)
 
 
-def queue_user_ids(queue: str, limit: int = 12) -> list[int]:
-    ensure_tables()
+def _queue_sql(queue: str):
     queue = str(queue or "").lower()
     where = "1=1"
     params: list = []
@@ -417,6 +416,56 @@ def queue_user_ids(queue: str, limit: int = 12) -> list[int]:
     elif queue == "all":
         order = "updated_at DESC"
     else:
+        return None, [], None
+
+    return where, params, order
+
+
+def queue_count(queue: str) -> int:
+    ensure_tables()
+    where, params, _ = _queue_sql(queue)
+    if not where:
+        return 0
+    with core.db() as conn:
+        row = conn.execute(
+            f"SELECT COUNT(*) c FROM sales_leads WHERE {where}",
+            tuple(params),
+        ).fetchone()
+    return int(row["c"] or 0)
+
+
+def queue_user_id_at(queue: str, index: int) -> int:
+    """Return one CRM lead at a zero-based queue position."""
+    ensure_tables()
+    where, params, order = _queue_sql(queue)
+    if not where or not order:
+        return 0
+
+    total = queue_count(queue)
+    if total <= 0:
+        return 0
+
+    safe_index = max(0, min(int(index), total - 1))
+    with core.db() as conn:
+        row = conn.execute(
+            f"""
+            SELECT primary_user_id
+            FROM sales_leads
+            WHERE {where}
+            ORDER BY {order}
+            LIMIT 1 OFFSET ?
+            """,
+            (*params, safe_index),
+        ).fetchone()
+
+    return int(row["primary_user_id"]) if row and row["primary_user_id"] else 0
+
+
+def queue_user_ids(queue: str, limit: int = 12) -> list[int]:
+    """Backward-compatible small batch helper used by search/legacy callers."""
+    ensure_tables()
+    where, params, order = _queue_sql(queue)
+    if not where or not order:
         return []
 
     with core.db() as conn:

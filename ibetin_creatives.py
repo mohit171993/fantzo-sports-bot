@@ -829,13 +829,17 @@ def install(application) -> None:
         ),
         group=-5,
     )
-    import asyncio
-    application.bot_data["ibetin_creative_startup_test_task"] = asyncio.create_task(
-        _startup_creative_status_and_test(application),
-        name="ibetin-creative-startup-test",
+    # Production startup must never send test/preview messages automatically.
+    # Tests remain available only through the explicit admin commands.
+    try:
+        c = counts()
+        logger.info(
+            "IBETIN creative pools ready channel=%s dm=%s reminder=%s",
+            c["channel"], c["dm"], c["reminder"],
+        )
+    except Exception:
+        logger.exception("Could not read IBETIN creative pool status")
+    logger.info(
+        "IBETIN creative manager installed: bulk upload + pools + manual DM test; "
+        "startup test sends disabled"
     )
-    application.bot_data["ibetin_channel_preview_test_task"] = asyncio.create_task(
-        _startup_channel_preview_test(application),
-        name="ibetin-channel-preview-test",
-    )
-    logger.info("IBETIN creative manager installed: bulk upload + pools + DM test")

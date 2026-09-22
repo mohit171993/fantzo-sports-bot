@@ -949,6 +949,59 @@ def search_user_ids(term: str, limit: int = 12) -> list[int]:
     return [int(r["user_id"]) for r in rows if r["user_id"]]
 
 
+
+def contact_storage_audit() -> dict:
+    """Aggregate-only DB schema/count audit; never returns stored values."""
+    result = {}
+    patterns = ("mobile", "phone", "number", "contact", "msisdn", "whatsapp")
+    with core.db() as conn:
+        tables = [
+            str(r["name"])
+            for r in conn.execute(
+                "SELECT name FROM sqlite_master "
+                "WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+            ).fetchall()
+        ]
+        for table in tables:
+            if not re.fullmatch(r"[A-Za-z0-9_]+", table):
+                continue
+            cols = [
+                str(r["name"])
+                for r in conn.execute(f"PRAGMA table_info({table})").fetchall()
+            ]
+            matched = [
+                col for col in cols
+                if any(token in col.lower() for token in patterns)
+                and re.fullmatch(r"[A-Za-z0-9_]+", col)
+            ]
+            if not matched:
+                continue
+            row_count = int(conn.execute(
+                f"SELECT COUNT(*) FROM {table}"
+            ).fetchone()[0] or 0)
+            fields = {}
+            for col in matched:
+                nonempty = int(conn.execute(
+                    f"SELECT COUNT(*) FROM {table} "
+                    f"WHERE {col} IS NOT NULL AND TRIM(CAST({col} AS TEXT))!=''"
+                ).fetchone()[0] or 0)
+                fields[col] = nonempty
+            result[table] = {"rows": row_count, "nonempty": fields}
+
+        identity_tables = (
+            "users", "business_welcomes", "business_verification_pending",
+            "live_tv_mobile_users", "lead_user_map", "sales_leads",
+            "lead_attribution", "reminder_users", "clicks", "fantzo_crm_users",
+        )
+        identity_counts = {}
+        for table in identity_tables:
+            if _table_exists(conn, table):
+                identity_counts[table] = int(conn.execute(
+                    f"SELECT COUNT(*) FROM {table}"
+                ).fetchone()[0] or 0)
+        result["_row_counts"] = identity_counts
+    return result
+
 def recent_history(user_id: int, limit: int = 6):
     ensure_tables()
     uid = int(user_id)

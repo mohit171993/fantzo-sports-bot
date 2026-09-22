@@ -10,6 +10,7 @@ import bot as core
 import fantzo_analytics as analytics
 import fantzo_autoreply
 import fantzo_live_tv
+import fantzo_reminders as reminders
 
 logger = logging.getLogger(__name__)
 
@@ -314,6 +315,15 @@ async def business_connection_update(update: Update, context: ContextTypes.DEFAU
     if not connection:
         return
     _save_connection(connection)
+    if not connection.is_enabled:
+        try:
+            disabled = reminders.disable_business_connection(str(connection.id))
+            logger.info(
+                "Fantzo disabled reminder delivery for %s row(s) on inactive Business connection",
+                disabled,
+            )
+        except Exception:
+            logger.exception("Could not disable reminders for inactive Business connection")
     logger.info(
         "Fantzo business connection update: id=%s owner=%s enabled=%s",
         connection.id,
@@ -402,6 +412,19 @@ async def business_auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
 
     customer_id = message.from_user.id if message.from_user else 0
+
+    # Record the exact connection from the inbound Business message. Never
+    # substitute a global/latest Business connection for a customer.
+    if customer_id and connection_id:
+        try:
+            reminders.touch_user(
+                "business_dm",
+                customer_id,
+                "general",
+                str(connection_id),
+            )
+        except Exception:
+            logger.exception("Could not persist exact Fantzo Business reminder connection")
 
     # Welcome on the customer's first Business DM of any type: text, sticker,
     # photo, voice, video, document, etc. Mark only after a successful send so

@@ -1,7 +1,7 @@
-"""Public IBETIN Live Line acquisition landing page.
+"""Public IBETIN acquisition landing page.
 
-This page intentionally contains no betting/casino/sportsbook links. It is
-used as a clean entry point for the IBETIN Live Line product.
+The page presents the IBETIN Live Line product and uses a clearly labeled
+registration CTA that opens the configured IBETIN affiliate registration URL.
 """
 from urllib.parse import urlparse
 
@@ -57,8 +57,8 @@ h1 span{color:var(--gold)}
   <div class="pill">CRICKET MATCH CENTRE</div>
   <h1>Follow cricket.<br><span>Stay updated.</span></h1>
   <p class="sub">One clean place for live match updates, upcoming fixtures, recent results and detailed match information.</p>
-  <a id="openLiveLine" class="cta" href="/liveline">
-    <span>OPEN IBETIN LIVE LINE<small>Continue to the cricket match centre</small></span><span class="arrow">→</span>
+  <a id="openLiveLine" class="cta" href="https://ibetaffiliate.com/L?tag=d_5044969m_118491c_12711192&amp;site=5044969&amp;ad=118491&amp;r=registration" rel="noopener">
+    <span>REGISTER ON IBETIN<small>Opens the IBETIN registration page</small></span><span class="arrow">→</span>
   </a>
 </section>
 
@@ -71,9 +71,9 @@ h1 span{color:var(--gold)}
 
 <section class="section">
   <h2>How it works</h2>
-  <div class="step"><div class="num">1</div><div><b>Open Live Line</b><p>Tap the button above to continue.</p></div></div>
-  <div class="step"><div class="num">2</div><div><b>Verify your mobile</b><p>New users complete the existing IBETIN verification flow.</p></div></div>
-  <div class="step"><div class="num">3</div><div><b>Access the match centre</b><p>Use Live, Upcoming and Results from one place.</p></div></div>
+  <div class="step"><div class="num">1</div><div><b>Register on IBETIN</b><p>Tap the button above to open the registration page.</p></div></div>
+  <div class="step"><div class="num">2</div><div><b>Complete registration</b><p>Finish the registration steps on the IBETIN site.</p></div></div>
+  <div class="step"><div class="num">3</div><div><b>Continue with IBETIN</b><p>Use the IBETIN services available to your account.</p></div></div>
 </section>
 
 <div class="bottom"><strong>IBETIN Live Line</strong><br>Cricket information product. Availability and data may vary by match.</div>

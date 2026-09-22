@@ -2285,6 +2285,7 @@ async def admin_text_handler(update, context) -> None:
 def register_handlers(application) -> None:
     crm_ops.ensure_tables()
     logger.info("Fantzo all-time CRM audit counts=%s", crm_ops.dashboard_counts())
+    logger.info("Fantzo contact storage audit=%s", crm_ops.contact_storage_audit())
     application.add_handler(CommandHandler("reports", reports_command))
     application.add_handler(CommandHandler("crm", crm_command))
     application.add_handler(

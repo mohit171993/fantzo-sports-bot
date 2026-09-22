@@ -255,29 +255,76 @@ def _roanuz_auth(force: bool = False) -> str:
         return _roanuz_token["value"]
 
 
+def _ibetin_roanuz_proxy_get(path: str, ttl: int = 10):
+    proxy_url = os.getenv("IBETIN_ROANUZ_PROXY_URL", "").strip()
+    secret = os.getenv("DURA_FEED_RELAY_SECRET", "").strip()
+    if not proxy_url or not secret:
+        raise RuntimeError("IBETIN Roanuz proxy is not configured")
+
+    cache_key = f"ibetin-proxy:{path}"
+    cached = liveline._cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    with httpx.Client(timeout=20.0, follow_redirects=True) as client:
+        response = client.get(
+            proxy_url,
+            params={"path": path},
+            headers={
+                "x-dura-relay-key": secret,
+                "Accept": "application/json",
+            },
+        )
+    if response.status_code < 200 or response.status_code >= 300:
+        raise RuntimeError(f"IBETIN Roanuz proxy HTTP {response.status_code}")
+
+    data = response.json()
+    if not isinstance(data, dict) or not data.get("ok"):
+        raise RuntimeError("IBETIN Roanuz proxy returned no payload")
+    payload = data.get("payload")
+    liveline._cache_put(cache_key, payload, ttl)
+    logger.info("DURA Roanuz proxy fallback served path=%s", path)
+    return payload
+
+
 def _roanuz_get(path: str, ttl: int = 10):
     project = _clean_env_secret("ROANUZ_PROJECT_KEY")
-    if not project:
-        raise RuntimeError("ROANUZ_PROJECT_KEY is not configured")
     cache_key = f"roanuz:{path}"
     cached = liveline._cache_get(cache_key)
     if cached is not None:
         return cached
 
-    url = f"{_ROANUZ_BASE}/cricket/{project}/{path.lstrip('/')}"
-    last_status = 0
-    for attempt in range(2):
-        token = _roanuz_auth(force=(attempt == 1))
-        with httpx.Client(timeout=20.0, follow_redirects=True) as client:
-            response = client.get(url, headers={"rs-token": token, "Accept": "application/json"})
-        last_status = response.status_code
-        if 200 <= response.status_code < 300:
-            payload = response.json()
-            liveline._cache_put(cache_key, payload, ttl)
-            return payload
-        if response.status_code not in (401, 403):
-            break
-    raise RuntimeError(f"Roanuz HTTP {last_status}")
+    if project:
+        try:
+            url = f"{_ROANUZ_BASE}/cricket/{project}/{path.lstrip('/')}"
+            last_status = 0
+            for attempt in range(2):
+                token = _roanuz_auth(force=(attempt == 1))
+                with httpx.Client(timeout=20.0, follow_redirects=True) as client:
+                    response = client.get(
+                        url,
+                        headers={"rs-token": token, "Accept": "application/json"},
+                    )
+                last_status = response.status_code
+                if 200 <= response.status_code < 300:
+                    payload = response.json()
+                    liveline._cache_put(cache_key, payload, ttl)
+                    return payload
+                if response.status_code not in (401, 403):
+                    break
+            logger.warning(
+                "DURA direct Roanuz request failed path=%s status=%s; using IBETIN proxy",
+                path,
+                last_status,
+            )
+        except Exception as exc:
+            logger.warning(
+                "DURA direct Roanuz unavailable path=%s error=%s; using IBETIN proxy",
+                path,
+                str(exc)[:140],
+            )
+
+    return _ibetin_roanuz_proxy_get(path, ttl=ttl)
 
 
 def _roanuz_featured_matches():

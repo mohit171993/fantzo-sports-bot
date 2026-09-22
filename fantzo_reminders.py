@@ -133,12 +133,20 @@ def touch_user(source: str, user_id: int, category: str = "general", business_co
         current_interest = str(existing["interest"]) if existing else "general"
         opted_out = int(existing["opted_out"]) if existing else 0
         chosen_interest = interest if interest != "general" else current_interest
+        incoming_delivery_disabled = (
+            1 if source == "business_dm" and not business_connection_id else 0
+        )
+        incoming_delivery_error = (
+            "awaiting_fresh_business_activity"
+            if incoming_delivery_disabled else ""
+        )
         conn.execute(
             """
             INSERT INTO reminder_users(
                 source, user_id, business_connection_id, interest, last_activity,
-                last_reminder, reminder_stage, opted_out, updated_at
-            ) VALUES (?, ?, ?, ?, ?, NULL, 0, ?, ?)
+                last_reminder, reminder_stage, opted_out, updated_at,
+                delivery_disabled, last_delivery_error
+            ) VALUES (?, ?, ?, ?, ?, NULL, 0, ?, ?, ?, ?)
             ON CONFLICT(source, user_id) DO UPDATE SET
                 business_connection_id = CASE
                     WHEN excluded.business_connection_id != '' THEN excluded.business_connection_id
@@ -148,8 +156,14 @@ def touch_user(source: str, user_id: int, category: str = "general", business_co
                 last_activity = excluded.last_activity,
                 reminder_stage = 0,
                 opted_out = reminder_users.opted_out,
-                delivery_disabled = 0,
-                last_delivery_error = '',
+                delivery_disabled = CASE
+                    WHEN excluded.delivery_disabled=0 THEN 0
+                    ELSE reminder_users.delivery_disabled
+                END,
+                last_delivery_error = CASE
+                    WHEN excluded.delivery_disabled=0 THEN ''
+                    ELSE reminder_users.last_delivery_error
+                END,
                 updated_at = excluded.updated_at
             """,
             (
@@ -160,6 +174,8 @@ def touch_user(source: str, user_id: int, category: str = "general", business_co
                 now,
                 opted_out,
                 now,
+                incoming_delivery_disabled,
+                incoming_delivery_error,
             ),
         )
 

@@ -8,7 +8,7 @@ import json
 import logging
 from datetime import datetime, timezone
 
-VERSION = "2026-09-22-crm-queue-v1"
+VERSION = "2026-09-22-final-admin-ui-v2"
 TEST_USERNAME = "mohit_97saxena"
 log = logging.getLogger(__name__)
 NEW_SQL = "COALESCE(NULLIF(TRIM(l.lead_status),''),'new')='new'"
@@ -119,30 +119,76 @@ def install(reports):
         data = snapshot(reports)
         counts = data["statuses"]
         followup = counts.get("contacted", 0) + counts.get("no_answer", 0)
+        due = len(queue_ids("due"))
+        try:
+            import fantzo_reminders as reminders
+            auto = reminders.automation_status()
+            reminder_state = "🟢 ON" if auto["reminders_enabled"] else "🔴 PAUSED"
+            channel_state = "🟢 ON" if auto["channel_enabled"] else "🔴 PAUSED"
+            channel_time = auto["channel_time"]
+            sent_24h = auto["reminder_sent_24h"]
+        except Exception:
+            reminder_state = "⚪ UNKNOWN"
+            channel_state = "⚪ UNKNOWN"
+            channel_time = "10:00"
+            sent_24h = 0
         return (
-            "📞 <b>IBETIN TEAM WORK QUEUE</b>\n━━━━━━━━━━━━━━━━━━\n\n"
-            f"👥 All leads · ALL TIME: <b>{data['total']}</b>\n"
-            f"📱 Saved mobile: <b>{data['with_mobile']}</b> · Not saved: <b>{data['total']-data['with_mobile']}</b>\n\n"
-            f"🆕 Unassigned / New: <b>{data['new']}</b>\n"
-            f"✅ Verified: <b>{data['new_verified']}</b> · ⚠️ Not verified: <b>{data['new']-data['new_verified']}</b>\n"
-            f"👨‍💼 New leads already owned by team: <b>{data['new_owned']}</b>\n"
-            f"📞 Follow-up: <b>{followup}</b> · ⏰ Due now: <b>{len(queue_ids('due'))}</b>\n"
+            "📊 <b>IBETIN ADMIN DASHBOARD</b>\n━━━━━━━━━━━━━━━━━━\n\n"
+            "<b>LEADS</b>\n"
+            f"👥 Total: <b>{data['total']}</b> · 📱 Mobile: <b>{data['with_mobile']}</b> · ✅ Verified: <b>{data['verified']}</b>\n"
+            f"🆕 New/Unworked: <b>{data['new']}</b> · ⏰ Due: <b>{due}</b> · 📞 Follow-up: <b>{followup}</b>\n"
             f"⭐ Interested: <b>{counts.get('interested',0)}</b> · ✅ Converted: <b>{counts.get('converted',0)}</b>\n\n"
-            "New includes every historical lead without a CRM outcome, even after assignment to a teammate. "
-            "Verification is separate. All Leads includes every status; saved mobiles remain visible after a verification reset."
+            "<b>AUTOMATION</b>\n"
+            f"🔔 Reminders: <b>{reminder_state}</b> · sent 24h: <b>{sent_24h}</b>\n"
+            f"📢 Channel: <b>{channel_state}</b> · daily <b>{channel_time}</b> Dubai\n\n"
+            f"⚠️ Not verified: <b>{data['total']-data['verified']}</b> · 👨‍💼 New already assigned: <b>{data['new_owned']}</b>"
         )
 
     def menu():
         def b(text, action):
             return Button(text, callback_data="reports:" + action)
         return Markup([
-            [b("🆕 UNASSIGNED / NEW", "queue:new")],
+            [b("🆕 NEW / UNWORKED", "queue:new"), b("⏰ DUE NOW", "queue:due")],
             [b("👥 ALL LEADS", "queue:all"), b("📱 SAVED MOBILES", "queue:mobile")],
             [b("📞 FOLLOW-UP", "queue:followup"), b("⭐ INTERESTED", "queue:interested")],
             [b("🔎 SEARCH", "search"), b("📥 CSV EXPORT", "exportleads")],
-            [b("⏰ DUE NOW", "queue:due"), b("✅ CONVERTED", "queue:converted")],
-            [b("📚 TEAM GUIDE", "guide"), b("🎯 AD PERFORMANCE", "adperformance")],
+            [b("✅ CONVERTED", "queue:converted"), b("🎯 AD PERFORMANCE", "adperformance")],
+            [b("🤖 AUTOMATION", "automation"), b("📚 TEAM GUIDE", "guide")],
             [b("⚙️ ADVANCED REPORTS", "advanced")],
+        ])
+
+    def automation_text():
+        import fantzo_reminders as reminders
+        auto = reminders.automation_status()
+        reminder_state = "🟢 RUNNING" if auto["reminders_enabled"] else "🔴 PAUSED"
+        channel_state = "🟢 RUNNING" if auto["channel_enabled"] else "🔴 PAUSED"
+        last = auto.get("last_channel") or {}
+        last_status = str(last.get("status") or "No post yet").upper()
+        last_at = reports._fmt_admin_time(str(last.get("sent_at") or ""))
+        return (
+            "🤖 <b>AUTOMATION CONTROL</b>\n━━━━━━━━━━━━━━━━━━\n\n"
+            f"🔔 Reminders: <b>{reminder_state}</b>\n"
+            f"   Sent in last 24h: <b>{auto['reminder_sent_24h']}</b>\n\n"
+            f"📢 Channel posts: <b>{channel_state}</b>\n"
+            f"   Schedule: <b>{auto['channel_time']} Dubai</b> every day\n"
+            f"   Last: <b>{last_status}</b> · {last_at}\n\n"
+            "Changes apply immediately. No redeploy is required."
+        )
+
+    def automation_menu():
+        import fantzo_reminders as reminders
+        auto = reminders.automation_status()
+        reminder_button = (
+            "⏸ PAUSE REMINDERS" if auto["reminders_enabled"] else "▶️ RESUME REMINDERS"
+        )
+        channel_button = (
+            "⏸ PAUSE CHANNEL" if auto["channel_enabled"] else "▶️ RESUME CHANNEL"
+        )
+        return Markup([
+            [b(reminder_button, "auto:reminders:toggle")],
+            [b(channel_button, "auto:channel:toggle")],
+            [b("🔄 REFRESH STATUS", "automation")],
+            [b("⬅️ DASHBOARD", "crm")],
         ])
 
     def card(lead):
@@ -186,6 +232,51 @@ def install(reports):
         message = query.message
         key = f"{message.chat_id}:{message.message_id}" if message else ""
         state = states.get(key)
+
+        if data == "reports:automation":
+            try:
+                await query.answer()
+            except Exception:
+                pass
+            await message.reply_text(
+                automation_text(),
+                parse_mode="HTML",
+                reply_markup=automation_menu(),
+                disable_web_page_preview=True,
+            )
+            return True
+
+        if data.startswith("reports:auto:"):
+            parts = data.split(":")
+            if len(parts) == 4 and parts[3] == "toggle":
+                kind = parts[2]
+                import fantzo_reminders as reminders
+                auto = reminders.automation_status()
+                current = (
+                    auto["reminders_enabled"]
+                    if kind == "reminders"
+                    else auto["channel_enabled"]
+                    if kind == "channel"
+                    else None
+                )
+                if current is not None:
+                    reminders.set_automation_enabled(kind, not bool(current))
+            try:
+                await query.answer("Updated")
+            except Exception:
+                pass
+            try:
+                await query.edit_message_text(
+                    automation_text(),
+                    parse_mode="HTML",
+                    reply_markup=automation_menu(),
+                    disable_web_page_preview=True,
+                )
+            except Exception as exc:
+                if "message is not modified" not in str(exc).lower():
+                    raise
+            return True
+
         if data.startswith("reports:queue:") or data.startswith("reports:qitem:"):
             parts = data.split(":")
             queue = parts[2] if len(parts) >= 3 else "new"

@@ -22,6 +22,7 @@ from telegram.ext import ApplicationHandlerStop, MessageHandler, filters
 
 import bot_tracked as tracked
 import fantzo_lead_funnel as lead_funnel
+import fantzo_native_ui as native_ui
 
 logger = logging.getLogger(__name__)
 core = tracked.app.core
@@ -398,7 +399,7 @@ async def contact_handler(update: Update, context) -> None:
             f"Verified number: <code>{masked}</code>\n"
             "Verification complete.",
             parse_mode="HTML",
-            reply_markup=ReplyKeyboardRemove(),
+            reply_markup=native_ui.verified_quick_menu(),
         )
         await message.reply_text(
             "Choose what you want to do next 👇",
@@ -411,7 +412,7 @@ async def contact_handler(update: Update, context) -> None:
             "✅ <b>Telegram mobile verified</b>\n\n"
             f"Verified number: <code>{masked}</code>",
             parse_mode="HTML",
-            reply_markup=ReplyKeyboardRemove(),
+            reply_markup=native_ui.verified_quick_menu(),
         )
         # Paid-ad users get one focused conversion screen before the full menu.
         await lead_funnel.send_post_verify(message, user.id)
@@ -422,7 +423,7 @@ async def contact_handler(update: Update, context) -> None:
         f"Verified number: <code>{masked}</code>\n"
         "Opening Fantzo Live TV…",
         parse_mode="HTML",
-        reply_markup=ReplyKeyboardRemove(),
+        reply_markup=native_ui.verified_quick_menu(),
     )
 
     # Deep links/callbacks that specifically requested Live TV continue there.

@@ -22,6 +22,7 @@ import fantzo_admin_reports
 import fantzo_live_tv_mobile_gate
 import fantzo_lead_funnel
 import fantzo_native_ui
+import fantzo_test_unverify_once
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,7 @@ fantzo_business_flow_fix.install()
 fantzo_lead_funnel.install()
 fantzo_admin_reports.install()
 fantzo_live_tv_mobile_gate.install()
+fantzo_test_unverify_once.run_once()
 _original_configure_telegram_ui = tracked.configure_telegram_ui
 
 

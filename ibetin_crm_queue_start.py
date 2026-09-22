@@ -6,6 +6,8 @@ No contact details or credentials are written to diagnostics.
 """
 import json
 import logging
+import threading
+import time
 from datetime import datetime, timezone
 
 VERSION = "2026-09-22-final-flow-v3"
@@ -380,6 +382,29 @@ def install(reports):
     reports._crm_queue_release = VERSION
 
 
+def _start_acquisition_snapshot_logger(reports) -> None:
+    def worker():
+        # Immediate baseline, then one snapshot every two hours.
+        while True:
+            try:
+                log.info(
+                    "IBETIN_ACQUISITION_SNAPSHOT %s",
+                    json.dumps(snapshot(reports), sort_keys=True, separators=(",", ":")),
+                )
+            except Exception as exc:
+                log.warning(
+                    "IBETIN_ACQUISITION_SNAPSHOT unavailable error_type=%s",
+                    type(exc).__name__,
+                )
+            time.sleep(2 * 60 * 60)
+
+    threading.Thread(
+        target=worker,
+        name="ibetin-acquisition-snapshot",
+        daemon=True,
+    ).start()
+
+
 def main():
     # The existing entry point sets persistent DB_PATH before importing core.
     import ibetin_liveline_v30_unified_ui as runtime
@@ -390,6 +415,7 @@ def main():
     force_test_unverified_once(reports)
     log.info("IBETIN CRM QUEUE AUDIT release=%s counts=%s", VERSION, json.dumps(snapshot(reports), sort_keys=True))
     log.info("IBETIN CRM queue repair installed; all-time queues, phones and navigation enabled")
+    _start_acquisition_snapshot_logger(reports)
     runtime.app.base.ibetin_start.main()
 
 

@@ -556,6 +556,21 @@ def install() -> None:
 
         await original_start(update, context)
 
+        # Match the proven iBetin pattern for already-verified users: keep a
+        # persistent START + OPEN FANTZO keyboard available after normal /start.
+        if (
+            user
+            and is_registered(user.id)
+            and arg != "stopreminders"
+            and update.effective_message
+        ):
+            await update.effective_message.reply_text(
+                "⚡ <b>Fantzo quick access enabled</b>\n\n"
+                "Use the buttons below anytime. Your Telegram mobile is already verified.",
+                parse_mode="HTML",
+                reply_markup=native_ui.verified_quick_menu(),
+            )
+
     async def gated_router(update, context):
         query = update.callback_query
         user = update.effective_user

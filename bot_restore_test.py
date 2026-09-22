@@ -12,7 +12,6 @@ import bot_tracked as tracked
 import fantzo_banner_queue as banner_queue
 import fantzo_banner_preview as banner_preview
 import fantzo_reminder_report as reminder_report
-import fantzo_growth as growth
 import fantzo_growth_integration as growth_integration
 import fantzo_business
 import fantzo_ops
@@ -75,7 +74,6 @@ async def configure_telegram_ui_with_restored_features(application) -> None:
         name="fantzo-banner-preview-starter",
     )
     reminder_report.start(application)
-    growth.start(application)
     fantzo_ops.install(application)
     fantzo_live_tv_mobile_gate.register_handlers(application)
     fantzo_lead_funnel.register_handlers(application)

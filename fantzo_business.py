@@ -41,6 +41,21 @@ ALLOWED_MINI_APP_SECTIONS = {
     "settings",
 }
 
+STOP_PHRASES = {
+    "stop",
+    "unsubscribe",
+    "do not contact",
+    "dont contact",
+    "don't contact",
+    "no calls",
+    "no whatsapp",
+}
+
+
+def _is_stop_text(value: str) -> bool:
+    return " ".join(str(value or "").casefold().split()) in STOP_PHRASES
+
+
 WELCOME_REPLY = (
     "👋 <b>Welcome to IBETIN</b>\n\n"
     "I can help with live sports, news, match alerts, payments and support.\n\n"
@@ -97,7 +112,7 @@ def business_keyboard(customer_id: int = 0) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
             [_button("🚀 JOIN IBETIN", "home", customer_id)],
-            [_button("🏏 WATCH IBETIN LIVE LINE", "liveline", customer_id)],
+            [_button("🏏 OPEN IBETIN LIVE LINE", "liveline", customer_id)],
             [
                 TelegramInlineKeyboardButton(
                     "📢 JOIN CHANNEL",
@@ -383,7 +398,7 @@ def classify_business_dm(text: str, customer_id: int = 0):
             "liveline",
             "🏏 <b>IBETIN Live Line</b>\n\nOpen IBETIN Live Line below.",
             InlineKeyboardMarkup(
-                [[_button("🏏 WATCH IBETIN LIVE LINE", "liveline", customer_id)]]
+                [[_button("🏏 OPEN IBETIN LIVE LINE", "liveline", customer_id)]]
             ),
         )
 
@@ -559,6 +574,19 @@ async def business_verification_guard(
 
     ibetin_leads.record_start(customer_id, source="business_dm")
 
+    if _is_stop_text(message.text or ""):
+        import fantzo_reminders as reminders
+        ibetin_leads.set_status(customer_id, "dnc")
+        reminders.set_opt_out("business_dm", customer_id, True)
+        reminders.set_opt_out("bot", customer_id, True)
+        await _reply_with_retry(
+            message,
+            "✅ <b>Contact preference updated.</b>\n\n"
+            "Promotional follow-up is stopped. You can still use official support anytime.",
+            None,
+        )
+        raise ApplicationHandlerStop
+
     if phone_verify.is_verified(customer_id):
         return
 
@@ -647,15 +675,7 @@ async def business_auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
 
     normalized = " ".join(text.casefold().split())
-    if normalized in {
-        "stop",
-        "unsubscribe",
-        "do not contact",
-        "dont contact",
-        "don't contact",
-        "no calls",
-        "no whatsapp",
-    }:
+    if _is_stop_text(normalized):
         import fantzo_reminders as reminders
 
         ibetin_leads.set_status(customer_id, "dnc")

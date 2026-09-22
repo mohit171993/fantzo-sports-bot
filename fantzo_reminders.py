@@ -46,6 +46,8 @@ SPORTS_BOT_URL = os.getenv("IBETIN_SPORTS_BOT_URL", IBETIN_HOME_URL).strip()
 CHANNEL_AUTOPOST_ENABLED = os.getenv("IBETIN_CHANNEL_AUTOPOST_ENABLED", "false").strip().lower() in {"1", "true", "yes", "on"}
 CHANNEL_AUTOPOST_HOUR = max(0, min(23, int(os.getenv("IBETIN_CHANNEL_AUTOPOST_HOUR", "10"))))
 CHANNEL_AUTOPOST_MINUTE = max(0, min(59, int(os.getenv("IBETIN_CHANNEL_AUTOPOST_MINUTE", "0"))))
+CHANNEL_RETRY_MINUTES = max(5, int(os.getenv("IBETIN_CHANNEL_RETRY_MINUTES", "15")))
+CHANNEL_CATCHUP_HOURS = max(1, int(os.getenv("IBETIN_CHANNEL_CATCHUP_HOURS", "6")))
 IBETIN_CHANNEL_CHAT_ID = "@ibetinoffcial"
 
 
@@ -168,8 +170,34 @@ def automation_status() -> dict:
         second=0,
         microsecond=0,
     )
+    today_key = _daily_channel_campaign_key(now)
+    today_row = None
+    with core.db() as conn:
+        today_row = conn.execute(
+            "SELECT sent_at, status FROM channel_campaigns WHERE campaign_key=?",
+            (today_key,),
+        ).fetchone()
     if target <= now:
-        target += timedelta(days=1)
+        if (
+            (not today_row or str(today_row["status"]) != "sent")
+            and now <= target + timedelta(hours=CHANNEL_CATCHUP_HOURS)
+        ):
+            if today_row and today_row["sent_at"]:
+                last_attempt = _parse_dt(str(today_row["sent_at"]))
+                if last_attempt:
+                    if last_attempt.tzinfo is None:
+                        last_attempt = last_attempt.replace(tzinfo=timezone.utc)
+                    target = max(
+                        now,
+                        last_attempt.astimezone(APP_TZ)
+                        + timedelta(minutes=CHANNEL_RETRY_MINUTES),
+                    )
+                else:
+                    target = now
+            else:
+                target = now
+        else:
+            target += timedelta(days=1)
     return {
         "reminders_enabled": reminders_enabled(),
         "channel_enabled": channel_autopost_enabled(),
@@ -238,11 +266,22 @@ def touch_user(source: str, user_id: int, category: str = "general", business_co
 
 
 def set_opt_out(source: str, user_id: int, opted_out: bool = True) -> None:
+    if not user_id:
+        return
     ensure_tables()
+    now = _now_iso()
     with core.db() as conn:
         conn.execute(
-            "UPDATE reminder_users SET opted_out = ?, updated_at = ? WHERE source = ? AND user_id = ?",
-            (1 if opted_out else 0, _now_iso(), source, user_id),
+            """
+            INSERT INTO reminder_users(
+                source, user_id, business_connection_id, interest, last_activity,
+                last_reminder, reminder_stage, opted_out, updated_at
+            ) VALUES (?, ?, '', 'general', ?, NULL, 0, ?, ?)
+            ON CONFLICT(source, user_id) DO UPDATE SET
+                opted_out = excluded.opted_out,
+                updated_at = excluded.updated_at
+            """,
+            (source, int(user_id), now, 1 if opted_out else 0, now),
         )
 
 
@@ -514,7 +553,7 @@ async def run_due_reminders(application) -> None:
             break
 
         # Unverified main-bot users receive verification-only reminders on
-        # the existing bot cadence (24h, 3d, 7d). They never receive normal
+        # the verification cadence (45m, 6h, 24h). They never receive normal
         # sports/promotional reminders before completing verification.
         if not phone_verify.is_verified(int(row["user_id"])):
             if str(row["source"]) != "bot":
@@ -532,7 +571,7 @@ async def run_due_reminders(application) -> None:
                 exists = conn.execute(
                     "SELECT 1 FROM reminder_sends "
                     "WHERE source = ? AND user_id = ? AND campaign_key = ? "
-                    "AND status = 'sent'",
+                    "AND status IN ('sent','bad_request','blocked')",
                     (row["source"], row["user_id"], campaign_key),
                 ).fetchone()
             if exists:
@@ -594,7 +633,7 @@ async def run_due_reminders(application) -> None:
         campaign_key = _campaign_key(row, stage)
         with core.db() as conn:
             exists = conn.execute(
-                "SELECT 1 FROM reminder_sends WHERE source = ? AND user_id = ? AND campaign_key = ? AND status = 'sent'",
+                "SELECT 1 FROM reminder_sends WHERE source = ? AND user_id = ? AND campaign_key = ? AND status IN ('sent','bad_request','blocked')",
                 (row["source"], row["user_id"], campaign_key),
             ).fetchone()
         if exists:
@@ -748,14 +787,42 @@ async def channel_autopost_loop(application) -> None:
             continue
 
         now = datetime.now(APP_TZ)
-        target = now.replace(
+        today_target = now.replace(
             hour=CHANNEL_AUTOPOST_HOUR,
             minute=CHANNEL_AUTOPOST_MINUTE,
             second=0,
             microsecond=0,
         )
-        if target <= now:
-            target += timedelta(days=1)
+        campaign_key = _daily_channel_campaign_key(now)
+
+        with core.db() as conn:
+            row = conn.execute(
+                "SELECT sent_at, status FROM channel_campaigns WHERE campaign_key=?",
+                (campaign_key,),
+            ).fetchone()
+
+        already_sent = bool(row and str(row["status"]) == "sent")
+        catchup_deadline = today_target + timedelta(hours=CHANNEL_CATCHUP_HOURS)
+
+        # Before today's slot, simply wait for it.
+        if now < today_target:
+            target = today_target
+        # After a successful send, next due is tomorrow.
+        elif already_sent:
+            target = today_target + timedelta(days=1)
+        # If today's post is due and still inside the catch-up window, retry
+        # failed attempts no more often than CHANNEL_RETRY_MINUTES.
+        elif now <= catchup_deadline:
+            last_attempt = _parse_dt(str(row["sent_at"])) if row and row["sent_at"] else None
+            if last_attempt:
+                if last_attempt.tzinfo is None:
+                    last_attempt = last_attempt.replace(tzinfo=timezone.utc)
+                retry_at = last_attempt.astimezone(APP_TZ) + timedelta(minutes=CHANNEL_RETRY_MINUTES)
+            else:
+                retry_at = today_target
+            target = max(now, retry_at)
+        else:
+            target = today_target + timedelta(days=1)
 
         target_key = target.isoformat()
         if target_key != last_logged_target:
@@ -766,21 +833,29 @@ async def channel_autopost_loop(application) -> None:
             )
             last_logged_target = target_key
 
-        wait_seconds = max(1.0, (target - now).total_seconds())
+        wait_seconds = max(0.0, (target - now).total_seconds())
         if wait_seconds > 60:
             await asyncio.sleep(60)
             continue
+        if wait_seconds > 0:
+            await asyncio.sleep(wait_seconds)
 
-        await asyncio.sleep(wait_seconds)
-        if not channel_autopost_enabled():
-            continue
-        try:
-            await send_liveline_channel_daily(application, datetime.now(APP_TZ))
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            logger.exception("IBETIN daily channel autopost loop error")
-        await asyncio.sleep(65)
+        current = datetime.now(APP_TZ)
+        if (
+            current.date() == today_target.date()
+            and current >= today_target
+            and current <= catchup_deadline
+            and channel_autopost_enabled()
+        ):
+            try:
+                await send_liveline_channel_daily(application, current)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception("IBETIN daily channel autopost loop error")
+            await asyncio.sleep(65)
+        else:
+            await asyncio.sleep(30)
 
 
 

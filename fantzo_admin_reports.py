@@ -1796,22 +1796,23 @@ async def _handle_report_callback(update, context) -> bool:
         if action == "queue":
             queue = parts[2] if len(parts) > 2 else "all"
             await query.answer()
-            ids = crm_ops.queue_user_ids(queue, CRM_BATCH_SIZE)
-            await _show(
-                query,
-                _ops_queue_intro(queue, len(ids)),
-                InlineKeyboardMarkup([
-                    [InlineKeyboardButton("🔄 REFRESH", callback_data=f"ops:queue:{queue}")],
-                    [InlineKeyboardButton("⬅️ DASHBOARD", callback_data="ops:home")],
-                ]),
-            )
-            for uid in ids:
-                await query.message.reply_text(
-                    _ops_lead_card(uid),
-                    parse_mode="HTML",
-                    reply_markup=_ops_lead_keyboard(uid),
-                    disable_web_page_preview=True,
-                )
+            text, markup = _ops_queue_page(queue, 0)
+            await _show(query, text, markup)
+            return True
+
+        if action == "qpage":
+            queue = parts[2] if len(parts) > 2 else "all"
+            try:
+                index = int(parts[3]) if len(parts) > 3 else 0
+            except Exception:
+                index = 0
+            await query.answer()
+            text, markup = _ops_queue_page(queue, index)
+            await _show(query, text, markup)
+            return True
+
+        if action == "noop":
+            await query.answer()
             return True
 
         if action == "saved":

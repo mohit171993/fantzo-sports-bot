@@ -1720,6 +1720,7 @@ def _all_reports_zip() -> tuple[str, bytes]:
         "19_live_tv_banner_settings.csv": _table_csv("live_tv_banner_settings"),
         "20_fantzo_lead_history.csv": _table_csv("fantzo_lead_history"),
         "21_reminder_settings.csv": _table_csv("reminder_settings"),
+        "22_fantzo_crm_users.csv": _table_csv("fantzo_crm_users"),
     }
     readme = (
         "FANTZO ADMIN REPORT PACK\n"
@@ -1728,7 +1729,7 @@ def _all_reports_zip() -> tuple[str, bytes]:
         "- Live TV canonical opens: clicks.action = live_tv_status\n"
         "- Mobile verification: Telegram self-contact only; all countries accepted\n"
         "- lead_attribution preserves first paid/referral start source per Telegram user\n"
-        "- sales_leads is deduplicated by verified mobile number and stores sales status\n"
+        "- sales_leads is deduplicated by verified mobile number and stores sales status\n"        "- fantzo_crm_users is the all-time user-ID CRM used by the admin work queue\n"
         "- Business DM verification handoff uses source=business_dm\n"
         "- mobile_verification_events stores verify opens and verification completions\n"
         "- Full mobile numbers are admin-only in live_tv_mobile_users/CSV exports\n"
@@ -2283,6 +2284,7 @@ async def admin_text_handler(update, context) -> None:
 
 def register_handlers(application) -> None:
     crm_ops.ensure_tables()
+    logger.info("Fantzo all-time CRM audit counts=%s", crm_ops.dashboard_counts())
     application.add_handler(CommandHandler("reports", reports_command))
     application.add_handler(CommandHandler("crm", crm_command))
     application.add_handler(

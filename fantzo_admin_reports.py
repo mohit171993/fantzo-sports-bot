@@ -1545,10 +1545,14 @@ def _report_csv(key: str) -> tuple[str, bytes]:
             "WHERE c.action='live_tv_status' ORDER BY c.created_at DESC"
         )
     if key == "leads":
+        crm_ops.ensure_tables()
         return f"fantzo_lead_funnel_{stamp}.csv", _query_csv(
             "SELECT s.mobile_e164,s.primary_user_id,u.username,u.first_name,"
-            "s.campaign,s.status,s.assigned_agent,s.notes,s.contact_permission_at,"
-            "s.created_at,s.updated_at,s.last_contact_at,s.converted_at,"
+            "s.campaign,s.status,s.assigned_to,s.assigned_agent,"
+            "s.next_followup_at,s.last_note,s.notes,s.contact_permission_at,"
+            "s.created_at,s.updated_at,s.last_contact_at,s.contacted_at,"
+            "s.no_answer_at,s.interested_at,s.converted_at,s.dnc_at,"
+            "s.updated_by,s.updated_by_name,"
             "(SELECT COUNT(*) FROM lead_user_map lm WHERE lm.mobile_e164=s.mobile_e164) AS telegram_accounts "
             "FROM sales_leads s LEFT JOIN users u ON u.user_id=s.primary_user_id "
             "ORDER BY s.created_at DESC"
@@ -1605,6 +1609,8 @@ def _all_reports_zip() -> tuple[str, bytes]:
         "17_daily_activity.csv": _daily_csv(),
         "18_live_tv_banners.csv": _table_csv("live_tv_banners"),
         "19_live_tv_banner_settings.csv": _table_csv("live_tv_banner_settings"),
+        "20_fantzo_lead_history.csv": _table_csv("fantzo_lead_history"),
+        "21_reminder_settings.csv": _table_csv("reminder_settings"),
     }
     readme = (
         "FANTZO ADMIN REPORT PACK\n"

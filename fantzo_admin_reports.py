@@ -294,33 +294,60 @@ def _ops_lead_card(user_id: int) -> str:
     return "\n".join(lines)
 
 
-def _ops_lead_keyboard(user_id: int) -> InlineKeyboardMarkup:
+def _ops_lead_keyboard(
+    user_id: int,
+    queue: str = "",
+    index: int = 0,
+    total: int = 0,
+) -> InlineKeyboardMarkup:
+    """Lead actions plus optional one-at-a-time queue navigation."""
     lead = crm_ops.get_lead(user_id) or {}
     digits = re.sub(r"\D", "", str(lead.get("mobile_e164") or ""))[:15]
     status = str(lead.get("status") or "NEW").upper()
 
+    suffix = f":{queue}:{int(index)}" if queue else ""
+
     rows = [
         [
-            InlineKeyboardButton("🙋 ASSIGN TO ME", callback_data=f"ops:assign:{user_id}"),
-            InlineKeyboardButton("📝 NOTE", callback_data=f"ops:note:{user_id}"),
+            InlineKeyboardButton("🙋 ASSIGN TO ME", callback_data=f"ops:assign:{user_id}{suffix}"),
+            InlineKeyboardButton("📝 NOTE", callback_data=f"ops:note:{user_id}{suffix}"),
         ],
         [
-            InlineKeyboardButton("⏰ FOLLOW-UP", callback_data=f"ops:followup:{user_id}"),
-            InlineKeyboardButton("🕘 HISTORY", callback_data=f"ops:history:{user_id}"),
+            InlineKeyboardButton("⏰ FOLLOW-UP", callback_data=f"ops:followup:{user_id}{suffix}"),
+            InlineKeyboardButton("🕘 HISTORY", callback_data=f"ops:history:{user_id}{suffix}"),
         ],
         [
-            InlineKeyboardButton("📞 CONTACTED", callback_data=f"ops:set:{user_id}:CONTACTED"),
-            InlineKeyboardButton("⭐ INTERESTED", callback_data=f"ops:set:{user_id}:INTERESTED"),
+            InlineKeyboardButton(
+                "📞 CONTACTED",
+                callback_data=f"ops:set:{user_id}:CONTACTED{suffix}",
+            ),
+            InlineKeyboardButton(
+                "⭐ INTERESTED",
+                callback_data=f"ops:set:{user_id}:INTERESTED{suffix}",
+            ),
         ],
         [
-            InlineKeyboardButton("✅ CONVERTED", callback_data=f"ops:set:{user_id}:CONVERTED"),
-            InlineKeyboardButton("📵 NO ANSWER", callback_data=f"ops:set:{user_id}:NO_ANSWER"),
+            InlineKeyboardButton(
+                "✅ CONVERTED",
+                callback_data=f"ops:set:{user_id}:CONVERTED{suffix}",
+            ),
+            InlineKeyboardButton(
+                "📵 NO ANSWER",
+                callback_data=f"ops:set:{user_id}:NO_ANSWER{suffix}",
+            ),
         ],
         [
-            InlineKeyboardButton("🚫 DNC", callback_data=f"ops:set:{user_id}:DO_NOT_CONTACT"),
-            InlineKeyboardButton("↩️ NEW", callback_data=f"ops:set:{user_id}:NEW"),
+            InlineKeyboardButton(
+                "🚫 DNC",
+                callback_data=f"ops:set:{user_id}:DO_NOT_CONTACT{suffix}",
+            ),
+            InlineKeyboardButton(
+                "↩️ NEW",
+                callback_data=f"ops:set:{user_id}:NEW{suffix}",
+            ),
         ],
     ]
+
     if digits and status != "DO_NOT_CONTACT":
         rows.append([
             InlineKeyboardButton(
@@ -329,8 +356,92 @@ def _ops_lead_keyboard(user_id: int) -> InlineKeyboardMarkup:
                 api_kwargs={"style": "success"},
             )
         ])
-    rows.append([InlineKeyboardButton("⬅️ DASHBOARD", callback_data="ops:home")])
+
+    if queue and total > 0:
+        nav = []
+        if index > 0:
+            nav.append(
+                InlineKeyboardButton(
+                    "⬅️ PREV",
+                    callback_data=f"ops:qpage:{queue}:{index - 1}",
+                )
+            )
+        nav.append(
+            InlineKeyboardButton(
+                f"{index + 1} / {total}",
+                callback_data="ops:noop",
+            )
+        )
+        if index < total - 1:
+            nav.append(
+                InlineKeyboardButton(
+                    "NEXT ➡️",
+                    callback_data=f"ops:qpage:{queue}:{index + 1}",
+                )
+            )
+        rows.append(nav)
+        rows.append([
+            InlineKeyboardButton(
+                f"⬅️ {_ops_queue_title(queue)}",
+                callback_data=f"ops:qpage:{queue}:0",
+            )
+        ])
+
+    rows.append([InlineKeyboardButton("🏠 DASHBOARD", callback_data="ops:home")])
     return InlineKeyboardMarkup(rows)
+
+
+def _ops_queue_page(queue: str, index: int = 0) -> tuple[str, InlineKeyboardMarkup]:
+    """Render exactly one lead from a queue, like a paged CRM work screen."""
+    total = crm_ops.queue_count(queue)
+
+    if total <= 0:
+        return (
+            f"{_ops_queue_title(queue)}\n"
+            "━━━━━━━━━━━━━━━━━━\n\n"
+            "✅ No contactable leads in this queue right now.",
+            InlineKeyboardMarkup([
+                [InlineKeyboardButton("⬅️ DASHBOARD", callback_data="ops:home")]
+            ]),
+        )
+
+    safe_index = max(0, min(int(index), total - 1))
+    uid = crm_ops.queue_user_id_at(queue, safe_index)
+    if not uid:
+        return (
+            f"{_ops_queue_title(queue)}\n\n⚠️ Could not load this lead.",
+            InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔄 REFRESH", callback_data=f"ops:qpage:{queue}:0")],
+                [InlineKeyboardButton("⬅️ DASHBOARD", callback_data="ops:home")],
+            ]),
+        )
+
+    header = (
+        f"{_ops_queue_title(queue)}\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        f"<b>Lead {safe_index + 1} of {total}</b>\n\n"
+    )
+
+    note = ""
+    if queue == "new":
+        with core.db() as conn:
+            users = _scalar(conn, "SELECT COUNT(*) FROM users") if _table_exists(conn, "users") else 0
+            verified = _scalar(
+                conn,
+                "SELECT COUNT(*) FROM live_tv_mobile_users "
+                "WHERE capture_method='telegram_contact'"
+            ) if _table_exists(conn, "live_tv_mobile_users") else 0
+        pending = max(int(users) - int(verified), 0)
+        if pending:
+            note = (
+                f"\n\n⚠️ <b>{_fmt_int(pending)}</b> additional user(s) are still "
+                "unverified and are not contactable yet."
+            )
+
+    return (
+        header + _ops_lead_card(uid) + note,
+        _ops_lead_keyboard(uid, queue, safe_index, total),
+    )
 
 
 def _ops_queue_title(queue: str) -> str:

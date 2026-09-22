@@ -1938,11 +1938,20 @@ async def _handle_report_callback(update, context) -> bool:
                 await query.answer("Invalid lead.", show_alert=True)
                 return True
             uid = int(parts[2])
+            queue = parts[3] if len(parts) > 4 else ""
+            try:
+                index = int(parts[4]) if queue else 0
+            except Exception:
+                index = 0
             actor_id, actor_name = _actor(update)
             ok = crm_ops.assign_lead(uid, actor_id, actor_name)
             await query.answer("Assigned to you ✅" if ok else "Could not assign lead.", show_alert=not ok)
             if ok:
-                await _show(query, _ops_lead_card(uid), _ops_lead_keyboard(uid))
+                if queue:
+                    text, markup = _ops_queue_page(queue, index)
+                    await _show(query, text, markup)
+                else:
+                    await _show(query, _ops_lead_card(uid), _ops_lead_keyboard(uid))
             return True
 
         if action == "note":
@@ -1950,7 +1959,14 @@ async def _handle_report_callback(update, context) -> bool:
                 await query.answer("Invalid lead.", show_alert=True)
                 return True
             uid = int(parts[2])
+            queue = parts[3] if len(parts) > 4 else ""
+            try:
+                index = int(parts[4]) if queue else 0
+            except Exception:
+                index = 0
             context.user_data["fantzo_admin_note_user"] = uid
+            context.user_data["fantzo_admin_note_queue"] = queue
+            context.user_data["fantzo_admin_note_index"] = index
             await query.answer()
             await query.message.reply_text(
                 "📝 <b>ADD LEAD NOTE</b>\n\n"
@@ -1964,11 +1980,16 @@ async def _handle_report_callback(update, context) -> bool:
                 await query.answer("Invalid lead.", show_alert=True)
                 return True
             uid = int(parts[2])
+            queue = parts[3] if len(parts) > 4 else ""
+            try:
+                index = int(parts[4]) if queue else 0
+            except Exception:
+                index = 0
             await query.answer()
             await _show(
                 query,
                 "⏰ <b>SET FOLLOW-UP</b>\n\nChoose when this lead should become due.",
-                _followup_menu(uid),
+                _followup_menu(uid, queue, index),
             )
             return True
 
@@ -1978,12 +1999,21 @@ async def _handle_report_callback(update, context) -> bool:
                 return True
             uid = int(parts[2])
             option = parts[3]
+            queue = parts[4] if len(parts) > 5 else ""
+            try:
+                index = int(parts[5]) if queue else 0
+            except Exception:
+                index = 0
             actor_id, actor_name = _actor(update)
             value = "" if option == "clear" else _followup_iso(option)
             ok = crm_ops.set_followup(uid, value, actor_id, actor_name)
             await query.answer("Follow-up updated ✅" if ok else "Could not update follow-up.", show_alert=not ok)
             if ok:
-                await _show(query, _ops_lead_card(uid), _ops_lead_keyboard(uid))
+                if queue:
+                    text, markup = _ops_queue_page(queue, index)
+                    await _show(query, text, markup)
+                else:
+                    await _show(query, _ops_lead_card(uid), _ops_lead_keyboard(uid))
             return True
 
         if action == "history":
@@ -1991,12 +2021,18 @@ async def _handle_report_callback(update, context) -> bool:
                 await query.answer("Invalid lead.", show_alert=True)
                 return True
             uid = int(parts[2])
+            queue = parts[3] if len(parts) > 4 else ""
+            try:
+                index = int(parts[4]) if queue else 0
+            except Exception:
+                index = 0
+            back = f"ops:qpage:{queue}:{index}" if queue else f"ops:lead:{uid}"
             await query.answer()
             await _show(
                 query,
                 _history_text(uid),
                 InlineKeyboardMarkup([
-                    [InlineKeyboardButton("⬅️ LEAD", callback_data=f"ops:lead:{uid}")],
+                    [InlineKeyboardButton("⬅️ LEAD", callback_data=back)],
                     [InlineKeyboardButton("🏠 DASHBOARD", callback_data="ops:home")],
                 ]),
             )
@@ -2008,11 +2044,20 @@ async def _handle_report_callback(update, context) -> bool:
                 return True
             uid = int(parts[2])
             status = parts[3]
+            queue = parts[4] if len(parts) > 5 else ""
+            try:
+                index = int(parts[5]) if queue else 0
+            except Exception:
+                index = 0
             actor_id, actor_name = _actor(update)
             ok = crm_ops.set_status(uid, status, actor_id, actor_name)
             await query.answer("Lead status updated ✅" if ok else "Could not update lead.", show_alert=not ok)
             if ok:
-                await _show(query, _ops_lead_card(uid), _ops_lead_keyboard(uid))
+                if queue:
+                    text, markup = _ops_queue_page(queue, index)
+                    await _show(query, text, markup)
+                else:
+                    await _show(query, _ops_lead_card(uid), _ops_lead_keyboard(uid))
             return True
 
         await query.answer("Unknown dashboard action.", show_alert=True)

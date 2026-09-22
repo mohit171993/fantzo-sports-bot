@@ -304,7 +304,7 @@ def classify_business_dm(text: str):
     return (
         "general",
         "👋 <b>How can I help?</b>\n\n"
-        "You can message me about sports, getting started, account access, payments or support.\n\n"
+        "You can message me about sports, getting started, account access or support.\n\n"
         f"{RESPONSIBLE_NOTE}",
         _funnel_buttons("business_general"),
     )

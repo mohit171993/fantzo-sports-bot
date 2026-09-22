@@ -1,12 +1,22 @@
 import asyncio
 import logging
 import os
+import re
+from html import unescape
 from datetime import datetime, timezone
 from io import BytesIO
 from zoneinfo import ZoneInfo
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, InputFile, Update
-from telegram.ext import CommandHandler, ContextTypes, MessageHandler, filters
+from telegram.error import BadRequest
+from telegram.ext import (
+    ApplicationHandlerStop,
+    CallbackQueryHandler,
+    CommandHandler,
+    ContextTypes,
+    MessageHandler,
+    filters,
+)
 
 import bot as core
 
@@ -96,41 +106,186 @@ def clear_queue():
     ensure_tables()
     with core.db() as conn: conn.execute("DELETE FROM live_tv_banners WHERE status='queued'")
 
+def _admin_text() -> str:
+    paused = is_paused()
+    queued = queue_count()
+    schedule = schedule_text()
+    next_state = (
+        f"Next auto post: <b>{schedule}</b>"
+        if queued and not paused
+        else "Next auto post: <b>PAUSED</b>"
+        if paused
+        else "Next auto post: <b>NO QUEUED BANNER</b>"
+    )
+    return (
+        "📺 <b>LIVE TV BANNER QUEUE</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
+        f"Queued: <b>{queued}</b>\n"
+        f"Status: <b>{'PAUSED' if paused else 'ACTIVE'}</b>\n"
+        f"{next_state}\n\n"
+        "Use <b>UPLOAD BANNERS</b> before sending channel images so normal "
+        "Fantzo home-banner uploads are not intercepted."
+    )
+
+
 def admin_keyboard():
-    paused = _setting("paused", "0") == "1"
-    return InlineKeyboardMarkup([[InlineKeyboardButton("▶ Resume" if paused else "⏸ Pause", callback_data="banner_toggle")],[InlineKeyboardButton("📤 Upload banners", callback_data="banner_upload_help")]])
+    paused = is_paused()
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton(
+                "▶ RESUME" if paused else "⏸ PAUSE",
+                callback_data="banner_toggle",
+            ),
+            InlineKeyboardButton("📤 POST NOW", callback_data="banner_postnow"),
+        ],
+        [
+            InlineKeyboardButton("🖼 UPLOAD BANNERS", callback_data="banner_upload_help"),
+            InlineKeyboardButton("✅ DONE UPLOADING", callback_data="banner_done"),
+        ],
+        [InlineKeyboardButton("🔄 REFRESH", callback_data="banner_refresh")],
+    ])
+
 
 async def banner_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.effective_user or update.effective_user.id != core.ADMIN_USER_ID: return
-    paused = _setting("paused", "0") == "1"
-    await update.effective_message.reply_text("📺 <b>LIVE TV BANNER QUEUE</b>\n━━━━━━━━━━━━━━━━━━\n\n" f"Queued: <b>{queue_count()}</b>\nStatus: <b>{'PAUSED' if paused else 'ACTIVE'}</b>\n" f"Auto post: <b>{POST_HOUR_DUBAI:02d}:{POST_MINUTE_DUBAI:02d} Dubai / 19:00 IST</b>\n\n" "Bulk upload: send multiple banner images as photos OR PNG/JPG/WebP files. Each image is added automatically.\n\n" "Commands:\n/bannerpostnow - post next banner now\n/bannerpause - pause automatic posting\n/bannerresume - resume automatic posting\n/bannerclear - clear unposted queue", parse_mode="HTML", reply_markup=admin_keyboard())
+    if not update.effective_user or update.effective_user.id != core.ADMIN_USER_ID:
+        return
+    await update.effective_message.reply_text(
+        _admin_text(),
+        parse_mode="HTML",
+        reply_markup=admin_keyboard(),
+    )
+
+
+async def begin_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.effective_user or update.effective_user.id != core.ADMIN_USER_ID:
+        return
+    context.user_data["fantzo_banner_queue_upload"] = True
+    await update.effective_message.reply_text(
+        "🖼 <b>CHANNEL BANNER UPLOAD MODE ON</b>\n\n"
+        "Send photos or PNG/JPG/WebP files now. Each image will be added to "
+        "the channel queue. Use /bannerdone when finished.",
+        parse_mode="HTML",
+    )
+
+
+async def done_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.effective_user or update.effective_user.id != core.ADMIN_USER_ID:
+        return
+    context.user_data["fantzo_banner_queue_upload"] = False
+    await update.effective_message.reply_text(
+        f"✅ Channel upload mode OFF. Queue: {queue_count()}"
+    )
+
+
+async def banner_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user = update.effective_user
+    if not query or not user or int(user.id) != int(core.ADMIN_USER_ID):
+        if query:
+            await query.answer("Restricted", show_alert=True)
+        raise ApplicationHandlerStop
+
+    data = str(query.data or "")
+    await query.answer()
+
+    if data == "banner_toggle":
+        set_paused(not is_paused())
+    elif data == "banner_upload_help":
+        context.user_data["fantzo_banner_queue_upload"] = True
+        await query.message.reply_text(
+            "🖼 <b>CHANNEL BANNER UPLOAD MODE ON</b>\n\n"
+            "Send photos or PNG/JPG/WebP files now. Each image is queued. "
+            "Tap DONE UPLOADING when finished.",
+            parse_mode="HTML",
+        )
+    elif data == "banner_done":
+        context.user_data["fantzo_banner_queue_upload"] = False
+    elif data == "banner_postnow":
+        posted = await _post_next(context.bot)
+        if posted:
+            _set_setting("last_post_date", datetime.now(APP_TZ).date().isoformat())
+            await query.message.reply_text("✅ Next channel banner posted.")
+        else:
+            await query.message.reply_text("ℹ️ Banner queue is empty.")
+
+    try:
+        await query.edit_message_text(
+            _admin_text(),
+            parse_mode="HTML",
+            reply_markup=admin_keyboard(),
+        )
+    except BadRequest as exc:
+        if "message is not modified" not in str(exc).lower():
+            raise
+    raise ApplicationHandlerStop
 
 async def receive_banner(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.effective_user or update.effective_user.id != core.ADMIN_USER_ID: return
+    if not update.effective_user or update.effective_user.id != core.ADMIN_USER_ID:
+        return
+    if not context.user_data.get("fantzo_banner_queue_upload"):
+        return
     message = update.effective_message
-    if not message: return
-    file_id = None; media_type = None
+    if not message:
+        return
+    file_id = None
+    media_type = None
     if message.photo:
-        file_id = message.photo[-1].file_id; media_type = "photo"
+        file_id = message.photo[-1].file_id
+        media_type = "photo"
     elif message.document:
-        mime = (message.document.mime_type or "").lower(); name = (message.document.file_name or "").lower()
+        mime = (message.document.mime_type or "").lower()
+        name = (message.document.file_name or "").lower()
         if mime.startswith("image/") or name.endswith((".png", ".jpg", ".jpeg", ".webp")):
-            file_id = message.document.file_id; media_type = "document"
-    if not file_id: return
+            file_id = message.document.file_id
+            media_type = "document"
+    if not file_id:
+        return
     add_banner(file_id, (message.caption or "").strip(), media_type)
-    await message.reply_text(f"✅ Banner added to Live TV queue. Queue: {queue_count()}")
+    await message.reply_text(
+        f"✅ Channel banner queued. Queue: {queue_count()}\n"
+        "Send the next image or tap DONE UPLOADING."
+    )
+    raise ApplicationHandlerStop
 
 async def send_banner(bot, chat_id, row, caption_prefix=""):
     caption = caption_prefix + (str(row["caption"] or "").strip() or DEFAULT_CAPTION)
-    markup = InlineKeyboardMarkup([[InlineKeyboardButton("📺 WATCH LIVE TV", url="https://t.me/fantzoofficialbot?start=livetv_banner")]])
+    markup = InlineKeyboardMarkup([[
+        InlineKeyboardButton(
+            "📺 WATCH LIVE TV",
+            url="https://t.me/fantzoofficialbot?start=livetv_banner",
+        )
+    ]])
     file_id = str(row["file_id"])
-    if str(row["media_type"] or "document") == "photo":
-        await bot.send_photo(chat_id=chat_id, photo=file_id, caption=caption, parse_mode="HTML", reply_markup=markup)
-        return
-    tg_file = await bot.get_file(file_id)
-    data = await tg_file.download_as_bytearray()
-    photo = InputFile(BytesIO(bytes(data)), filename="fantzo-live-tv.png")
-    await bot.send_photo(chat_id=chat_id, photo=photo, caption=caption, parse_mode="HTML", reply_markup=markup)
+
+    async def _send(caption_value: str, parse_mode):
+        if str(row["media_type"] or "document") == "photo":
+            return await bot.send_photo(
+                chat_id=chat_id,
+                photo=file_id,
+                caption=caption_value,
+                parse_mode=parse_mode,
+                reply_markup=markup,
+            )
+        tg_file = await bot.get_file(file_id)
+        data = await tg_file.download_as_bytearray()
+        photo = InputFile(BytesIO(bytes(data)), filename="fantzo-live-tv.png")
+        return await bot.send_photo(
+            chat_id=chat_id,
+            photo=photo,
+            caption=caption_value,
+            parse_mode=parse_mode,
+            reply_markup=markup,
+        )
+
+    try:
+        await _send(caption, "HTML")
+    except BadRequest as exc:
+        message = str(exc).lower()
+        if "parse" not in message and "entity" not in message:
+            raise
+        plain = unescape(re.sub(r"<[^>]*>", "", caption)).strip()
+        logger.warning("Fantzo channel caption HTML invalid; retrying as plain text")
+        await _send(plain[:1000], None)
 
 async def _post_next(bot):
     row = next_banner()
@@ -141,12 +296,22 @@ async def _post_next(bot):
     return True
 
 async def post_now(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.effective_user or update.effective_user.id != core.ADMIN_USER_ID: return
+    if not update.effective_user or update.effective_user.id != core.ADMIN_USER_ID:
+        return
     try:
         posted = await _post_next(context.bot)
-        await update.effective_message.reply_text("✅ Next Live TV banner posted." if posted else "ℹ️ Banner queue is empty.")
-    except Exception as exc:
-        logger.exception("Manual banner post failed"); await update.effective_message.reply_text(f"⚠️ Banner post failed: {exc}")
+        if posted:
+            _set_setting("last_post_date", datetime.now(APP_TZ).date().isoformat())
+        await update.effective_message.reply_text(
+            "✅ Next channel banner posted."
+            if posted else
+            "ℹ️ Banner queue is empty."
+        )
+    except Exception:
+        logger.exception("Manual banner post failed")
+        await update.effective_message.reply_text(
+            "⚠️ Banner post failed. Check the channel/admin logs."
+        )
 
 async def pause(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user and update.effective_user.id == core.ADMIN_USER_ID:
@@ -177,9 +342,32 @@ async def _start_scheduler_when_running(application):
 
 def install(application):
     ensure_tables()
-    application.add_handler(CommandHandler("banners", banner_admin)); application.add_handler(CommandHandler("bannerpostnow", post_now)); application.add_handler(CommandHandler("bannerpause", pause)); application.add_handler(CommandHandler("bannerresume", resume)); application.add_handler(CommandHandler("bannerclear", clear))
-    image_uploads = filters.PHOTO | filters.Document.IMAGE | filters.Document.FileExtension("png") | filters.Document.FileExtension("jpg") | filters.Document.FileExtension("jpeg") | filters.Document.FileExtension("webp")
-    application.add_handler(MessageHandler(image_uploads & filters.User(user_id=core.ADMIN_USER_ID), receive_banner))
+    application.add_handler(CommandHandler("banners", banner_admin))
+    application.add_handler(CommandHandler("bannerupload", begin_upload))
+    application.add_handler(CommandHandler("bannerdone", done_upload))
+    application.add_handler(CommandHandler("bannerpostnow", post_now))
+    application.add_handler(CommandHandler("bannerpause", pause))
+    application.add_handler(CommandHandler("bannerresume", resume))
+    application.add_handler(CommandHandler("bannerclear", clear))
+    application.add_handler(
+        CallbackQueryHandler(banner_callback, pattern=r"^banner_"),
+        group=-7,
+    )
+    image_uploads = (
+        filters.PHOTO
+        | filters.Document.IMAGE
+        | filters.Document.FileExtension("png")
+        | filters.Document.FileExtension("jpg")
+        | filters.Document.FileExtension("jpeg")
+        | filters.Document.FileExtension("webp")
+    )
+    application.add_handler(
+        MessageHandler(
+            image_uploads & filters.User(user_id=core.ADMIN_USER_ID),
+            receive_banner,
+        ),
+        group=-6,
+    )
     asyncio.create_task(
         _start_scheduler_when_running(application),
         name="fantzo-banner-scheduler-starter",

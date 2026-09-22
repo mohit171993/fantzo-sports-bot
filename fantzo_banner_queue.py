@@ -61,6 +61,18 @@ def _set_setting(key, value):
     with core.db() as conn:
         conn.execute("INSERT INTO live_tv_banner_settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, str(value)))
 
+def is_paused() -> bool:
+    return _setting("paused", "0") == "1"
+
+
+def set_paused(paused: bool) -> None:
+    _set_setting("paused", "1" if paused else "0")
+
+
+def schedule_text() -> str:
+    return f"{POST_HOUR_DUBAI:02d}:{POST_MINUTE_DUBAI:02d} Dubai"
+
+
 def queue_count():
     ensure_tables()
     with core.db() as conn:

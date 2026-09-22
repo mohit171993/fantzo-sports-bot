@@ -545,6 +545,32 @@ def stop_user_contact(user_id: int) -> None:
             """,
             (int(user_id), now),
         )
+        crm_table = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' "
+            "AND name='fantzo_crm_users' LIMIT 1"
+        ).fetchone()
+        if crm_table:
+            conn.execute(
+                """
+                UPDATE fantzo_crm_users
+                SET status='DO_NOT_CONTACT',
+                    dnc_at=COALESCE(dnc_at, ?),
+                    updated_at=?
+                WHERE user_id=?
+                """,
+                (now, now, int(user_id)),
+            )
+
+        pending_table = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' "
+            "AND name='business_verification_pending' LIMIT 1"
+        ).fetchone()
+        if pending_table:
+            conn.execute(
+                "DELETE FROM business_verification_pending WHERE user_id=?",
+                (int(user_id),),
+            )
+
         mapped = conn.execute(
             "SELECT mobile_e164 FROM lead_user_map WHERE user_id=?",
             (int(user_id),),

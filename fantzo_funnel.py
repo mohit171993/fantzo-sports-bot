@@ -30,31 +30,35 @@ def _destination_for_action(action: str) -> str:
 
 
 def funnel_main_keyboard() -> InlineKeyboardMarkup:
+    """Compact Fantzo home inspired by iBetin's clean first screen."""
     rows = [
-        [_fantzo_button("✨ OPEN FANTZO", "home_open_fantzo", "home")],
+        [_fantzo_button("⚡ OPEN FANTZO", "home_open_fantzo", "home")],
     ]
 
     if tracked.LIVE_TV_MODE == "public" and tracked.sky_admin_url():
         rows.append([
             _styled_button(
                 "📺 WATCH LIVE TV",
-                style="primary",
+                style="danger",
                 callback_data="live_tv_status",
             )
         ])
 
     rows.extend([
-        [_styled_button("🔴 LIVE SCORES", style="primary", callback_data="live_now")],
+        [
+            _styled_button("🔴 LIVE SCORES", style="danger", callback_data="live_now"),
+            _styled_button("📅 FIXTURES", style="primary", callback_data="upcoming"),
+        ],
         [
             _styled_button("🏏 CRICKET", style="primary", callback_data="cricket"),
             _styled_button("⚽ FOOTBALL", style="primary", callback_data="football"),
         ],
         [
-            InlineKeyboardButton("📅 FIXTURES", callback_data="upcoming"),
-            InlineKeyboardButton("🔎 FIND TEAM", callback_data="find_team"),
+            InlineKeyboardButton("🏆 RESULTS", callback_data="results"),
+            InlineKeyboardButton("🔔 MATCH ALERTS", callback_data="subscribe"),
         ],
         [
-            InlineKeyboardButton("🔔 ALERTS", callback_data="subscribe"),
+            InlineKeyboardButton("🔎 FIND TEAM", callback_data="find_team"),
             InlineKeyboardButton("⚙️ SETTINGS", callback_data="settings"),
         ],
     ])
@@ -115,14 +119,26 @@ def install() -> None:
     core.TEXT["en"]["welcome"] = (
         "🏟 <b>FANTZO SPORTS</b>\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
-        "<b>Live sports updates, scores & more.</b>\n\n"
-        "Open Fantzo, watch Live TV, or check live scores below."
+        "Quick access without a crowded menu.\n\n"
+        "⚡ Open Fantzo\n"
+        "📺 Live TV\n"
+        "🔴 Live scores\n"
+        "🏏 Cricket   •   ⚽ Football\n"
+        "📅 Fixtures   •   🏆 Results\n"
+        "🔔 Match alerts\n\n"
+        "Choose what you want to open 👇"
     )
     core.TEXT["hi"]["welcome"] = (
         "🏟 <b>FANTZO SPORTS</b>\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
-        "<b>लाइव स्पोर्ट्स अपडेट, स्कोर और बहुत कुछ।</b>\n\n"
-        "Fantzo खोलें, Live TV देखें या नीचे लाइव स्कोर चेक करें।"
+        "कम विकल्प, तेज़ access.\n\n"
+        "⚡ Fantzo खोलें\n"
+        "📺 Live TV\n"
+        "🔴 लाइव स्कोर\n"
+        "🏏 क्रिकेट   •   ⚽ फुटबॉल\n"
+        "📅 फिक्स्चर   •   🏆 रिज़ल्ट\n"
+        "🔔 मैच अलर्ट\n\n"
+        "अपना विकल्प चुनें 👇"
     )
 
     # Keep the sports bot useful, but make Fantzo.com the dominant destination.
@@ -134,4 +150,4 @@ def install() -> None:
     # bot_tracked also holds the active premium main-keyboard reference.
     tracked.premium_main_keyboard = funnel_main_keyboard
 
-    logger.info("Fantzo funnel UI installed: Open Fantzo > Live TV > Live Scores")
+    logger.info("Fantzo compact UI installed: Open Fantzo > Live TV > Live Scores > sports shortcuts")

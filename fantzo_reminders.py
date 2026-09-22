@@ -41,6 +41,17 @@ def ensure_tables() -> None:
         )
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS reminder_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            "INSERT OR IGNORE INTO reminder_settings(key,value) VALUES('paused','0')"
+        )
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS reminder_sends (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 source TEXT NOT NULL,
@@ -52,6 +63,28 @@ def ensure_tables() -> None:
                 UNIQUE(source, user_id, campaign_key)
             )
             """
+        )
+
+
+
+def is_paused() -> bool:
+    ensure_tables()
+    with core.db() as conn:
+        row = conn.execute(
+            "SELECT value FROM reminder_settings WHERE key='paused'"
+        ).fetchone()
+    return bool(row and str(row["value"]) == "1")
+
+
+def set_paused(paused: bool) -> None:
+    ensure_tables()
+    with core.db() as conn:
+        conn.execute(
+            """
+            INSERT INTO reminder_settings(key,value) VALUES('paused',?)
+            ON CONFLICT(key) DO UPDATE SET value=excluded.value
+            """,
+            ("1" if paused else "0",),
         )
 
 
@@ -341,7 +374,7 @@ async def _send_with_retry(bot, row, stage: int) -> bool:
 
 
 async def run_due_reminders(application) -> None:
-    if _is_quiet_hours():
+    if is_paused() or _is_quiet_hours():
         return
     ensure_tables()
     now = datetime.now(timezone.utc)

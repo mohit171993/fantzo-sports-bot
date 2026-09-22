@@ -237,12 +237,36 @@ def repair_business_connections() -> dict:
         )
         disabled_missing = int(cur.rowcount or 0)
 
+        # Telegram Business peer authorization is session/context sensitive.
+        # Historical peers may still have IDs but cannot be messaged safely.
+        # Quarantine every legacy Business reminder at process start. A fresh
+        # inbound Business DM calls touch_user() and re-enables that customer's
+        # exact reminder row with the exact current connection ID.
+        cur = conn.execute(
+            """
+            UPDATE reminder_users
+            SET delivery_disabled=1,
+                last_delivery_error='awaiting_fresh_business_activity',
+                updated_at=?
+            WHERE source='business_dm'
+              AND opted_out=0
+            """,
+            (_now_iso(),),
+        )
+        quarantined = int(cur.rowcount or 0)
+
     logger.info(
-        "Fantzo Business reminder mapping audit repaired=%s disabled_missing=%s",
+        "Fantzo Business reminder startup audit repaired=%s "
+        "disabled_missing=%s quarantined_legacy=%s",
         repaired,
         disabled_missing,
+        quarantined,
     )
-    return {"repaired": repaired, "disabled_missing": disabled_missing}
+    return {
+        "repaired": repaired,
+        "disabled_missing": disabled_missing,
+        "quarantined_legacy": quarantined,
+    }
 
 
 def disable_business_connection(connection_id: str) -> int:

@@ -37,6 +37,7 @@ v23 = v25.v23
 API_PATH = v23.liveline.LIVELINE_API_PATH
 
 ROANUZ_WEBHOOK_PATH = "/roanuz/match/feed/v1/"
+DURA_ROANUZ_PROXY_PATH = "/internal/dura-roanuz-proxy"
 IBETIN_LIVE_STREAM_PATH = "/admin/ibetin-live-stream"
 IBETIN_LIVE_HEALTH_PATH = "/admin/ibetin-live-health"
 IBETIN_PUBLIC_LIVELINE_PATH = "/liveline"
@@ -362,6 +363,84 @@ def _relay_restored_dura_state() -> None:
                 "IBETIN restored DURA relay attempt failed: %s",
                 str(exc)[:160],
             )
+
+
+def _allowed_dura_roanuz_proxy_path(value: str) -> bool:
+    path = str(value or "").strip().lstrip("/")
+    parts = [x for x in path.split("/") if x]
+    if len(parts) < 2 or parts[0] != "match":
+        return False
+    key = parts[1]
+    if not key or len(key) > 180:
+        return False
+    if not all(ch.isalnum() or ch in "._:-" for ch in key):
+        return False
+    if len(parts) == 2:
+        return True
+    return len(parts) == 3 and parts[2] in {
+        "live-match-odds", "session-odds", "ball-by-ball"
+    }
+
+
+def _install_dura_roanuz_proxy_route() -> None:
+    handler_cls = v23.liveline.base.ibetin_start.ibetin_entry.analytics.TrackingHandler
+    if getattr(handler_cls, "_ibetin_dura_roanuz_proxy_installed", False):
+        return
+
+    previous_get = handler_cls.do_GET
+
+    def routed_get(self):
+        parsed = urlparse(self.path)
+        if parsed.path != DURA_ROANUZ_PROXY_PATH:
+            return previous_get(self)
+
+        expected = os.getenv("DURA_FEED_RELAY_SECRET", "").strip()
+        supplied = str(self.headers.get("x-dura-relay-key") or "").strip()
+        if not expected or not supplied or not hmac.compare_digest(expected, supplied):
+            body = b'{"ok":false}'
+            self.send_response(403)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
+        try:
+            query = parse_qs(parsed.query, keep_blank_values=True)
+            roanuz_path = str((query.get("path") or [""])[0]).strip()
+            if not _allowed_dura_roanuz_proxy_path(roanuz_path):
+                raise ValueError("unsupported path")
+            payload = v23.v20.admin._roanuz_get(roanuz_path, ttl=5)
+            body = json.dumps(
+                {"ok": True, "payload": payload},
+                separators=(",", ":"),
+                ensure_ascii=False,
+            ).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            logger.info("IBETIN DURA Roanuz proxy served path=%s", roanuz_path)
+        except Exception as exc:
+            body = json.dumps(
+                {"ok": False, "error": "provider_unavailable"},
+                separators=(",", ":"),
+            ).encode("utf-8")
+            self.send_response(502)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            logger.warning(
+                "IBETIN DURA Roanuz proxy failed: %s",
+                str(exc)[:160],
+            )
+
+    handler_cls.do_GET = routed_get
+    handler_cls._ibetin_dura_roanuz_proxy_installed = True
+    logger.info("IBETIN DURA Roanuz proxy installed at %s", DURA_ROANUZ_PROXY_PATH)
 
 
 def _install_roanuz_webhook_route() -> None:
@@ -1934,6 +2013,7 @@ def _install_v35_preview_command() -> None:
 
 _install_v35_preview_route()
 _install_live_stream_routes()
+_install_dura_roanuz_proxy_route()
 _install_roanuz_webhook_route()
 threading.Thread(
     target=_relay_restored_dura_state,

@@ -64,6 +64,16 @@ def ensure_tables() -> None:
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_match_alert_sends_time ON match_alert_sends(sent_at)"
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS match_alert_preferences (
+                user_id INTEGER PRIMARY KEY,
+                cricket INTEGER NOT NULL DEFAULT 1,
+                football INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
 
 
 def _now_iso() -> str:
@@ -233,10 +243,74 @@ def _mark(user_id: int, sport: str, match_key: str, event_key: str, status: str)
         )
 
 
+def get_preferences(user_id: int) -> dict:
+    ensure_tables()
+    with core.db() as conn:
+        row = conn.execute(
+            "SELECT cricket, football FROM match_alert_preferences WHERE user_id=?",
+            (int(user_id),),
+        ).fetchone()
+    if not row:
+        return {"cricket_alerts": True, "football_alerts": False}
+    return {
+        "cricket_alerts": bool(int(row["cricket"] or 0)),
+        "football_alerts": bool(int(row["football"] or 0)),
+    }
+
+
+def set_preferences(
+    user_id: int,
+    cricket_alerts: bool | None = None,
+    football_alerts: bool | None = None,
+) -> dict:
+    ensure_tables()
+    current = get_preferences(int(user_id))
+    cricket = (
+        bool(cricket_alerts)
+        if cricket_alerts is not None
+        else bool(current["cricket_alerts"])
+    )
+    football = (
+        bool(football_alerts)
+        if football_alerts is not None
+        else bool(current["football_alerts"])
+    )
+    with core.db() as conn:
+        conn.execute(
+            """
+            INSERT INTO match_alert_preferences(user_id, cricket, football, updated_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                cricket=excluded.cricket,
+                football=excluded.football,
+                updated_at=excluded.updated_at
+            """,
+            (int(user_id), 1 if cricket else 0, 1 if football else 0, _now_iso()),
+        )
+    return {"cricket_alerts": cricket, "football_alerts": football}
+
+
 def _subscribers():
+    ensure_tables()
     with core.db() as conn:
         return conn.execute(
-            "SELECT user_id, language FROM users WHERE subscribed = 1 ORDER BY last_seen DESC"
+            """
+            SELECT
+                u.user_id,
+                u.language,
+                COALESCE(p.cricket, 1) AS cricket,
+                COALESCE(p.football, 0) AS football
+            FROM users u
+            JOIN liveline_verified_users v ON v.user_id = u.user_id
+            LEFT JOIN ibetin_leads l ON l.user_id = u.user_id
+            LEFT JOIN reminder_users r
+              ON r.user_id = u.user_id AND r.source = 'bot'
+            LEFT JOIN match_alert_preferences p ON p.user_id = u.user_id
+            WHERE u.subscribed = 1
+              AND COALESCE(l.lead_status, 'new') != 'dnc'
+              AND COALESCE(r.opted_out, 0) = 0
+            ORDER BY u.last_seen DESC
+            """
         ).fetchall()
 
 
@@ -362,6 +436,10 @@ async def run_due_match_alerts(application) -> int:
             for row in subscribers:
                 if sent >= MAX_EVENT_SENDS_PER_RUN:
                     return sent
+                if sport == "cricket" and not bool(int(row["cricket"] or 0)):
+                    continue
+                if sport == "football" and not bool(int(row["football"] or 0)):
+                    continue
                 user_id = int(row["user_id"])
                 if _already_sent(user_id, sport, match_key, event_key):
                     continue

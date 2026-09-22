@@ -158,7 +158,27 @@ def verify_user(
     return True
 
 
+def _is_admin_user(user_id: int) -> bool:
+    try:
+        uid = int(user_id or 0)
+    except Exception:
+        return False
+    if not uid:
+        return False
+    admin_ids = set()
+    for name in ("ADMIN_USER_ID", "IBETIN_REPORT_ADMIN_USER_ID"):
+        try:
+            value = int(os.getenv(name, "0").strip() or "0")
+        except Exception:
+            value = 0
+        if value:
+            admin_ids.add(value)
+    return uid in admin_ids
+
+
 def is_verified(user_id: int) -> bool:
+    if _is_admin_user(user_id):
+        return True
     if not user_id:
         return False
     ensure_tables()

@@ -147,14 +147,17 @@ def _liveline_verification_page(token: str = "") -> str:
 .card{{margin-top:42px;background:#fff;border-radius:22px;padding:26px 20px;box-shadow:0 10px 32px rgba(5,34,69,.10);text-align:center}}
 .mark{{width:60px;height:60px;border-radius:18px;margin:0 auto 16px;display:grid;place-items:center;background:#f6c84b;font-size:30px}}
 h1{{margin:0;font-size:24px}}p{{color:#6d8297;line-height:1.55;font-size:14px}}
-.btn{{display:block;margin-top:20px;padding:15px 16px;border-radius:14px;background:#0b5cb4;color:#fff;text-decoration:none;font-weight:900}}
-.note{{font-size:12px;color:#8a9bad;margin-top:14px}}
+.btn{{display:block;margin-top:20px;padding:15px 16px;border-radius:14px;background:#0b5cb4;color:#fff;text-decoration:none;font-weight:900;box-shadow:0 8px 18px rgba(11,92,180,.18)}}
+.benefits{{display:flex;justify-content:center;flex-wrap:wrap;gap:7px;margin:16px 0 2px}}
+.benefits span{{background:#f3f7fb;border:1px solid #e3ebf3;border-radius:999px;padding:7px 9px;font-size:11px;font-weight:800;color:#41627f}}
+.note{{font-size:12px;color:#8a9bad;margin-top:14px;line-height:1.45}}
 </style>
 </head>
 <body><div class="wrap"><div class="card">
 <div class="mark">📱</div>
 <h1>Mobile verification required</h1>
 <p>IBETIN Live Line is available only after you verify the mobile number linked to your Telegram account.</p>
+<div class="benefits"><span>⚡ Live scores</span><span>📊 Match Pulse</span><span>🗓 Fixtures & results</span></div>
 <a class="btn" href="{verify_url}">▶ START VERIFICATION IN BOT</a>
 <div class="note">{sub}</div>
 </div></div>{poll_js}</body></html>"""
@@ -1519,6 +1522,67 @@ IBETIN_V40_LIVE_STATE_JS = r"""
 """
 
 
+IBETIN_FINAL_UI_POLISH_CSS = r"""
+/* FINAL MOBILE UI POLISH — no flow changes */
+body:before{display:none!important}
+.top{padding:13px 15px 11px!important}
+.brand b{font-size:20px!important}
+.brand span{font-size:9px!important}
+.liveLineSub{font-size:7.5px!important}
+.tabs{gap:7px!important;margin-top:11px!important}
+.tab{height:42px!important;font-size:11px!important;border-radius:11px!important}
+.main{padding:12px 13px calc(145px + env(safe-area-inset-bottom))!important}
+.tools{gap:8px!important}
+.search{height:46px!important;font-size:14px!important;padding:0 14px!important}
+.refresh{width:46px!important;height:46px!important;font-size:20px!important}
+.status{font-size:10px!important;line-height:1.4!important;margin:7px 2px 10px!important}
+.league{font-size:10px!important;margin:13px 2px 6px!important}
+.mh{padding:11px 12px 7px!important}
+.fmt{font-size:9px!important}
+.badge{font-size:8.5px!important;padding:5px 8px!important}
+.team{padding:9px 12px!important}
+.tn{font-size:13px!important;line-height:1.25!important}
+.ta,.si{font-size:9px!important}
+.sc{font-size:22px!important}
+.foot{padding:10px 12px!important;font-size:10px!important;line-height:1.35!important}
+.v39FavFilter{font-size:9px!important;padding:8px 11px!important}
+.v39FavBtn{width:31px!important;height:31px!important;font-size:16px!important}
+.back,.v39DetailFav{height:40px!important;font-size:10px!important}
+.scoretop{font-size:9px!important}
+.sname{font-size:11px!important}
+.report{font-size:10px!important;line-height:1.45!important}
+.v38PulseHead b{font-size:13px!important}
+.v38PulseHead span,.v38PulseMetric span,.v38RecentTop span{font-size:7.5px!important}
+.v38PulseMetric b{font-size:14px!important}
+.v38RecentTop b,.v38PulseSummary,.v38Latest{font-size:9px!important}
+.previewBhavHead b{font-size:14px!important}
+.previewBhavHead span{font-size:8px!important}
+.dtab{height:38px!important;font-size:9px!important}
+.ptitle b{font-size:10px!important}
+.ibQuickPromo b{font-size:10px!important}
+.ibQuickPromo span{font-size:8px!important;line-height:1.35!important}
+.ibQuickPromo button{font-size:8.5px!important;padding:8px 10px!important}
+.bottom{left:12px!important;right:12px!important;padding:6px!important}
+.bottom button{height:48px!important;font-size:9px!important}
+.bottom b{font-size:17px!important}
+.v40LiveEmpty b{font-size:15px!important}
+.v40LiveEmpty span{font-size:10px!important;line-height:1.45!important}
+.v40ComingHead b{font-size:10px!important}
+.v40ComingHead button,.v40ComingLeague,.v40ComingTime{font-size:8.5px!important}
+.v40ComingTeam{font-size:11px!important}
+@media(max-width:390px){
+  .tab{font-size:10px!important}
+  .tn{font-size:12px!important}
+  .sc{font-size:21px!important}
+  .bottom button{font-size:8.5px!important}
+}
+@media(prefers-reduced-motion:reduce){
+  .match,.scorehero,.v38Pulse,.quickMarket{animation:none!important}
+  *{scroll-behavior:auto!important}
+}
+"""
+
+
 def _page_v40_visual_polish() -> str:
     html = _page_v39_favourites()
     html = html.replace("<title>IBETIN Live Line · My Matches V39</title>", "<title>IBETIN Live Line · Visual Polish V40</title>", 1)
@@ -1533,6 +1597,7 @@ def _page_v40_visual_polish() -> str:
         1,
     )
     html = html.replace("</style>", IBETIN_V40_VISUAL_POLISH_CSS + "\n</style>", 1)
+    html = html.replace("</style>", IBETIN_FINAL_UI_POLISH_CSS + "\n</style>", 1)
     html = html.replace("</body>", IBETIN_V40_COMING_UP_JS + "\n</body>", 1)
     html = html.replace("</body>", IBETIN_V40_LIVE_STATE_JS + "\n</body>", 1)
     return html

@@ -5,7 +5,7 @@ registration CTA that opens the configured IBETIN affiliate registration URL.
 """
 from urllib.parse import urlparse
 
-PATHS = {"/meta-ch", "/meta-ch-v2"}
+PATHS = {"/fb", "/meta-ch", "/meta-ch-v2"}
 
 
 def page_html() -> str:
@@ -16,7 +16,8 @@ def page_html() -> str:
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
 <meta name="theme-color" content="#071a34">
 <meta name="description" content="IBETIN Live Line - cricket match updates, fixtures, results and match details.">
-<title>IBETIN Live Line</title>
+<title>IBETIN</title>
+<link rel="canonical" href="https://ibtn.me/fb">
 <style>
 :root{--navy:#071a34;--blue:#0b5cb4;--gold:#f6c84b;--ink:#102c4b;--muted:#6f8498;--bg:#eef3f8;--card:#fff}
 *{box-sizing:border-box}

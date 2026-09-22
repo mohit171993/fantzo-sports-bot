@@ -517,18 +517,44 @@ def _automation_menu() -> InlineKeyboardMarkup:
     ])
 
 
-def _followup_menu(user_id: int) -> InlineKeyboardMarkup:
+def _followup_menu(
+    user_id: int,
+    queue: str = "",
+    index: int = 0,
+) -> InlineKeyboardMarkup:
+    suffix = f":{queue}:{int(index)}" if queue else ""
+    back = (
+        f"ops:qpage:{queue}:{int(index)}"
+        if queue else f"ops:lead:{user_id}"
+    )
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("⏰ +2 HOURS", callback_data=f"ops:fupset:{user_id}:2h"),
-            InlineKeyboardButton("🌅 TOMORROW 10AM", callback_data=f"ops:fupset:{user_id}:tom10"),
+            InlineKeyboardButton(
+                "⏰ +2 HOURS",
+                callback_data=f"ops:fupset:{user_id}:2h{suffix}",
+            ),
+            InlineKeyboardButton(
+                "🌅 TOMORROW 10AM",
+                callback_data=f"ops:fupset:{user_id}:tom10{suffix}",
+            ),
         ],
         [
-            InlineKeyboardButton("📅 +24 HOURS", callback_data=f"ops:fupset:{user_id}:24h"),
-            InlineKeyboardButton("📆 +3 DAYS", callback_data=f"ops:fupset:{user_id}:3d"),
+            InlineKeyboardButton(
+                "📅 +24 HOURS",
+                callback_data=f"ops:fupset:{user_id}:24h{suffix}",
+            ),
+            InlineKeyboardButton(
+                "📆 +3 DAYS",
+                callback_data=f"ops:fupset:{user_id}:3d{suffix}",
+            ),
         ],
-        [InlineKeyboardButton("🧹 CLEAR FOLLOW-UP", callback_data=f"ops:fupset:{user_id}:clear")],
-        [InlineKeyboardButton("⬅️ LEAD", callback_data=f"ops:lead:{user_id}")],
+        [
+            InlineKeyboardButton(
+                "🧹 CLEAR FOLLOW-UP",
+                callback_data=f"ops:fupset:{user_id}:clear{suffix}",
+            )
+        ],
+        [InlineKeyboardButton("⬅️ LEAD", callback_data=back)],
     ])
 
 

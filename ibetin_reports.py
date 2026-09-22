@@ -78,7 +78,6 @@ def notification_admin_user_id() -> int:
     for candidate in (
         env_admin,
         _setting_user_id("report_admin_user_id"),
-        _setting_user_id("creative_admin_user_id"),
         int(core.ADMIN_USER_ID),
     ):
         try:
@@ -497,7 +496,7 @@ def _crm_text() -> str:
 def crm_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
-            [InlineKeyboardButton("🆕 UNASSIGNED / NEW", callback_data="reports:queue:new")],
+            [InlineKeyboardButton("🆕 NEW / UNWORKED", callback_data="reports:queue:new")],
             [
                 InlineKeyboardButton("📞 FOLLOW-UP", callback_data="reports:queue:followup"),
                 InlineKeyboardButton("⭐ INTERESTED", callback_data="reports:queue:interested"),
@@ -531,7 +530,7 @@ def _queue_statuses(queue: str):
 
 def _queue_title(queue: str) -> str:
     return {
-        "new": "🆕 UNASSIGNED / NEW · ALL TIME",
+        "new": "🆕 NEW / UNWORKED · ALL TIME",
         "followup": "📞 FOLLOW-UP QUEUE",
         "due": "⏰ FOLLOW-UP DUE NOW",
         "interested": "⭐ INTERESTED LEADS",

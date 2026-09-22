@@ -11,11 +11,13 @@ from __future__ import annotations
 import csv
 import io
 import logging
+import os
 import zipfile
 from datetime import datetime, timedelta, timezone
 from html import escape
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, InputFile
+from telegram.ext import CommandHandler
 
 import bot_tracked as tracked
 
@@ -34,9 +36,43 @@ def _styled_button(label: str, callback_data: str, style: str | None = None) -> 
     return InlineKeyboardButton(label, **kwargs)
 
 
+def _team_admin_ids() -> set[int]:
+    """Fantzo-only team/report admins.
+
+    This intentionally uses Fantzo environment variables and never reads
+    iBetin authorization settings.
+    """
+    ids: set[int] = {int(core.ADMIN_USER_ID)}
+
+    single = os.getenv("FANTZO_REPORT_ADMIN_USER_ID", "").strip()
+    if single:
+        try:
+            ids.add(int(single))
+        except Exception:
+            logger.warning("Invalid FANTZO_REPORT_ADMIN_USER_ID")
+
+    raw = os.getenv("FANTZO_TEAM_ADMIN_USER_IDS", "").strip()
+    if raw:
+        for part in raw.split(","):
+            part = part.strip()
+            if not part:
+                continue
+            try:
+                ids.add(int(part))
+            except Exception:
+                logger.warning("Invalid Fantzo team admin ID: %s", part)
+
+    return ids
+
+
+def _is_owner(update) -> bool:
+    user = update.effective_user
+    return bool(user and int(user.id) == int(core.ADMIN_USER_ID))
+
+
 def _is_admin(update) -> bool:
     user = update.effective_user
-    return bool(user and user.id == core.ADMIN_USER_ID)
+    return bool(user and int(user.id) in _team_admin_ids())
 
 
 def _table_exists(conn, table: str) -> bool:
@@ -91,101 +127,95 @@ def _fmt_dt(value) -> str:
 
 
 def _admin_dashboard_text() -> str:
-    day, _, now = _cutoffs()
+    """Compact iBetin-style Fantzo admin overview."""
+    day, week, now = _cutoffs()
     with core.db() as conn:
+        total_users = _scalar(conn, "SELECT COUNT(*) FROM users") if _table_exists(conn, "users") else 0
+        active_24 = _scalar(conn, "SELECT COUNT(*) FROM users WHERE last_seen>=?", (day,)) if _table_exists(conn, "users") else 0
+        active_7 = _scalar(conn, "SELECT COUNT(*) FROM users WHERE last_seen>=?", (week,)) if _table_exists(conn, "users") else 0
+
+        verified = _scalar(
+            conn,
+            "SELECT COUNT(*) FROM live_tv_mobile_users WHERE capture_method='telegram_contact'"
+        ) if _table_exists(conn, "live_tv_mobile_users") else 0
+
         leads = _scalar(conn, "SELECT COUNT(*) FROM sales_leads") if _table_exists(conn, "sales_leads") else 0
         new = _scalar(conn, "SELECT COUNT(*) FROM sales_leads WHERE status='NEW'") if _table_exists(conn, "sales_leads") else 0
-        contacted = _scalar(conn, "SELECT COUNT(*) FROM sales_leads WHERE status='CONTACTED'") if _table_exists(conn, "sales_leads") else 0
-        no_answer = _scalar(conn, "SELECT COUNT(*) FROM sales_leads WHERE status='NO_ANSWER'") if _table_exists(conn, "sales_leads") else 0
         interested = _scalar(conn, "SELECT COUNT(*) FROM sales_leads WHERE status='INTERESTED'") if _table_exists(conn, "sales_leads") else 0
         converted = _scalar(conn, "SELECT COUNT(*) FROM sales_leads WHERE status='CONVERTED'") if _table_exists(conn, "sales_leads") else 0
-        dnc = _scalar(conn, "SELECT COUNT(*) FROM sales_leads WHERE status='DO_NOT_CONTACT'") if _table_exists(conn, "sales_leads") else 0
 
-        new_24 = _scalar(conn, "SELECT COUNT(*) FROM sales_leads WHERE created_at>=?", (day,)) if _table_exists(conn, "sales_leads") else 0
-        converted_24 = _scalar(
+        dm_users = _scalar(
             conn,
-            "SELECT COUNT(*) FROM sales_leads WHERE converted_at IS NOT NULL AND converted_at>=?",
-            (day,),
-        ) if _table_exists(conn, "sales_leads") else 0
+            "SELECT COUNT(DISTINCT customer_id) FROM business_welcomes"
+        ) if _table_exists(conn, "business_welcomes") else 0
 
-        ad_starts_24 = _scalar(
+        reminder_users = _scalar(
             conn,
-            "SELECT COUNT(DISTINCT user_id) FROM lead_attribution "
-            "WHERE campaign LIKE 'ad_%' AND first_seen_at>=?",
-            (day,),
+            "SELECT COUNT(DISTINCT user_id) FROM reminder_users"
+        ) if _table_exists(conn, "reminder_users") else 0
+        opted_out = _scalar(
+            conn,
+            "SELECT COUNT(*) FROM reminder_users WHERE opted_out=1"
+        ) if _table_exists(conn, "reminder_users") else 0
+
+        ad_campaigns = _scalar(
+            conn,
+            "SELECT COUNT(DISTINCT campaign) FROM lead_attribution WHERE campaign LIKE 'ad_%'"
         ) if _table_exists(conn, "lead_attribution") else 0
 
-        ad_unverified = 0
-        if _table_exists(conn, "lead_attribution") and _table_exists(conn, "lead_user_map"):
-            ad_unverified = _scalar(
-                conn,
-                "SELECT COUNT(DISTINCT a.user_id) "
-                "FROM lead_attribution a "
-                "LEFT JOIN lead_user_map m ON m.user_id=a.user_id "
-                "WHERE a.campaign LIKE 'ad_%' AND m.user_id IS NULL"
-            )
-
-        verified_24 = 0
-        if _table_exists(conn, "lead_events"):
-            verified_24 = _scalar(
-                conn,
-                "SELECT COUNT(DISTINCT user_id) FROM lead_events "
-                "WHERE event='verified_mobile' AND created_at>=?",
-                (day,),
-            )
+        actions = _scalar(conn, "SELECT COUNT(*) FROM clicks") if _table_exists(conn, "clicks") else 0
+        web_opens = _scalar(
+            conn,
+            "SELECT COUNT(*) FROM web_events WHERE event='fantzo_open'"
+        ) if _table_exists(conn, "web_events") else 0
 
     conversion = (float(converted) / float(leads) * 100.0) if leads else 0.0
-    hot = int(new) + int(interested)
 
     return (
-        "🧭 <b>FANTZO TEAM DASHBOARD</b>\n"
+        "📊 <b>FANTZO ADMIN CENTER</b>\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
-        "<b>WHAT NEEDS ATTENTION</b>\n"
-        f"🔥 Hot leads: <b>{_fmt_int(hot)}</b> "
-        f"(🆕 {_fmt_int(new)} new · ⭐ {_fmt_int(interested)} interested)\n"
-        f"📵 Follow up / no answer: <b>{_fmt_int(no_answer)}</b>\n"
-        f"☎️ Contacted: <b>{_fmt_int(contacted)}</b>\n"
-        f"🚫 Do not contact: <b>{_fmt_int(dnc)}</b>\n\n"
-        "<b>LAST 24 HOURS</b>\n"
-        f"📣 Paid-ad starts: <b>{_fmt_int(ad_starts_24)}</b>\n"
-        f"📱 Verified leads: <b>{_fmt_int(verified_24)}</b>\n"
-        f"🔥 New mobile leads: <b>{_fmt_int(new_24)}</b>\n"
-        f"✅ Converted: <b>{_fmt_int(converted_24)}</b>\n\n"
-        "<b>OVERALL</b>\n"
-        f"🎯 Total leads: <b>{_fmt_int(leads)}</b>\n"
-        f"✅ Converted: <b>{_fmt_int(converted)}</b> "
-        f"(<b>{conversion:.1f}%</b>)\n"
-        f"⏳ Ad users not yet verified: <b>{_fmt_int(ad_unverified)}</b>\n\n"
-        "Start with <b>💼 CRM</b>. The team should work NEW and INTERESTED leads first, "
-        "update every lead after contact, then check campaign performance.\n\n"
+        f"👥 Bot users: <b>{_fmt_int(total_users)}</b>\n"
+        f"⚡ Active 24h: <b>{_fmt_int(active_24)}</b>\n"
+        f"📅 Active 7d: <b>{_fmt_int(active_7)}</b>\n\n"
+        f"📱 Verified users: <b>{_fmt_int(verified)}</b>\n"
+        f"💼 CRM leads: <b>{_fmt_int(leads)}</b>\n"
+        f"🆕 New: <b>{_fmt_int(new)}</b> · ⭐ Interested: <b>{_fmt_int(interested)}</b>\n"
+        f"✅ Converted: <b>{_fmt_int(converted)}</b> · <b>{conversion:.1f}%</b>\n\n"
+        f"💬 DM users: <b>{_fmt_int(dm_users)}</b>\n"
+        f"⏰ Follow-up users: <b>{_fmt_int(reminder_users)}</b> · 🔕 {_fmt_int(opted_out)} opted out\n"
+        f"📣 Paid campaigns: <b>{_fmt_int(ad_campaigns)}</b>\n"
+        f"🖱 Bot actions: <b>{_fmt_int(actions)}</b>\n"
+        f"🌐 Fantzo opens: <b>{_fmt_int(web_opens)}</b>\n\n"
+        "Use <b>💼 CRM / LEADS</b> for daily sales work. "
+        "Campaigns and reports are for performance review.\n\n"
         f"🕒 {now.strftime('%d %b %Y %H:%M UTC')}"
     )
 
 
-def _admin_dashboard_menu() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([
+def _admin_dashboard_menu(user_id: int | None = None) -> InlineKeyboardMarkup:
+    """Fantzo equivalent of iBetin's compact report center."""
+    rows = [
+        [InlineKeyboardButton("📊 OVERVIEW", callback_data="adm:home")],
         [
-            _styled_button("💼 CRM", "crm:home", "success"),
-            _styled_button("🆕 NEW LEADS", "crm:list:NEW", "success"),
+            _styled_button("💼 CRM / LEADS", "crm:home", "success"),
+            _styled_button("📱 VERIFIED USERS + MOBILE", "rpt:mobile", "success"),
+        ],
+        [InlineKeyboardButton("💬 DM USERS", callback_data="rpt:business")],
+        [
+            InlineKeyboardButton("⏰ FOLLOW-UP", callback_data="rpt:reminders"),
+            InlineKeyboardButton("🖱 ACTIVITY", callback_data="rpt:daily"),
         ],
         [
-            _styled_button("⭐ INTERESTED", "crm:list:INTERESTED", "success"),
-            _styled_button("📵 NO ANSWER", "crm:list:NO_ANSWER", "primary"),
+            InlineKeyboardButton("🌐 WEB OPENS", callback_data="rpt:web"),
+            InlineKeyboardButton("📣 CAMPAIGNS", callback_data="adm:campaigns"),
         ],
-        [
-            _styled_button("📣 CAMPAIGNS", "adm:campaigns", "primary"),
-            _styled_button("🎯 FUNNEL", "rpt:leads", "primary"),
-        ],
-        [
-            _styled_button("📱 VERIFIED LEADS", "rpt:mobile", "primary"),
-            _styled_button("🔔 FOLLOW-UP", "rpt:reminders", "primary"),
-        ],
-        [
-            _styled_button("📈 REPORTS", "rpt:home", "primary"),
-            InlineKeyboardButton("🧰 TOOLS", callback_data="adm:tools"),
-        ],
-        [InlineKeyboardButton("❓ TEAM GUIDE", callback_data="adm:guide")],
-    ])
+        [_styled_button("📦 DOWNLOAD ALL REPORTS", "rptdl:all", "success")],
+    ]
+
+    if user_id and int(user_id) == int(core.ADMIN_USER_ID):
+        rows.append([InlineKeyboardButton("🧰 OWNER TOOLS", callback_data="adm:tools")])
+
+    return InlineKeyboardMarkup(rows)
 
 
 def _campaigns_text() -> str:
@@ -305,26 +335,25 @@ def _team_guide_menu() -> InlineKeyboardMarkup:
 
 
 def _report_menu() -> InlineKeyboardMarkup:
-    """Reports that matter to the sales/marketing team day to day."""
-    return InlineKeyboardMarkup(
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📊 OVERVIEW", callback_data="rpt:overview")],
         [
-            [
-                _styled_button("📊 BUSINESS OVERVIEW", "rpt:overview", "primary"),
-                _styled_button("🎯 LEAD FUNNEL", "rpt:leads", "success"),
-            ],
-            [
-                _styled_button("📱 VERIFIED LEADS", "rpt:mobile", "success"),
-                _styled_button("💬 BUSINESS DMs", "rpt:business", "primary"),
-            ],
-            [
-                _styled_button("🔔 FOLLOW-UP", "rpt:reminders", "primary"),
-                _styled_button("📅 DAILY ACTIVITY", "rpt:daily", "primary"),
-            ],
-            [_styled_button("⬇️ EXPORT DATA", "rpt:downloads", "success")],
-            [InlineKeyboardButton("🧪 ADVANCED REPORTS", callback_data="adm:advanced_reports")],
-            [InlineKeyboardButton("🏠 ADMIN HOME", callback_data="adm:home")],
-        ]
-    )
+            InlineKeyboardButton("👥 BOT USERS", callback_data="rpt:users"),
+            InlineKeyboardButton("📱 VERIFIED USERS + MOBILE", callback_data="rpt:mobile"),
+        ],
+        [_styled_button("💼 CRM / LEADS", "crm:home", "success")],
+        [InlineKeyboardButton("💬 DM USERS", callback_data="rpt:business")],
+        [
+            InlineKeyboardButton("⏰ FOLLOW-UP", callback_data="rpt:reminders"),
+            InlineKeyboardButton("🖱 ACTIVITY", callback_data="rpt:daily"),
+        ],
+        [
+            InlineKeyboardButton("🌐 WEB OPENS", callback_data="rpt:web"),
+            InlineKeyboardButton("📣 CAMPAIGNS", callback_data="adm:campaigns"),
+        ],
+        [_styled_button("📦 DOWNLOAD ALL REPORTS", "rptdl:all", "success")],
+        [InlineKeyboardButton("🏠 ADMIN HOME", callback_data="adm:home")],
+    ])
 
 
 def _advanced_reports_menu() -> InlineKeyboardMarkup:
@@ -1405,14 +1434,24 @@ async def _handle_report_callback(update, context) -> bool:
         await query.answer()
 
         if action == "home":
-            await _show(query, _admin_dashboard_text(), _admin_dashboard_menu())
+            await _show(
+                query,
+                _admin_dashboard_text(),
+                _admin_dashboard_menu(update.effective_user.id if update.effective_user else None),
+            )
         elif action == "campaigns":
             await _show(query, _campaigns_text(), _campaigns_menu())
         elif action == "tools":
+            if not _is_owner(update):
+                await query.answer("Owner tools are restricted.", show_alert=True)
+                return True
             await _show(query, _tools_text(), _tools_menu())
         elif action == "guide":
             await _show(query, _team_guide_text(), _team_guide_menu())
         elif action == "advanced_reports":
+            if not _is_owner(update):
+                await query.answer("Advanced reports are owner-only.", show_alert=True)
+                return True
             await _show(
                 query,
                 "🧪 <b>ADVANCED REPORTS</b>\n━━━━━━━━━━━━━━━━━━\n\n"
@@ -1421,6 +1460,9 @@ async def _handle_report_callback(update, context) -> bool:
                 _advanced_reports_menu(),
             )
         elif action == "advanced_exports":
+            if not _is_owner(update):
+                await query.answer("Advanced exports are owner-only.", show_alert=True)
+                return True
             await _show(
                 query,
                 "🧪 <b>ADVANCED EXPORTS</b>\n━━━━━━━━━━━━━━━━━━\n\n"
@@ -1533,14 +1575,46 @@ async def _handle_report_callback(update, context) -> bool:
     return True
 
 
-async def send_reports_panel(message) -> None:
-    """Backward-compatible entry point: /admin now opens the team dashboard."""
+async def send_reports_panel(message, user_id: int | None = None) -> None:
     await message.reply_text(
         _admin_dashboard_text(),
         parse_mode="HTML",
-        reply_markup=_admin_dashboard_menu(),
+        reply_markup=_admin_dashboard_menu(user_id),
         disable_web_page_preview=True,
     )
+
+
+
+async def reports_command(update, context) -> None:
+    if not _is_admin(update) or not update.effective_message:
+        if update.effective_message:
+            await update.effective_message.reply_text("This command is restricted.")
+        return
+    await update.effective_message.reply_text(
+        _overview_text(),
+        parse_mode="HTML",
+        reply_markup=_report_menu(),
+        disable_web_page_preview=True,
+    )
+
+
+async def crm_command(update, context) -> None:
+    if not _is_admin(update) or not update.effective_message:
+        if update.effective_message:
+            await update.effective_message.reply_text("This command is restricted.")
+        return
+    await update.effective_message.reply_text(
+        _crm_home_text(),
+        parse_mode="HTML",
+        reply_markup=_crm_home_menu(),
+        disable_web_page_preview=True,
+    )
+
+
+def register_handlers(application) -> None:
+    application.add_handler(CommandHandler("reports", reports_command))
+    application.add_handler(CommandHandler("crm", crm_command))
+    logger.info("Fantzo /reports and /crm admin shortcuts registered")
 
 
 def install() -> None:
@@ -1557,7 +1631,10 @@ def install() -> None:
             await original_admin(update, context)
             return
         if update.effective_message:
-            await send_reports_panel(update.effective_message)
+            await send_reports_panel(
+                update.effective_message,
+                update.effective_user.id if update.effective_user else None,
+            )
 
     async def router_with_reports(update, context):
         if await _handle_report_callback(update, context):

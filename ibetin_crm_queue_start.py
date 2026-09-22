@@ -62,9 +62,81 @@ def snapshot(reports):
 
 
 def reset_test_once(reports):
-    """Legacy test reset is intentionally disabled in the final release."""
-    log.info("IBETIN CRM test-account reset disabled for final release")
-    return
+    """Never reset again; repair only the one legacy test reset if it happened."""
+    reset_marker = "ibetin_crm_test_reset:2026-09-22-final-admin-ui-v2"
+    restore_marker = "ibetin_crm_test_restore:2026-09-22-final-admin-ui-v2"
+    with reports.core.db() as conn:
+        conn.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY,value TEXT)")
+        was_reset = bool(conn.execute(
+            "SELECT 1 FROM settings WHERE key=?", (reset_marker,)
+        ).fetchone())
+        already_restored = bool(conn.execute(
+            "SELECT 1 FROM settings WHERE key=?", (restore_marker,)
+        ).fetchone())
+        if not was_reset or already_restored:
+            log.info("IBETIN CRM legacy test reset disabled; no repair required")
+            return
+
+        ids = {int(r[0]) for r in conn.execute(
+            "SELECT user_id FROM users WHERE lower(username)=?", (TEST_USERNAME,)
+        ).fetchall()}
+        if reports._table_exists(conn, "business_customers"):
+            ids.update(int(r[0]) for r in conn.execute(
+                "SELECT DISTINCT customer_id FROM business_customers WHERE lower(username)=?",
+                (TEST_USERNAME,),
+            ).fetchall())
+        if len(ids) != 1:
+            log.warning("IBETIN CRM legacy reset repair skipped: username match count=%s", len(ids))
+            return
+
+        uid = next(iter(ids))
+        current = conn.execute(
+            "SELECT 1 FROM liveline_verified_users WHERE user_id=?", (uid,)
+        ).fetchone()
+        if current:
+            conn.execute(
+                "INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)",
+                (restore_marker, "already_verified"),
+            )
+            log.info("IBETIN CRM legacy reset repair not needed: test account already verified")
+            return
+
+        lead = conn.execute(
+            """
+            SELECT mobile_number, verified_at, source, campaign, contact_consent
+            FROM ibetin_leads WHERE user_id=?
+            """,
+            (uid,),
+        ).fetchone()
+        if not lead or not str(lead["mobile_number"] or "").strip() or not lead["verified_at"]:
+            log.warning("IBETIN CRM legacy reset repair skipped: no prior verified lead state")
+            return
+
+        now = datetime.now(timezone.utc).isoformat()
+        consent = int(lead["contact_consent"] or 0)
+        conn.execute(
+            """
+            INSERT INTO liveline_verified_users(
+                user_id, phone_number, verified_at, first_verified_at,
+                verification_source, campaign, contact_consent, consent_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                uid,
+                str(lead["mobile_number"]),
+                now,
+                str(lead["verified_at"] or now),
+                str(lead["source"] or "bot"),
+                str(lead["campaign"] or "direct"),
+                consent,
+                now if consent else None,
+            ),
+        )
+        conn.execute(
+            "INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)",
+            (restore_marker, "restored"),
+        )
+    log.info("IBETIN CRM legacy test reset repaired for the single test account")
 
 
 def install(reports):

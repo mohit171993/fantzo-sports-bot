@@ -2,6 +2,8 @@ import logging
 import os
 import re
 import threading
+import json
+import hmac
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 from html import escape
@@ -104,9 +106,102 @@ def record_open(source: str) -> None:
         )
 
 
+def _table_exists(conn, name: str) -> bool:
+    return bool(conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=? LIMIT 1",
+        (name,),
+    ).fetchone())
+
+
+def _column_exists(conn, table: str, column: str) -> bool:
+    if not _table_exists(conn, table):
+        return False
+    return any(str(r[1]) == column for r in conn.execute(f"PRAGMA table_info({table})").fetchall())
+
+
+def _metric_count(conn, sql: str, params=()) -> int:
+    try:
+        row = conn.execute(sql, params).fetchone()
+        return int(row[0] if row else 0)
+    except Exception:
+        return 0
+
+
+def _report_metrics_payload() -> dict:
+    cutoff_24h = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+    with core.db() as conn:
+        bot_users = _metric_count(conn, "SELECT COUNT(*) FROM users") if _table_exists(conn, "users") else 0
+
+        leads = 0
+        leads_24h = 0
+        verified = 0
+        verified_24h = 0
+
+        if _table_exists(conn, "sales_leads"):
+            leads = _metric_count(conn, "SELECT COUNT(*) FROM sales_leads")
+            if _column_exists(conn, "sales_leads", "created_at"):
+                leads_24h = _metric_count(conn, "SELECT COUNT(*) FROM sales_leads WHERE created_at>=?", (cutoff_24h,))
+            if _table_exists(conn, "lead_user_map"):
+                verified = _metric_count(conn, "SELECT COUNT(DISTINCT user_id) FROM lead_user_map")
+                if _column_exists(conn, "lead_user_map", "created_at"):
+                    verified_24h = _metric_count(conn, "SELECT COUNT(DISTINCT user_id) FROM lead_user_map WHERE created_at>=?", (cutoff_24h,))
+        elif _table_exists(conn, "ibetin_leads"):
+            leads = _metric_count(conn, "SELECT COUNT(*) FROM ibetin_leads")
+            if _column_exists(conn, "ibetin_leads", "first_seen_at"):
+                leads_24h = _metric_count(conn, "SELECT COUNT(*) FROM ibetin_leads WHERE first_seen_at>=?", (cutoff_24h,))
+            elif _column_exists(conn, "ibetin_leads", "created_at"):
+                leads_24h = _metric_count(conn, "SELECT COUNT(*) FROM ibetin_leads WHERE created_at>=?", (cutoff_24h,))
+            if _table_exists(conn, "liveline_verified_users"):
+                verified = _metric_count(conn, "SELECT COUNT(DISTINCT user_id) FROM liveline_verified_users")
+                if _column_exists(conn, "liveline_verified_users", "verified_at"):
+                    verified_24h = _metric_count(conn, "SELECT COUNT(DISTINCT user_id) FROM liveline_verified_users WHERE verified_at>=?", (cutoff_24h,))
+
+        registration_clicks = 0
+        registration_clicks_24h = 0
+        if _table_exists(conn, "clicks") and _column_exists(conn, "clicks", "action"):
+            registration_clicks = _metric_count(
+                conn,
+                "SELECT COUNT(*) FROM clicks WHERE lower(action) IN ('join_fantzo','join_ibetin','join_dura','register','registration','signup','sign_up')"
+            )
+            if _column_exists(conn, "clicks", "created_at"):
+                registration_clicks_24h = _metric_count(
+                    conn,
+                    "SELECT COUNT(*) FROM clicks WHERE lower(action) IN ('join_fantzo','join_ibetin','join_dura','register','registration','signup','sign_up') AND created_at>=?",
+                    (cutoff_24h,),
+                )
+
+        return {
+            "bot_users": bot_users,
+            "leads": leads,
+            "leads_24h": leads_24h,
+            "registration_clicks": registration_clicks,
+            "registration_clicks_24h": registration_clicks_24h,
+            "completed_registrations": None,
+            "verified": verified,
+            "verified_24h": verified_24h,
+            "registration_note": "Completed external-site registrations are not available unless the destination sends a conversion event back.",
+        }
+
+
 class TrackingHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
+
+        if parsed.path == "/report-metrics":
+            secret = os.getenv("REPORT_METRICS_SECRET", "").strip()
+            supplied = self.headers.get("X-Report-Key", "")
+            if not secret or not hmac.compare_digest(secret, supplied):
+                self.send_response(403)
+                self.end_headers()
+                return
+            raw = json.dumps(_report_metrics_payload(), separators=(",", ":")).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(raw)))
+            self.end_headers()
+            self.wfile.write(raw)
+            return
 
         if parsed.path.rstrip("/") in {"/meta-ch", "/meta-ch-v2"}:
             from ibetin_meta_landing import page_html

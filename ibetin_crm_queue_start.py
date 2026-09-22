@@ -10,7 +10,7 @@ import threading
 import time
 from datetime import datetime, timezone
 
-VERSION = "2026-09-22-final-flow-v3"
+VERSION = "2026-09-22-final-flow-v4-meta-landing"
 TEST_USERNAME = "mohit_97saxena"
 log = logging.getLogger(__name__)
 NEW_SQL = "COALESCE(NULLIF(TRIM(l.lead_status),''),'new')='new'"

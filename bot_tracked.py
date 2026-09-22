@@ -31,7 +31,7 @@ import trial_live_tv
 logger = logging.getLogger(__name__)
 
 # =========================================================
-# IBETIN WEBSITE
+# DURASPORTS WEBSITE
 # =========================================================
 
 IBETIN_HOME_URL = os.getenv("IBETIN_HOME_URL", "https://ibetin.com").strip().rstrip("/")
@@ -54,7 +54,7 @@ _IBETIN_APP_BASE_URL = (
 IBETIN_LIVE_LINE_URL = os.getenv(
     "IBETIN_LIVE_LINE_URL", f"{_IBETIN_APP_BASE_URL}/liveline"
 ).strip()
-IBETIN_CHANNEL_URL = "https://t.me/ibetinoffcial"
+IBETIN_CHANNEL_URL = "https://t.me/durasportsofficial"
 
 # =========================================================
 # LIVE TV SETTINGS
@@ -68,7 +68,7 @@ if LIVE_TV_MODE not in {"off", "admin", "public"}:
 
 
 # =========================================================
-# IBETIN BRAND COPY
+# DURASPORTS BRAND COPY
 # =========================================================
 
 def _install_ibetin_hub_copy() -> None:
@@ -76,10 +76,10 @@ def _install_ibetin_hub_copy() -> None:
     en.update(
         {
             "welcome": (
-                "⚡ <b>IBETIN</b>\n"
+                "⚡ <b>DURASPORTS</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
                 "Quick access without a crowded menu.\n\n"
-                "🚀 Join IBETIN Mini App\n"
+                "🚀 Join DURASPORTS Mini App\n"
                 "🏏 Live Line\n"
                 "🔴 Live now\n"
                 "🏆 Sports\n"
@@ -90,21 +90,21 @@ def _install_ibetin_hub_copy() -> None:
                 "🔞 18+ • Play responsibly • T&Cs apply"
             ),
             "explore": (
-                "🌐 <b>IBETIN MINI APP HUB</b>\n"
+                "🌐 <b>DURASPORTS MINI APP HUB</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
                 "Every navigation button opens inside Telegram.\n\n"
                 "🔞 18+ • Play responsibly • T&Cs apply"
             ),
             "join": (
-                "🌐 <b>OPEN IBETIN</b>\n"
+                "🌐 <b>OPEN DURASPORTS</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
-                "Continue inside Telegram using the IBETIN Mini App.\n\n"
+                "Continue inside Telegram using the DURASPORTS Mini App.\n\n"
                 "🔞 18+ • Play responsibly • T&Cs apply"
             ),
             "settings": (
-                "⚙️ <b>IBETIN SETTINGS</b>\n"
+                "⚙️ <b>DURASPORTS SETTINGS</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
-                "Open settings in the IBETIN Mini App."
+                "Open settings in the DURASPORTS Mini App."
             ),
         }
     )
@@ -113,10 +113,10 @@ def _install_ibetin_hub_copy() -> None:
     hi.update(
         {
             "welcome": (
-                "⚡ <b>IBETIN</b>\n"
+                "⚡ <b>DURASPORTS</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
                 "कम विकल्प, तेज़ access.\n\n"
-                "🚀 IBETIN Mini App\n"
+                "🚀 DURASPORTS Mini App\n"
                 "🏏 Live Line\n"
                 "🔴 Live\n"
                 "🏆 Sports\n"
@@ -127,15 +127,15 @@ def _install_ibetin_hub_copy() -> None:
                 "🔞 18+ • जिम्मेदारी से खेलें • T&Cs लागू"
             ),
             "explore": (
-                "🌐 <b>IBETIN MINI APP HUB</b>\n"
+                "🌐 <b>DURASPORTS MINI APP HUB</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
                 "सभी navigation विकल्प Telegram के अंदर खुलेंगे।\n\n"
                 "🔞 18+ • जिम्मेदारी से खेलें • T&Cs लागू"
             ),
             "join": (
-                "🌐 <b>OPEN IBETIN</b>\n"
+                "🌐 <b>OPEN DURASPORTS</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
-                "IBETIN को Telegram Mini App के अंदर खोलें।\n\n"
+                "DURASPORTS को Telegram Mini App के अंदर खोलें।\n\n"
                 "🔞 18+ • जिम्मेदारी से खेलें • T&Cs लागू"
             ),
         }
@@ -153,7 +153,7 @@ _install_ibetin_hub_copy()
 # (green), and danger (red). PTB 21.6 predates the explicit `style` argument,
 # so inject the current Bot API field when serializing buttons. This applies
 # consistently to all InlineKeyboardButton/KeyboardButton instances used by
-# the IBETIN runtime, including Business DM menus, reminders, alerts and news.
+# the DURASPORTS runtime, including Business DM menus, reminders, alerts and news.
 def _button_style(text: str) -> str:
     value = (text or "").casefold()
     if any(token in value for token in ("live", "stop", "delete", "remove", "off")):
@@ -192,7 +192,7 @@ def _install_native_button_styles() -> None:
     KeyboardButton.to_dict = keyboard_to_dict
     InlineKeyboardButton._ibetin_styles_installed = True
     KeyboardButton._ibetin_styles_installed = True
-    logger.info("IBETIN native Telegram button colors installed")
+    logger.info("DURASPORTS native Telegram button colors installed")
 
 
 _install_native_button_styles()
@@ -211,7 +211,7 @@ def mini_app_button(label: str, content: str) -> InlineKeyboardButton:
 
 
 def site_button(label: str, url: str) -> InlineKeyboardButton:
-    """Open an IBETIN web section inside Telegram WebApp instead of external browser."""
+    """Open an DURASPORTS web section inside Telegram WebApp instead of external browser."""
     return InlineKeyboardButton(label, web_app=WebAppInfo(url=url))
 
 
@@ -226,15 +226,15 @@ def sky_admin_url() -> str:
     return f"{SKY_ADMIN_BASE_URL}/open?{query}"
 
 
-# Persistent bottom keyboard: a visible START entry plus direct IBETIN access.
+# Persistent bottom keyboard: a visible START entry plus direct DURASPORTS access.
 app.QUICK_MENU = ReplyKeyboardMarkup(
     [[
         KeyboardButton("▶️ START"),
-        KeyboardButton("⚡ OPEN IBETIN", web_app=WebAppInfo(url=hub.hub_url("home"))),
+        KeyboardButton("⚡ OPEN DURASPORTS", web_app=WebAppInfo(url=hub.hub_url("home"))),
     ]],
     resize_keyboard=True,
     is_persistent=True,
-    input_field_placeholder="Tap START or open IBETIN",
+    input_field_placeholder="Tap START or open DURASPORTS",
 )
 
 
@@ -287,7 +287,7 @@ async def _set_user_menu_button(bot, user_id: int, verified: bool) -> None:
             await bot.set_chat_menu_button(
                 chat_id=int(user_id),
                 menu_button=MenuButtonWebApp(
-                    text="Open IBETIN",
+                    text="Open DURASPORTS",
                     web_app=WebAppInfo(url=hub.hub_url("home")),
                 ),
             )
@@ -297,7 +297,7 @@ async def _set_user_menu_button(bot, user_id: int, verified: bool) -> None:
                 menu_button=MenuButtonCommands(),
             )
     except Exception:
-        logger.exception("Could not update IBETIN per-user menu button")
+        logger.exception("Could not update DURASPORTS per-user menu button")
 
 
 async def _require_verified(update, context, source: str = "bot_start") -> bool:
@@ -313,23 +313,23 @@ async def _require_verified(update, context, source: str = "bot_start") -> bool:
 
 
 # =========================================================
-# MAIN IBETIN HUB — COMPACT SIX-ACTION MENU
+# MAIN DURASPORTS HUB — COMPACT SIX-ACTION MENU
 # =========================================================
 
 def premium_main_keyboard(user_id: int = 0) -> InlineKeyboardMarkup:
     if user_id and phone_verify.is_verified(user_id):
         live_line_button = site_button(
-            "🏏 OPEN IBETIN LIVE LINE",
+            "🏏 OPEN DURASPORTS LIVE LINE",
             phone_verify.live_line_url(user_id, IBETIN_LIVE_LINE_URL),
         )
     else:
         live_line_button = InlineKeyboardButton(
-            "🏏 OPEN IBETIN LIVE LINE",
+            "🏏 OPEN DURASPORTS LIVE LINE",
             callback_data="liveline_access",
         )
 
     rows = [
-        [hub_button("🚀 JOIN IBETIN", "home")],
+        [hub_button("🚀 JOIN DURASPORTS", "home")],
         [live_line_button],
         [
             site_button("🔴 LIVE NOW", IBETIN_LIVE_URL),
@@ -361,8 +361,8 @@ def conversion_keyboard(user_id: int) -> InlineKeyboardMarkup:
     live_url = phone_verify.live_line_url(user_id, IBETIN_LIVE_LINE_URL)
     return InlineKeyboardMarkup(
         [
-            [hub_button("🚀 JOIN IBETIN", "home")],
-            [site_button("🏏 OPEN IBETIN LIVE LINE", live_url)],
+            [hub_button("🚀 JOIN DURASPORTS", "home")],
+            [site_button("🏏 OPEN DURASPORTS LIVE LINE", live_url)],
             [InlineKeyboardButton("📢 JOIN CHANNEL", url=IBETIN_CHANNEL_URL)],
         ]
     )
@@ -371,7 +371,7 @@ def conversion_keyboard(user_id: int) -> InlineKeyboardMarkup:
 def premium_join_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
-            [site_button("🌐 OPEN IBETIN", IBETIN_HOME_URL)],
+            [site_button("🌐 OPEN DURASPORTS", IBETIN_HOME_URL)],
             [
                 site_button("🏆 SPORTS", IBETIN_SPORTS_URL),
                 site_button("🔴 LIVE", IBETIN_LIVE_URL),
@@ -380,14 +380,14 @@ def premium_join_keyboard() -> InlineKeyboardMarkup:
                 site_button("🎰 LIVE CASINO", IBETIN_CASINO_URL),
                 site_button("🎮 GAMES", IBETIN_GAMES_URL),
             ],
-            [hub_button("⚡ IBETIN MINI APP HOME", "home")],
+            [hub_button("⚡ DURASPORTS MINI APP HOME", "home")],
         ]
     )
 
 
 def premium_explore_keyboard(user_id: int = 0) -> InlineKeyboardMarkup:
     rows = [
-        [hub_button("🌐 IBETIN MINI APP HOME", "home")],
+        [hub_button("🌐 DURASPORTS MINI APP HOME", "home")],
         [
             site_button("🏆 SPORTS", IBETIN_SPORTS_URL),
             site_button("🔴 LIVE", IBETIN_LIVE_URL),
@@ -511,7 +511,7 @@ async def smart_show_home(update, context) -> None:
             )
             return
         except Exception as exc:
-            logger.warning("IBETIN banner send failed, falling back to text: %s", exc)
+            logger.warning("DURASPORTS banner send failed, falling back to text: %s", exc)
 
     await message.reply_text(
         app.core.TEXT[lang]["welcome"],
@@ -548,11 +548,11 @@ async def _prompt_mobile_verification(update, context, source: str = "bot_start"
     if phone_verify.is_verified(user.id):
         if source == "liveline":
             await message.reply_text(
-                "🏏 <b>IBETIN LIVE LINE</b>\n\nOpen Live Line below.",
+                "🏏 <b>DURASPORTS LIVE LINE</b>\n\nOpen Live Line below.",
                 parse_mode="HTML",
                 reply_markup=InlineKeyboardMarkup(
                     [[InlineKeyboardButton(
-                        "🏏 OPEN IBETIN LIVE LINE",
+                        "🏏 OPEN DURASPORTS LIVE LINE",
                         web_app=WebAppInfo(
                             url=phone_verify.live_line_url(user.id, IBETIN_LIVE_LINE_URL)
                         ),
@@ -581,20 +581,20 @@ async def _prompt_mobile_verification(update, context, source: str = "bot_start"
         # from Live Line or a Telegram Business handoff, so use the bot route.
         reminders.touch_user("bot", user.id, "verification")
     except Exception:
-        logger.exception("Could not register IBETIN verification reminder")
+        logger.exception("Could not register DURASPORTS verification reminder")
 
     if source == "liveline":
-        detail = "Verify your Telegram-linked mobile once to open IBETIN Live Line."
+        detail = "Verify your Telegram-linked mobile once to open DURASPORTS Live Line."
     elif source == "business_dm":
-        detail = "Verify your Telegram-linked mobile once to continue with IBETIN."
+        detail = "Verify your Telegram-linked mobile once to continue with DURASPORTS."
     else:
-        detail = "Verify your Telegram-linked mobile once to continue with IBETIN."
+        detail = "Verify your Telegram-linked mobile once to continue with DURASPORTS."
 
     await message.reply_text(
         "📱 <b>VERIFY MOBILE TO CONTINUE</b>\n\n"
         f"{detail}\n\n"
         "Tap <b>📱 VERIFY & CONTINUE</b> below. Telegram will share your linked mobile number.\n\n"
-        "By continuing, you agree that the IBETIN team may contact you by "
+        "By continuing, you agree that the DURASPORTS team may contact you by "
         "<b>phone call or WhatsApp</b>. You can opt out anytime.\n\n"
         "🔞 <b>18+ • Play responsibly</b>",
         parse_mode="HTML",
@@ -609,7 +609,7 @@ async def _notify_verified_lead(context, user, phone: str, source: str, campaign
         await context.bot.send_message(
             chat_id=ibetin_reports.notification_admin_user_id(),
             text=(
-                "🆕 <b>NEW VERIFIED IBETIN LEAD</b>\n"
+                "🆕 <b>NEW VERIFIED DURASPORTS LEAD</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
                 f"👤 Name: <b>{first_name}</b>\n"
                 f"🔗 Telegram: <b>{username}</b>\n"
@@ -624,7 +624,7 @@ async def _notify_verified_lead(context, user, phone: str, source: str, campaign
             disable_web_page_preview=True,
         )
     except Exception:
-        logger.exception("Could not send IBETIN verified lead alert")
+        logger.exception("Could not send DURASPORTS verified lead alert")
 
 
 async def mobile_contact_handler(update, context) -> None:
@@ -694,10 +694,10 @@ async def mobile_contact_handler(update, context) -> None:
             reminders.touch_user("bot", user.id, "general")
         app.core.track(user.id, f"mobile_verified:{source}")
     except Exception:
-        logger.exception("Could not track IBETIN mobile verification")
+        logger.exception("Could not track DURASPORTS mobile verification")
 
     logger.info(
-        "IBETIN mobile verified user_id=%s source=%s campaign=%s",
+        "DURASPORTS mobile verified user_id=%s source=%s campaign=%s",
         user.id,
         source,
         campaign,
@@ -709,7 +709,7 @@ async def mobile_contact_handler(update, context) -> None:
     if source == "liveline":
         success_markup = InlineKeyboardMarkup(
             [[InlineKeyboardButton(
-                "🏏 OPEN IBETIN LIVE LINE",
+                "🏏 OPEN DURASPORTS LIVE LINE",
                 web_app=WebAppInfo(
                     url=phone_verify.live_line_url(user.id, IBETIN_LIVE_LINE_URL)
                 ),
@@ -768,7 +768,7 @@ async def pending_verification_text_handler(update, context) -> None:
     try:
         reminders.touch_user("bot", user.id, "verification")
     except Exception:
-        logger.exception("Could not register IBETIN verification reminder from text gate")
+        logger.exception("Could not register DURASPORTS verification reminder from text gate")
     await message.reply_text(
         "📱 <b>Verification needed</b>\n\n"
         "Typed numbers cannot verify your account. Tap <b>📱 VERIFY & CONTINUE</b> below.",
@@ -787,7 +787,7 @@ async def verified_fixed_reply_handler(update, context) -> None:
         return
 
     text = message.text.strip()
-    if not text or text in {"▶️ START", "⚡ IBETIN Menu"}:
+    if not text or text in {"▶️ START", "⚡ DURASPORTS Menu"}:
         return
 
     normalized = " ".join(text.casefold().split())
@@ -806,7 +806,7 @@ async def verified_fixed_reply_handler(update, context) -> None:
         await message.reply_text(
             "✅ <b>Contact preference updated.</b>\n\n"
             "We will stop promotional follow-up to this Telegram lead. "
-            "You can still use IBETIN and official support anytime.",
+            "You can still use DURASPORTS and official support anytime.",
             parse_mode="HTML",
         )
         return
@@ -816,7 +816,7 @@ async def verified_fixed_reply_handler(update, context) -> None:
         app.core.touch_user(update)
         app.core.track(user.id, f"bot_text:{category}")
     except Exception:
-        logger.exception("Could not track IBETIN fixed reply")
+        logger.exception("Could not track DURASPORTS fixed reply")
 
     await message.reply_text(
         reply,
@@ -850,7 +850,7 @@ async def smart_start(update, context) -> None:
         reminders.set_opt_out("bot", user.id, True)
         reminders.set_opt_out("business_dm", user.id, True)
         await message.reply_text(
-            "🔕 <b>IBETIN reminders are OFF.</b>", parse_mode="HTML"
+            "🔕 <b>DURASPORTS reminders are OFF.</b>", parse_mode="HTML"
         )
         return
 
@@ -873,10 +873,10 @@ async def smart_start(update, context) -> None:
     try:
         app.core.track(user.id, f"campaign_start:{campaign}")
     except Exception:
-        logger.exception("Could not track IBETIN campaign start")
+        logger.exception("Could not track DURASPORTS campaign start")
 
-    # Fantzo-style global onboarding gate: first IBETIN entry requires a
-    # Telegram self-contact verification. Once verified, all IBETIN features
+    # Fantzo-style global onboarding gate: first DURASPORTS entry requires a
+    # Telegram self-contact verification. Once verified, all DURASPORTS features
     # including Live Line reuse the same record and do not ask again.
     if not phone_verify.is_verified(user.id):
         await _set_user_menu_button(context.bot, user.id, False)
@@ -885,13 +885,13 @@ async def smart_start(update, context) -> None:
             reminders.touch_user("bot", user.id, "verification")
             app.core.track(user.id, "mobile_verify:bot_start")
         except Exception:
-            logger.exception("Could not track IBETIN bot-start verification")
+            logger.exception("Could not track DURASPORTS bot-start verification")
         await _prompt_mobile_verification(update, context, "bot_start")
         return
 
     await _set_user_menu_button(context.bot, user.id, True)
     await message.reply_text(
-        "👋 <b>Welcome back to IBETIN</b>\n\nChoose what you want to do next.",
+        "👋 <b>Welcome back to DURASPORTS</b>\n\nChoose what you want to do next.",
         parse_mode="HTML",
         reply_markup=conversion_keyboard(user.id),
         disable_web_page_preview=True,
@@ -922,31 +922,31 @@ async def _mini_launcher(update, title: str, button: InlineKeyboardButton, actio
 async def website_command(update, context) -> None:
     if not await _require_verified(update, context):
         return
-    await _mini_launcher(update, "🌐 <b>IBETIN MINI APP</b>", hub_button("OPEN IBETIN MINI APP", "home"), "website_hub")
+    await _mini_launcher(update, "🌐 <b>DURASPORTS MINI APP</b>", hub_button("OPEN DURASPORTS MINI APP", "home"), "website_hub")
 
 
 async def live_command(update, context) -> None:
     if not await _require_verified(update, context):
         return
-    await _mini_launcher(update, "🔴 <b>IBETIN LIVE</b>", site_button("OPEN LIVE", IBETIN_LIVE_URL), "live")
+    await _mini_launcher(update, "🔴 <b>DURASPORTS LIVE</b>", site_button("OPEN LIVE", IBETIN_LIVE_URL), "live")
 
 
 async def support_command(update, context) -> None:
     if not await _require_verified(update, context):
         return
-    await _mini_launcher(update, "🛟 <b>IBETIN SUPPORT</b>", site_button("OPEN SUPPORT", IBETIN_SUPPORT_URL), "support")
+    await _mini_launcher(update, "🛟 <b>DURASPORTS SUPPORT</b>", site_button("OPEN SUPPORT", IBETIN_SUPPORT_URL), "support")
 
 
 async def news_command(update, context) -> None:
     if not await _require_verified(update, context):
         return
-    await _mini_launcher(update, "📰 <b>IBETIN SPORTS NEWS</b>", news.news_webapp_button("OPEN SPORTS NEWS"), "news:latest")
+    await _mini_launcher(update, "📰 <b>DURASPORTS SPORTS NEWS</b>", news.news_webapp_button("OPEN SPORTS NEWS"), "news:latest")
 
 
 async def sports_command(update, context) -> None:
     if not await _require_verified(update, context):
         return
-    await _mini_launcher(update, "🏆 <b>IBETIN SPORTS</b>", site_button("OPEN SPORTS", IBETIN_SPORTS_URL), "sports")
+    await _mini_launcher(update, "🏆 <b>DURASPORTS SPORTS</b>", site_button("OPEN SPORTS", IBETIN_SPORTS_URL), "sports")
 
 
 async def team_command(update, context) -> None:
@@ -963,7 +963,7 @@ async def help_command(update, context) -> None:
     if not await _require_verified(update, context):
         return
     await message.reply_text(
-        "⚡ <b>IBETIN</b>\n\nChoose an option below.",
+        "⚡ <b>DURASPORTS</b>\n\nChoose an option below.",
         parse_mode="HTML",
         reply_markup=premium_main_keyboard(user.id),
         disable_web_page_preview=True,
@@ -1063,7 +1063,7 @@ async def live_tv_admin_command(update, context) -> None:
         return
 
     await message.reply_text(
-        "📺 <b>IBETIN LIVE TV · ADMIN</b>\n"
+        "📺 <b>DURASPORTS LIVE TV · ADMIN</b>\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
         f"Current mode: <b>{LIVE_TV_MODE.upper()}</b>",
         parse_mode="HTML",
@@ -1088,33 +1088,33 @@ async def configure_telegram_ui(application) -> None:
     # Telegram shows these before a new user presses START. Keep the copy
     # factual, sports-focused and useful for paid-traffic landing clarity.
     await application.bot.set_my_short_description(
-        "IBETIN Sports Hub • Live Line • Match updates • News • Alerts"
+        "DURASPORTS Sports Hub • Live Line • Match updates • News • Alerts"
     )
     await application.bot.set_my_description(
-        "Welcome to IBETIN Sports Hub. Follow cricket and football updates, "
-        "open IBETIN Live Line, view match results and sports news, manage "
+        "Welcome to DURASPORTS Sports Hub. Follow cricket and football updates, "
+        "open DURASPORTS Live Line, view match results and sports news, manage "
         "match alerts, and access official support. Verify your Telegram-linked "
         "mobile once to continue. 18+ • Play responsibly."
     )
 
     await application.bot.set_my_commands(
         [
-            BotCommand("start", "Open IBETIN Mini App Hub"),
+            BotCommand("start", "Open DURASPORTS Mini App Hub"),
             BotCommand("news", "Open Sports News Mini App"),
-            BotCommand("website", "Open IBETIN Mini App"),
+            BotCommand("website", "Open DURASPORTS Mini App"),
             BotCommand("live", "Open Live Mini App"),
-            BotCommand("liveline", "Open IBETIN Live Line"),
+            BotCommand("liveline", "Open DURASPORTS Live Line"),
             BotCommand("sports", "Open Sports Mini App"),
             BotCommand("team", "Open team search"),
             BotCommand("support", "Open Support Mini App"),
-            BotCommand("help", "IBETIN Mini App menu"),
+            BotCommand("help", "DURASPORTS Mini App menu"),
             BotCommand("reports", "Admin report center"),
         ]
     )
 
     # Default menu is Commands so an unverified user cannot bypass the
     # verification gate through Telegram's native Menu button. A per-user
-    # "Open IBETIN" WebApp menu is enabled immediately after verification.
+    # "Open DURASPORTS" WebApp menu is enabled immediately after verification.
     await application.bot.set_chat_menu_button(
         menu_button=MenuButtonCommands()
     )
@@ -1159,7 +1159,7 @@ async def configure_telegram_ui(application) -> None:
             filters.UpdateType.MESSAGE
             & filters.TEXT
             & ~filters.COMMAND
-            & ~filters.Regex(r"^(?:▶️ START|⚡ IBETIN Menu)$"),
+            & ~filters.Regex(r"^(?:▶️ START|⚡ DURASPORTS Menu)$"),
             verified_fixed_reply_handler,
         ),
         group=10,
@@ -1173,19 +1173,19 @@ async def configure_telegram_ui(application) -> None:
     await ibetin_reports.push_report_center_to_unlocked_admin(application)
     reset_count = phone_verify.apply_requested_reset()
     if reset_count:
-        logger.info("IBETIN Live Line verification reset applied rows=%s", reset_count)
+        logger.info("DURASPORTS Live Line verification reset applied rows=%s", reset_count)
 
     username_reset_count = phone_verify.apply_requested_username_reset()
     if username_reset_count:
         logger.info(
-            "IBETIN mobile verification username reset applied rows=%s",
+            "DURASPORTS mobile verification username reset applied rows=%s",
             username_reset_count,
         )
 
     user_id_reset_count = phone_verify.apply_requested_user_id_reset()
     if user_id_reset_count:
         logger.info(
-            "IBETIN mobile verification exact-user reset applied rows=%s",
+            "DURASPORTS mobile verification exact-user reset applied rows=%s",
             user_id_reset_count,
         )
     reminders.ensure_tables()
@@ -1197,7 +1197,7 @@ app.configure_telegram_ui = configure_telegram_ui
 
 
 # =========================================================
-# START IBETIN
+# START DURASPORTS
 # =========================================================
 
 if __name__ == "__main__":
@@ -1206,5 +1206,5 @@ if __name__ == "__main__":
     trial_live_tv.install_on_tracking_handler(analytics)
     fantzo_live_tv.install_on_tracking_handler(analytics)
     analytics.start_tracking_server()
-    logger.info("Starting IBETIN Mini-App-first bot with LIVE_TV_MODE=%s", LIVE_TV_MODE)
+    logger.info("Starting DURASPORTS Mini-App-first bot with LIVE_TV_MODE=%s", LIVE_TV_MODE)
     app.run()

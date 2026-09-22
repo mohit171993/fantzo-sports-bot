@@ -1,0 +1,2 @@
+Fantzo all-time CRM release
+Includes historical users, saved-mobile recovery, user ID cards, paged New/Unworked and Saved Mobiles queues.

@@ -2280,14 +2280,24 @@ async def admin_text_handler(update, context) -> None:
 
     uid = context.user_data.pop("fantzo_admin_note_user", None)
     if uid:
+        queue = str(context.user_data.pop("fantzo_admin_note_queue", "") or "")
+        try:
+            index = int(context.user_data.pop("fantzo_admin_note_index", 0) or 0)
+        except Exception:
+            index = 0
+
         actor_id, actor_name = _actor(update)
         ok = crm_ops.add_note(int(uid), text, actor_id, actor_name)
         if ok:
+            back = (
+                f"ops:qpage:{queue}:{index}"
+                if queue else f"ops:lead:{int(uid)}"
+            )
             await message.reply_text(
                 "✅ <b>Lead note saved.</b>",
                 parse_mode="HTML",
                 reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("OPEN LEAD", callback_data=f"ops:lead:{int(uid)}")]
+                    [InlineKeyboardButton("RETURN TO LEAD", callback_data=back)]
                 ]),
             )
         else:

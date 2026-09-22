@@ -332,42 +332,34 @@ def _verification_due_stage(row, now_utc: datetime):
 
 def _copy_for(interest: str, stage: int, source: str, user_id: int = 0):
     if interest == "cricket":
-        subject = "🏏 IBETIN Live Line is ready"
-        detail = "Open Live Line for live cricket scores, Match Pulse, scorecards, fixtures and results."
+        subject = "🏏 IBETIN Live Line"
+        detail = "Live scores, Match Pulse, scorecards, fixtures & results."
     elif interest == "football":
-        subject = "⚽ Football updates are ready"
-        detail = "See live scores, upcoming fixtures and the latest football updates."
+        subject = "⚽ Football updates"
+        detail = "Live scores, fixtures & results."
     else:
-        subject = "🔥 Catch up with today’s sports"
-        detail = "Open IBETIN Live Line for live cricket scores, Match Pulse, scorecards, fixtures and results."
+        subject = "🔥 IBETIN sports update"
+        detail = "Live Line, fixtures & results are ready."
 
     if stage == 1:
         intro = subject
     elif stage == 2:
-        intro = "📅 Don’t miss what’s happening today"
+        intro = "📅 Catch up with today’s sports"
     else:
-        intro = "👋 Your IBETIN sports updates are still here"
+        intro = "👋 Live Line is still here"
 
-    text = (
-        f"<b>{intro}</b>\n\n"
-        f"{detail}\n\n"
-        "Tap below whenever you want to catch up."
-    )
+    text = f"<b>{intro}</b>\n\n{detail}"
 
     if source == "business_dm":
-        # Telegram Business messages cannot use web_app buttons directly.
-        # JOIN IBETIN therefore uses the Telegram Main Mini App deep link.
         markup = InlineKeyboardMarkup(
             [
                 [
                     TelegramInlineKeyboardButton(
                         "🏏 OPEN LIVE LINE",
                         url=(
-                            (
-                                phone_verify.live_line_url(user_id, IBETIN_LIVE_LINE_URL)
-                                if user_id and phone_verify.is_verified(user_id)
-                                else phone_verify.verification_bot_url()
-                            )
+                            phone_verify.live_line_url(user_id, IBETIN_LIVE_LINE_URL)
+                            if user_id and phone_verify.is_verified(user_id)
+                            else phone_verify.verification_bot_url()
                         ),
                     )
                 ],
@@ -386,8 +378,6 @@ def _copy_for(interest: str, stage: int, source: str, user_id: int = 0):
             ]
         )
     else:
-        # Normal private-bot follow-ups stay in chat until mobile verification.
-        # Only verified users receive a Live Line WebApp launcher.
         if user_id and phone_verify.is_verified(user_id):
             live_line_button = TelegramInlineKeyboardButton(
                 "🏏 OPEN LIVE LINE",
@@ -404,10 +394,6 @@ def _copy_for(interest: str, stage: int, source: str, user_id: int = 0):
         markup = InlineKeyboardMarkup(
             [
                 [live_line_button],
-                [
-                    InlineKeyboardButton("🔴 LIVE NOW", callback_data="live_now"),
-                    InlineKeyboardButton("🗓 UPCOMING", callback_data="upcoming"),
-                ],
                 [
                     TelegramInlineKeyboardButton(
                         "🚀 JOIN IBETIN",
@@ -427,20 +413,18 @@ def _copy_for(interest: str, stage: int, source: str, user_id: int = 0):
 
 def _verification_reminder_copy(stage: int):
     if stage == 1:
-        intro = "📱 Complete your IBETIN verification"
+        intro = "📱 Complete your verification"
     elif stage == 2:
-        intro = "🔐 Your IBETIN verification is still pending"
+        intro = "🔐 Verification is still pending"
     else:
-        intro = "👋 Finish verification to continue with IBETIN"
+        intro = "👋 Finish verification to continue"
 
     text = (
         f"<b>{intro}</b>\n\n"
-        "Verify the mobile number linked to your Telegram account. "
-        "You only need to do this once.\n\n"
-        "Tap <b>📱 VERIFY & CONTINUE</b> below. By continuing, you agree that "
-        "the IBETIN team may contact you about your request by phone call and WhatsApp. "
-        "You can opt out anytime.\n\n"
-        "🔞 <b>18+ only • Play responsibly</b>"
+        "Verify your Telegram-linked mobile once to open IBETIN Live Line.\n\n"
+        "Tap <b>📱 VERIFY & CONTINUE</b>. By continuing, you agree that the "
+        "IBETIN team may contact you by phone or WhatsApp. You can opt out anytime.\n\n"
+        "🔞 <b>18+ • Play responsibly</b>"
     )
     markup = ReplyKeyboardMarkup(
         [[KeyboardButton("📱 VERIFY & CONTINUE", request_contact=True)]],
@@ -507,26 +491,66 @@ async def _send_with_retry(bot, row, stage: int) -> bool:
         str(row["source"]),
         int(row["user_id"]),
     )
-    kwargs = {
-        "chat_id": int(row["user_id"]),
-        "text": text,
-        "parse_mode": "HTML",
-        "reply_markup": markup,
-        "disable_web_page_preview": True,
-    }
-    if row["source"] == "business_dm" and row["business_connection_id"]:
-        kwargs["business_connection_id"] = str(row["business_connection_id"])
+    user_id = int(row["user_id"])
+    source = str(row["source"])
+    business_connection_id = str(row["business_connection_id"] or "")
+
+    creative = None
+    creatives = None
+    if source == "bot":
+        try:
+            import ibetin_creatives as creatives
+            creative = creatives.pick_creative(
+                "reminder",
+                key=user_id + (stage * 1009),
+            )
+        except Exception:
+            logger.exception("Could not select IBETIN reminder creative")
+            creative = None
+            creatives = None
 
     for attempt in range(3):
         try:
-            await bot.send_message(**kwargs)
+            if creative is not None and creatives is not None:
+                await creatives._send_creative_as_photo(
+                    bot,
+                    creative,
+                    {
+                        "chat_id": user_id,
+                        "caption": text,
+                        "parse_mode": "HTML",
+                        "reply_markup": markup,
+                    },
+                )
+            else:
+                kwargs = {
+                    "chat_id": user_id,
+                    "text": text,
+                    "parse_mode": "HTML",
+                    "reply_markup": markup,
+                    "disable_web_page_preview": True,
+                }
+                if source == "business_dm" and business_connection_id:
+                    kwargs["business_connection_id"] = business_connection_id
+                await bot.send_message(**kwargs)
             return True
         except RetryAfter as exc:
             delay = exc.retry_after.total_seconds() if hasattr(exc.retry_after, "total_seconds") else float(exc.retry_after)
             if attempt >= 2:
                 raise
             await asyncio.sleep(max(1.0, delay) + 1.0)
-        except (Forbidden, BadRequest):
+        except BadRequest:
+            if creative is not None:
+                logger.warning(
+                    "IBETIN reminder creative rejected; falling back to text user_id=%s stage=%s",
+                    user_id,
+                    stage,
+                )
+                creative = None
+                creatives = None
+                continue
+            raise
+        except Forbidden:
             raise
     return False
 
@@ -702,10 +726,7 @@ async def send_liveline_channel_daily(application, local_now: datetime | None = 
 
     caption = (
         "🏏 <b>IBETIN LIVE LINE</b>\n\n"
-        "Live cricket scores, Match Pulse, scorecards, fixtures and results — inside Telegram.\n\n"
-        "⚡ Fast live updates\n"
-        "📊 Match Pulse & scorecards\n"
-        "🗓 Fixtures & results\n\n"
+        "Live scores • Match Pulse • Scorecards • Fixtures & results\n\n"
         "Tap below to open Live Line."
     )
     markup = InlineKeyboardMarkup(

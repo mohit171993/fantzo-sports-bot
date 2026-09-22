@@ -151,6 +151,12 @@ def _ops_dashboard_text() -> str:
 
     reminders_on = not reminders.is_paused()
     channel_on = not banner_queue.is_paused()
+    channel_queue = banner_queue.queue_count()
+    channel_detail = (
+        f"{channel_queue} queued · {banner_queue.schedule_text()}"
+        if channel_queue else
+        "queue empty · no post scheduled"
+    )
 
     return (
         "📊 <b>FANTZO TEAM DASHBOARD</b>\n"
@@ -169,7 +175,7 @@ def _ops_dashboard_text() -> str:
         f"🔔 Reminders: {'🟢 ON' if reminders_on else '🔴 OFF'} "
         f"· sent 24h: <b>{_fmt_int(sent_24)}</b>\n"
         f"📣 Channel: {'🟢 ON' if channel_on else '🔴 OFF'} "
-        f"· daily <b>{escape(banner_queue.schedule_text())}</b>\n\n"
+        f"· <b>{escape(channel_detail)}</b>\n\n"
         f"⚠️ Not verified: <b>{_fmt_int(data['not_verified'])}</b> · "
         f"👨‍💼 New already assigned: <b>{_fmt_int(data['new_assigned'])}</b>"
     )
@@ -472,8 +478,14 @@ def _automation_text() -> str:
         f"📨 Reminders sent 24h: <b>{_fmt_int(sent_24)}</b>\n"
         f"🌙 Quiet hours: <b>22:00–08:00 Dubai</b>\n\n"
         f"📣 Channel automation: <b>{'ON' if not banner_queue.is_paused() else 'OFF'}</b>\n"
-        f"🕒 Daily schedule: <b>{escape(banner_queue.schedule_text())}</b>\n"
-        f"🖼 Queued channel banners: <b>{_fmt_int(queued)}</b>"
+        f"🖼 Queued channel banners: <b>{_fmt_int(queued)}</b>\n"
+        + (
+            f"🕒 Next auto post: <b>{escape(banner_queue.schedule_text())}</b>"
+            if queued and not banner_queue.is_paused()
+            else "🕒 Next auto post: <b>NONE · QUEUE EMPTY</b>"
+            if not queued
+            else "🕒 Next auto post: <b>PAUSED</b>"
+        )
     )
 
 

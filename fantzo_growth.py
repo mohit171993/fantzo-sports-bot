@@ -100,7 +100,6 @@ def growth_stats():
         'bot_opens_24h': count('bot_open', day),
         'live_tv_24h': count('live_tv_open', day),
         'signup_started_24h': count('signup_started', day),
-        'signup_completed_24h': count('signup_completed', day),
         'favourites': favourites,
         'ad_starts_24h': ad_starts_24h,
         'new_leads_24h': new_leads_24h,
@@ -121,7 +120,6 @@ async def send_growth_report(application):
         f"✅ Lead conversions (24h): <b>{s['converted_24h']}</b>\n"
         f"📺 Live TV opens (24h): <b>{s['live_tv_24h']}</b>\n"
         f"📝 Signup started (24h): <b>{s['signup_started_24h']}</b>\n"
-        f"✅ Signup completed (24h): <b>{s['signup_completed_24h']}</b>\n"
         f"⭐ Favourite-team alerts: <b>{s['favourites']}</b>\n\n"
         "🔄 Automatic report: every 2 hours"
     )

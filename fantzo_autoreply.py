@@ -1,4 +1,5 @@
 import logging
+import os
 import re
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -72,7 +73,7 @@ def classify_and_reply(text: str):
         return (
             "greeting",
             "👋 <b>Welcome to Fantzo!</b>\n\n"
-            "I can help with live scores, cricket, football, account access, deposits/withdrawals and general Fantzo questions.\n\n"
+            "I can help with live scores, cricket, football, Live TV, account access and Fantzo support.\n\n"
             "What would you like help with?",
             _sports_keyboard(),
         )
@@ -92,11 +93,20 @@ def classify_and_reply(text: str):
         )
 
     if ("live tv" in t or "live stream" in t or "watch live" in t or "ground commentary" in t):
-        return (
-            "live_tv",
-            "📺 <b>Live TV</b>\n\nLive TV is currently being tested and is not yet available to public users. Live scores and match updates are available from the Fantzo sports menu.",
-            _sports_keyboard(),
-        )
+        live_tv_mode = os.getenv("LIVE_TV_MODE", "admin").strip().lower()
+        if live_tv_mode == "public":
+            reply = (
+                "📺 <b>Live TV</b>\n\n"
+                "Live TV is available through the Fantzo menu. Open Fantzo or "
+                "use the Live TV option when it appears for the current match."
+            )
+        else:
+            reply = (
+                "📺 <b>Live TV</b>\n\n"
+                "Live TV is not currently available for public viewing. "
+                "Live scores and match updates are available from the Fantzo sports menu."
+            )
+        return ("live_tv", reply, _sports_keyboard())
 
     if _contains(t, ["deposit", "add money", "payment", "upi", "recharge"]):
         return (
@@ -145,7 +155,7 @@ def classify_and_reply(text: str):
         "🤖 <b>Fantzo Assistant</b>\n\nI didn't fully understand that yet. You can ask me about:\n"
         "• 🏏 Cricket / ⚽ Football\n"
         "• 🔴 Live matches\n"
-        "• 💳 Deposit / 💸 Withdrawal\n"
+        "• 📺 Live TV\n"
         "• 👤 Login / Registration\n"
         "• 🛟 Support\n\n"
         "Or tap the Fantzo Menu below.",

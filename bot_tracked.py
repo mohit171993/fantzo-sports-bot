@@ -525,13 +525,16 @@ app.show_home = smart_show_home
 
 
 def _verification_reply_keyboard() -> ReplyKeyboardMarkup:
-    """Keep the contact-verification button visible until verification succeeds."""
+    """Keep START and contact verification visible until verification succeeds."""
     return ReplyKeyboardMarkup(
-        [[KeyboardButton("📱 VERIFY & CONTINUE", request_contact=True)]],
+        [
+            [KeyboardButton("▶️ START")],
+            [KeyboardButton("📱 VERIFY & CONTINUE", request_contact=True)],
+        ],
         resize_keyboard=True,
         one_time_keyboard=False,
         is_persistent=True,
-        input_field_placeholder="Tap VERIFY & CONTINUE",
+        input_field_placeholder="Tap START or VERIFY & CONTINUE",
     )
 
 

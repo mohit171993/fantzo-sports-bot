@@ -382,7 +382,8 @@ def new_assigned_count() -> int:
             """
             SELECT COUNT(*) c
             FROM sales_leads
-            WHERE status='NEW' AND assigned_to IS NOT NULL
+            WHERE status='NEW'
+              AND (assigned_to IS NOT NULL OR COALESCE(assigned_agent,'')!='')
             """
         ).fetchone()
     return int(row["c"] or 0)

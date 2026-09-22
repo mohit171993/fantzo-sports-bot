@@ -128,6 +128,56 @@ def _pool_from(message, width: int = 0, height: int = 0, filename: str = "") -> 
     return "channel"
 
 
+def _image_dimensions_from_bytes(data: bytes):
+    if len(data) >= 24 and data[:8] == b"\x89PNG\r\n\x1a\n":
+        return int.from_bytes(data[16:20], "big"), int.from_bytes(data[20:24], "big")
+
+    if len(data) >= 30 and data[:2] == b"\xff\xd8":
+        i = 2
+        while i + 9 < len(data):
+            if data[i] != 0xFF:
+                i += 1
+                continue
+            marker = data[i + 1]
+            i += 2
+            if marker in (0xD8, 0xD9):
+                continue
+            if i + 2 > len(data):
+                break
+            seglen = int.from_bytes(data[i:i+2], "big")
+            if seglen < 2 or i + seglen > len(data):
+                break
+            if marker in {
+                0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7,
+                0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF
+            } and seglen >= 7:
+                h = int.from_bytes(data[i+3:i+5], "big")
+                w = int.from_bytes(data[i+5:i+7], "big")
+                return w, h
+            i += seglen
+
+    if len(data) >= 30 and data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        kind = data[12:16]
+        if kind == b"VP8X":
+            w = 1 + int.from_bytes(data[24:27], "little")
+            h = 1 + int.from_bytes(data[27:30], "little")
+            return w, h
+    return 0, 0
+
+
+async def _resolve_dimensions(bot, file_id: str, width: int = 0, height: int = 0):
+    if width and height:
+        return int(width), int(height)
+    try:
+        tg_file = await bot.get_file(file_id)
+        buffer = BytesIO()
+        await tg_file.download_to_memory(out=buffer)
+        return _image_dimensions_from_bytes(buffer.getvalue())
+    except Exception as exc:
+        logger.warning("DURA creative dimension recovery failed: %s", str(exc)[:140])
+        return int(width or 0), int(height or 0)
+
+
 def _save(file_id: str, file_unique_id: str, media_type: str, pool: str,
           width: int = 0, height: int = 0, filename: str = "") -> bool:
     ensure_tables()
@@ -257,6 +307,9 @@ async def creative_upload(update, context) -> None:
             height = int(getattr(thumb, "height", 0) or 0)
     else:
         return
+
+    if not (width and height):
+        width, height = await _resolve_dimensions(context.bot, file_id, width, height)
 
     pool = _pool_from(message, width, height, filename)
     _save(file_id, unique_id, media_type, pool, width, height, filename)

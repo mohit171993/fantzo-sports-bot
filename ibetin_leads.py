@@ -335,6 +335,10 @@ def mark_verified(
     )
     now = _now()
     with _connect() as conn:
+        # Verification must never rewrite first-touch attribution.
+        # record_start() above creates the lead with the correct original
+        # campaign/source when the record does not exist; existing records keep
+        # their original acquisition values permanently.
         conn.execute(
             """
             UPDATE ibetin_leads
@@ -344,8 +348,6 @@ def mark_verified(
                     ELSE mobile_number
                 END,
                 contact_consent=?,
-                source=CASE WHEN ? != '' THEN ? ELSE source END,
-                campaign=CASE WHEN ? != '' THEN ? ELSE campaign END,
                 updated_at=?
             WHERE user_id=?
             """,
@@ -354,10 +356,6 @@ def mark_verified(
                 str(mobile_number or "").strip(),
                 str(mobile_number or "").strip(),
                 1 if contact_consent else 0,
-                clean_source(source) if source else "",
-                clean_source(source) if source else "",
-                clean_campaign(campaign) if campaign else "",
-                clean_campaign(campaign) if campaign else "",
                 now,
                 int(user_id),
             ),

@@ -1659,11 +1659,219 @@ async def _handle_report_callback(update, context) -> bool:
         or data.startswith(DOWNLOAD_PREFIX)
         or data.startswith("crm:")
         or data.startswith("adm:")
+        or data.startswith("ops:")
     ):
         return False
 
     if not _is_admin(update):
         await query.answer("Restricted to Fantzo admin.", show_alert=True)
+        return True
+
+    if data.startswith("ops:"):
+        parts = data.split(":")
+        action = parts[1] if len(parts) > 1 else "home"
+
+        if action == "home":
+            await query.answer()
+            await _show(query, _ops_dashboard_text(), _ops_dashboard_menu())
+            return True
+
+        if action == "queue":
+            queue = parts[2] if len(parts) > 2 else "all"
+            await query.answer()
+            ids = crm_ops.queue_user_ids(queue, CRM_BATCH_SIZE)
+            await _show(
+                query,
+                _ops_queue_intro(queue, len(ids)),
+                InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🔄 REFRESH", callback_data=f"ops:queue:{queue}")],
+                    [InlineKeyboardButton("⬅️ DASHBOARD", callback_data="ops:home")],
+                ]),
+            )
+            for uid in ids:
+                await query.message.reply_text(
+                    _ops_lead_card(uid),
+                    parse_mode="HTML",
+                    reply_markup=_ops_lead_keyboard(uid),
+                    disable_web_page_preview=True,
+                )
+            return True
+
+        if action == "saved":
+            await query.answer()
+            await _show(
+                query,
+                _mobile_text(),
+                InlineKeyboardMarkup([
+                    [_styled_button("📥 VERIFIED MOBILE CSV", "rptdl:mobile", "success")],
+                    [InlineKeyboardButton("⬅️ DASHBOARD", callback_data="ops:home")],
+                ]),
+            )
+            return True
+
+        if action == "search":
+            await query.answer()
+            context.user_data["fantzo_admin_search_pending"] = True
+            await query.message.reply_text(
+                "🔎 <b>SEARCH FANTZO LEADS</b>\n\n"
+                "Send a Telegram username, user ID or mobile number.\n"
+                "Example: <code>@username</code> or <code>9715...</code>",
+                parse_mode="HTML",
+            )
+            return True
+
+        if action == "export":
+            await query.answer("Preparing leads CSV…")
+            filename, payload = _report_csv("leads")
+            await _send_document(
+                query.message,
+                filename,
+                payload,
+                "📥 Fantzo CRM lead export",
+            )
+            return True
+
+        if action == "adperformance":
+            await query.answer()
+            await _show(
+                query,
+                _campaigns_text(),
+                InlineKeyboardMarkup([
+                    [_styled_button("📥 FUNNEL CSV", "rptdl:leads", "success")],
+                    [InlineKeyboardButton("⬅️ DASHBOARD", callback_data="ops:home")],
+                ]),
+            )
+            return True
+
+        if action == "automation":
+            await query.answer()
+            await _show(query, _automation_text(), _automation_menu())
+            return True
+
+        if action == "guide":
+            await query.answer()
+            await _show(
+                query,
+                _team_guide_text(),
+                InlineKeyboardMarkup([
+                    [InlineKeyboardButton("⬅️ DASHBOARD", callback_data="ops:home")]
+                ]),
+            )
+            return True
+
+        if action == "toggle_reminders":
+            if not _is_owner(update):
+                await query.answer("Automation controls are owner-only.", show_alert=True)
+                return True
+            reminders.set_paused(not reminders.is_paused())
+            await query.answer("Reminder automation updated ✅")
+            await _show(query, _automation_text(), _automation_menu())
+            return True
+
+        if action == "toggle_channel":
+            if not _is_owner(update):
+                await query.answer("Automation controls are owner-only.", show_alert=True)
+                return True
+            banner_queue.set_paused(not banner_queue.is_paused())
+            await query.answer("Channel automation updated ✅")
+            await _show(query, _automation_text(), _automation_menu())
+            return True
+
+        if action == "lead":
+            if len(parts) < 3 or not parts[2].isdigit():
+                await query.answer("Lead not found.", show_alert=True)
+                return True
+            uid = int(parts[2])
+            if not crm_ops.get_lead(uid):
+                await query.answer("Lead not found.", show_alert=True)
+                return True
+            await query.answer()
+            await _show(query, _ops_lead_card(uid), _ops_lead_keyboard(uid))
+            return True
+
+        if action == "assign":
+            if len(parts) < 3 or not parts[2].isdigit():
+                await query.answer("Invalid lead.", show_alert=True)
+                return True
+            uid = int(parts[2])
+            actor_id, actor_name = _actor(update)
+            ok = crm_ops.assign_lead(uid, actor_id, actor_name)
+            await query.answer("Assigned to you ✅" if ok else "Could not assign lead.", show_alert=not ok)
+            if ok:
+                await _show(query, _ops_lead_card(uid), _ops_lead_keyboard(uid))
+            return True
+
+        if action == "note":
+            if len(parts) < 3 or not parts[2].isdigit():
+                await query.answer("Invalid lead.", show_alert=True)
+                return True
+            uid = int(parts[2])
+            context.user_data["fantzo_admin_note_user"] = uid
+            await query.answer()
+            await query.message.reply_text(
+                "📝 <b>ADD LEAD NOTE</b>\n\n"
+                "Send the note as your next message.",
+                parse_mode="HTML",
+            )
+            return True
+
+        if action == "followup":
+            if len(parts) < 3 or not parts[2].isdigit():
+                await query.answer("Invalid lead.", show_alert=True)
+                return True
+            uid = int(parts[2])
+            await query.answer()
+            await _show(
+                query,
+                "⏰ <b>SET FOLLOW-UP</b>\n\nChoose when this lead should become due.",
+                _followup_menu(uid),
+            )
+            return True
+
+        if action == "fupset":
+            if len(parts) < 4 or not parts[2].isdigit():
+                await query.answer("Invalid follow-up.", show_alert=True)
+                return True
+            uid = int(parts[2])
+            option = parts[3]
+            actor_id, actor_name = _actor(update)
+            value = "" if option == "clear" else _followup_iso(option)
+            ok = crm_ops.set_followup(uid, value, actor_id, actor_name)
+            await query.answer("Follow-up updated ✅" if ok else "Could not update follow-up.", show_alert=not ok)
+            if ok:
+                await _show(query, _ops_lead_card(uid), _ops_lead_keyboard(uid))
+            return True
+
+        if action == "history":
+            if len(parts) < 3 or not parts[2].isdigit():
+                await query.answer("Invalid lead.", show_alert=True)
+                return True
+            uid = int(parts[2])
+            await query.answer()
+            await _show(
+                query,
+                _history_text(uid),
+                InlineKeyboardMarkup([
+                    [InlineKeyboardButton("⬅️ LEAD", callback_data=f"ops:lead:{uid}")],
+                    [InlineKeyboardButton("🏠 DASHBOARD", callback_data="ops:home")],
+                ]),
+            )
+            return True
+
+        if action == "set":
+            if len(parts) < 4 or not parts[2].isdigit():
+                await query.answer("Invalid status action.", show_alert=True)
+                return True
+            uid = int(parts[2])
+            status = parts[3]
+            actor_id, actor_name = _actor(update)
+            ok = crm_ops.set_status(uid, status, actor_id, actor_name)
+            await query.answer("Lead status updated ✅" if ok else "Could not update lead.", show_alert=not ok)
+            if ok:
+                await _show(query, _ops_lead_card(uid), _ops_lead_keyboard(uid))
+            return True
+
+        await query.answer("Unknown dashboard action.", show_alert=True)
         return True
 
     if data.startswith("adm:"):
@@ -1841,17 +2049,75 @@ async def crm_command(update, context) -> None:
             await update.effective_message.reply_text("This command is restricted.")
         return
     await update.effective_message.reply_text(
-        _crm_home_text(),
+        _ops_dashboard_text(),
         parse_mode="HTML",
-        reply_markup=_crm_home_menu(),
+        reply_markup=_ops_dashboard_menu(),
         disable_web_page_preview=True,
     )
 
 
+
+async def admin_text_handler(update, context) -> None:
+    """Handle Fantzo admin SEARCH and NOTE input before normal bot auto-replies."""
+    if not _is_admin(update):
+        return
+
+    message = update.effective_message
+    if not message or not message.text:
+        return
+
+    text = message.text.strip()
+    if not text:
+        return
+
+    if context.user_data.pop("fantzo_admin_search_pending", False):
+        ids = crm_ops.search_user_ids(text, CRM_BATCH_SIZE)
+        if not ids:
+            await message.reply_text("🔎 No Fantzo lead found.")
+            raise ApplicationHandlerStop
+
+        await message.reply_text(
+            f"🔎 <b>SEARCH RESULTS</b>\n\nFound <b>{len(ids)}</b> lead(s).",
+            parse_mode="HTML",
+        )
+        for uid in ids:
+            await message.reply_text(
+                _ops_lead_card(uid),
+                parse_mode="HTML",
+                reply_markup=_ops_lead_keyboard(uid),
+                disable_web_page_preview=True,
+            )
+        raise ApplicationHandlerStop
+
+    uid = context.user_data.pop("fantzo_admin_note_user", None)
+    if uid:
+        actor_id, actor_name = _actor(update)
+        ok = crm_ops.add_note(int(uid), text, actor_id, actor_name)
+        if ok:
+            await message.reply_text(
+                "✅ <b>Lead note saved.</b>",
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("OPEN LEAD", callback_data=f"ops:lead:{int(uid)}")]
+                ]),
+            )
+        else:
+            await message.reply_text("⚠️ Could not save the lead note.")
+        raise ApplicationHandlerStop
+
+
 def register_handlers(application) -> None:
+    crm_ops.ensure_tables()
     application.add_handler(CommandHandler("reports", reports_command))
     application.add_handler(CommandHandler("crm", crm_command))
-    logger.info("Fantzo /reports and /crm admin shortcuts registered")
+    application.add_handler(
+        MessageHandler(
+            filters.UpdateType.MESSAGE & filters.TEXT & ~filters.COMMAND,
+            admin_text_handler,
+        ),
+        group=-5,
+    )
+    logger.info("Fantzo operational admin dashboard, /reports and /crm handlers registered")
 
 
 def install() -> None:
@@ -1880,4 +2146,4 @@ def install() -> None:
 
     tracked.app.core.admin = admin_with_reports
     tracked.app.core.callback_router = router_with_reports
-    logger.info("Fantzo team admin dashboard installed: CRM-first workflow, campaigns, reports and advanced tools")
+    logger.info("Fantzo iBetin-style operational admin dashboard installed with Fantzo-only CRM functions")

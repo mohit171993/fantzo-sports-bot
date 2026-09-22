@@ -157,6 +157,31 @@ def _save(file_id: str, file_unique_id: str, media_type: str, pool: str,
         return conn.total_changes > before
 
 
+def pick_creative(pool: str, key: int = 0):
+    """Pick an active creative deterministically from one pool."""
+    pool = str(pool or "").strip().lower()
+    if pool not in {"channel", "dm", "reminder"}:
+        return None
+    ensure_tables()
+    with core.db() as conn:
+        rows = conn.execute(
+            """
+            SELECT *
+            FROM creative_assets
+            WHERE active = 1 AND pool = ?
+            ORDER BY id ASC
+            """,
+            (pool,),
+        ).fetchall()
+    if not rows:
+        return None
+    try:
+        index = abs(int(key or 0)) % len(rows)
+    except Exception:
+        index = 0
+    return rows[index]
+
+
 def counts() -> dict:
     ensure_tables()
     with core.db() as conn:

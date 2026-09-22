@@ -611,11 +611,14 @@ def tracked_core_event(
             "business_dm:"
         ):
 
+            # Exact Business connection IDs are captured from the inbound
+            # Business message in fantzo_business.py. An empty value here keeps
+            # that exact mapping instead of guessing the latest connection.
             reminders.touch_user(
                 "business_dm",
                 user_id,
                 _category_from_action(action),
-                _business_connection_id(),
+                "",
             )
 
         else:

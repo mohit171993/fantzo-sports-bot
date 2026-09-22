@@ -243,8 +243,8 @@ def run_navigation_self_test() -> None:
     main_buttons = _buttons(main_markup)
     main_count = len(main_buttons)
     main_texts = [button.text for button in main_buttons]
-    if not any("WATCH IBETIN LIVE LINE" in (text or "") for text in main_texts):
-        errors.append("main bot missing WATCH IBETIN LIVE LINE")
+    if not any("OPEN IBETIN LIVE LINE" in (text or "") for text in main_texts):
+        errors.append("main bot missing OPEN IBETIN LIVE LINE")
     if not any("JOIN CHANNEL" in (text or "") for text in main_texts):
         errors.append("main bot missing JOIN CHANNEL")
     for button in main_buttons:
@@ -254,11 +254,11 @@ def run_navigation_self_test() -> None:
                 errors.append("main-bot/JOIN CHANNEL: wrong Telegram channel URL")
             if button.web_app is not None:
                 errors.append("main-bot/JOIN CHANNEL: must be normal Telegram URL")
-        elif "WATCH IBETIN LIVE LINE" in text:
+        elif "OPEN IBETIN LIVE LINE" in text:
             if button.callback_data != "liveline_access":
-                errors.append("main-bot/WATCH LIVE LINE: unverified menu must use liveline_access gate")
+                errors.append("main-bot/OPEN LIVE LINE: unverified menu must use liveline_access gate")
             if button.web_app is not None or button.url:
-                errors.append("main-bot/WATCH LIVE LINE: must not bypass mobile verification")
+                errors.append("main-bot/OPEN LIVE LINE: must not bypass mobile verification")
         elif button.web_app is None:
             errors.append(f"main-bot/{button.text}: expected web_app button")
     direct_auto_markup = ibetin_entry.runtime.app.fantzo_autoreply.standard_keyboard()
@@ -306,7 +306,7 @@ def run_navigation_self_test() -> None:
         labels = {str(button.text or "") for button in business_buttons}
         expected_labels = {
             "🚀 JOIN IBETIN",
-            "🏏 WATCH IBETIN LIVE LINE",
+            "🏏 OPEN IBETIN LIVE LINE",
             "📢 JOIN CHANNEL",
         }
         if labels != expected_labels:

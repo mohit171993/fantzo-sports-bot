@@ -36,6 +36,8 @@ def replacements():
     channel_url = os.getenv("DURA_CHANNEL_URL", "").strip()
     if channel_url:
         items.append((re.compile(r"https://t\.me/ibetinoffcial", re.I), channel_url))
+        channel_suffix = channel_url.replace("https://", "").replace("http://", "")
+        items.append((re.compile(r"t\.me/ibetinoffcial", re.I), channel_suffix))
         if channel_url.startswith("https://t.me/"):
             channel_name = channel_url.rstrip("/").rsplit("/", 1)[-1]
             if channel_name:

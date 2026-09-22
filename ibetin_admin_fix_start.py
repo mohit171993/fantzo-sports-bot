@@ -218,9 +218,19 @@ def _deep_value(node, names):
     return None
 
 
+def _clean_env_secret(name: str) -> str:
+    value = os.getenv(name, "").strip()
+    prefix = f"{name}="
+    if value.upper().startswith(prefix.upper()):
+        value = value[len(prefix):].strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+        value = value[1:-1].strip()
+    return value
+
+
 def _roanuz_auth(force: bool = False) -> str:
-    project = os.getenv("ROANUZ_PROJECT_KEY", "").strip()
-    api_key = os.getenv("ROANUZ_API_KEY", "").strip()
+    project = _clean_env_secret("ROANUZ_PROJECT_KEY")
+    api_key = _clean_env_secret("ROANUZ_API_KEY")
     if not project or not api_key:
         raise RuntimeError("Roanuz credentials are not configured")
 
@@ -246,7 +256,7 @@ def _roanuz_auth(force: bool = False) -> str:
 
 
 def _roanuz_get(path: str, ttl: int = 10):
-    project = os.getenv("ROANUZ_PROJECT_KEY", "").strip()
+    project = _clean_env_secret("ROANUZ_PROJECT_KEY")
     if not project:
         raise RuntimeError("ROANUZ_PROJECT_KEY is not configured")
     cache_key = f"roanuz:{path}"

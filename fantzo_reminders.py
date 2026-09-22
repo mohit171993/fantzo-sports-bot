@@ -19,6 +19,7 @@ CHECK_INTERVAL_SECONDS = 300
 QUIET_START_HOUR = 22
 QUIET_END_HOUR = 8
 MAX_SENDS_PER_RUN = 20
+MAX_ATTEMPTS_PER_RUN = 40
 
 
 def ensure_tables() -> None:
@@ -39,6 +40,22 @@ def ensure_tables() -> None:
             )
             """
         )
+
+        cols = {
+            str(row["name"])
+            for row in conn.execute("PRAGMA table_info(reminder_users)").fetchall()
+        }
+        if "delivery_disabled" not in cols:
+            conn.execute(
+                "ALTER TABLE reminder_users "
+                "ADD COLUMN delivery_disabled INTEGER NOT NULL DEFAULT 0"
+            )
+        if "last_delivery_error" not in cols:
+            conn.execute(
+                "ALTER TABLE reminder_users "
+                "ADD COLUMN last_delivery_error TEXT NOT NULL DEFAULT ''"
+            )
+
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS reminder_settings (
@@ -131,6 +148,8 @@ def touch_user(source: str, user_id: int, category: str = "general", business_co
                 last_activity = excluded.last_activity,
                 reminder_stage = 0,
                 opted_out = reminder_users.opted_out,
+                delivery_disabled = 0,
+                last_delivery_error = '',
                 updated_at = excluded.updated_at
             """,
             (
@@ -151,6 +170,113 @@ def set_opt_out(source: str, user_id: int, opted_out: bool = True) -> None:
         conn.execute(
             "UPDATE reminder_users SET opted_out = ?, updated_at = ? WHERE source = ? AND user_id = ?",
             (1 if opted_out else 0, _now_iso(), source, user_id),
+        )
+
+
+def repair_business_connections() -> dict:
+    """Repair Business reminder rows from exact customer/connection history."""
+    ensure_tables()
+    repaired = 0
+    disabled_missing = 0
+    with core.db() as conn:
+        has_welcomes = bool(conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' "
+            "AND name='business_welcomes' LIMIT 1"
+        ).fetchone())
+        has_connections = bool(conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' "
+            "AND name='business_connections' LIMIT 1"
+        ).fetchone())
+
+        if has_welcomes and has_connections:
+            rows = conn.execute(
+                """
+                SELECT r.user_id,
+                       (
+                           SELECT w.connection_id
+                           FROM business_welcomes w
+                           JOIN business_connections b
+                             ON b.connection_id=w.connection_id
+                           WHERE w.customer_id=r.user_id
+                             AND b.enabled=1
+                           ORDER BY w.welcomed_at DESC
+                           LIMIT 1
+                       ) AS connection_id
+                FROM reminder_users r
+                WHERE r.source='business_dm'
+                """
+            ).fetchall()
+            for row in rows:
+                connection_id = str(row["connection_id"] or "")
+                if connection_id:
+                    cur = conn.execute(
+                        """
+                        UPDATE reminder_users
+                        SET business_connection_id=?,
+                            delivery_disabled=0,
+                            last_delivery_error='',
+                            updated_at=?
+                        WHERE source='business_dm' AND user_id=?
+                          AND COALESCE(business_connection_id,'')!=?
+                        """,
+                        (connection_id, _now_iso(), int(row["user_id"]), connection_id),
+                    )
+                    repaired += int(cur.rowcount or 0)
+
+        cur = conn.execute(
+            """
+            UPDATE reminder_users
+            SET delivery_disabled=1,
+                last_delivery_error='missing_business_connection',
+                updated_at=?
+            WHERE source='business_dm'
+              AND opted_out=0
+              AND COALESCE(business_connection_id,'')=''
+            """,
+            (_now_iso(),),
+        )
+        disabled_missing = int(cur.rowcount or 0)
+
+    logger.info(
+        "Fantzo Business reminder mapping audit repaired=%s disabled_missing=%s",
+        repaired,
+        disabled_missing,
+    )
+    return {"repaired": repaired, "disabled_missing": disabled_missing}
+
+
+def disable_business_connection(connection_id: str) -> int:
+    if not connection_id:
+        return 0
+    ensure_tables()
+    with core.db() as conn:
+        cur = conn.execute(
+            """
+            UPDATE reminder_users
+            SET delivery_disabled=1,
+                last_delivery_error='business_connection_disabled',
+                updated_at=?
+            WHERE source='business_dm'
+              AND business_connection_id=?
+            """,
+            (_now_iso(), str(connection_id)),
+        )
+    return int(cur.rowcount or 0)
+
+
+def _disable_delivery(source: str, user_id: int, reason: str) -> None:
+    ensure_tables()
+    safe_reason = str(reason or "delivery_unavailable")[:240]
+    with core.db() as conn:
+        conn.execute(
+            """
+            UPDATE reminder_users
+            SET delivery_disabled=1,
+                last_delivery_error=?,
+                updated_at=?
+            WHERE source=? AND user_id=?
+            """,
+            (safe_reason, _now_iso(), str(source), int(user_id)),
         )
 
 
@@ -346,8 +472,6 @@ async def _send_with_retry(bot, row, stage: int) -> bool:
         text, markup = _copy_for(str(row["interest"]), stage, source)
     else:
         text, markup = _verification_copy(stage, source)
-        if source == "business_dm":
-            _mark_business_verification_pending(user_id)
 
     kwargs = {
         "chat_id": int(row["user_id"]),
@@ -362,6 +486,8 @@ async def _send_with_retry(bot, row, stage: int) -> bool:
     for attempt in range(3):
         try:
             await bot.send_message(**kwargs)
+            if source == "business_dm" and not verified:
+                _mark_business_verification_pending(user_id)
             return True
         except RetryAfter as exc:
             delay = exc.retry_after.total_seconds() if hasattr(exc.retry_after, "total_seconds") else float(exc.retry_after)
@@ -385,17 +511,20 @@ async def run_due_reminders(application) -> None:
                    last_activity, last_reminder, reminder_stage, opted_out
             FROM reminder_users
             WHERE opted_out = 0
+              AND COALESCE(delivery_disabled,0) = 0
             ORDER BY last_activity ASC
             """
         ).fetchall()
 
     sent_count = 0
+    attempt_count = 0
     for row in rows:
-        if sent_count >= MAX_SENDS_PER_RUN:
+        if sent_count >= MAX_SENDS_PER_RUN or attempt_count >= MAX_ATTEMPTS_PER_RUN:
             break
         stage = _due_stage(row, now)
         if not stage:
             continue
+        attempt_count += 1
         campaign_key = _campaign_key(row, stage)
         with core.db() as conn:
             exists = conn.execute(
@@ -411,12 +540,37 @@ async def run_due_reminders(application) -> None:
             if ok:
                 sent_count += 1
                 await asyncio.sleep(1.2)
-        except Forbidden:
-            set_opt_out(str(row["source"]), int(row["user_id"]), True)
+        except Forbidden as exc:
+            _disable_delivery(str(row["source"]), int(row["user_id"]), "blocked")
             _mark_send(str(row["source"]), int(row["user_id"]), stage, campaign_key, "blocked")
         except BadRequest as exc:
-            logger.warning("Fantzo reminder rejected for %s/%s: %s", row["source"], row["user_id"], exc)
-            _mark_send(str(row["source"]), int(row["user_id"]), stage, campaign_key, "bad_request")
+            logger.warning(
+                "Fantzo reminder rejected for %s/%s: %s",
+                row["source"],
+                row["user_id"],
+                exc,
+            )
+            if str(row["source"]) == "business_dm":
+                _disable_delivery(
+                    "business_dm",
+                    int(row["user_id"]),
+                    str(exc),
+                )
+                _mark_send(
+                    "business_dm",
+                    int(row["user_id"]),
+                    stage,
+                    campaign_key,
+                    "undeliverable",
+                )
+            else:
+                _mark_send(
+                    str(row["source"]),
+                    int(row["user_id"]),
+                    stage,
+                    campaign_key,
+                    "bad_request",
+                )
         except Exception:
             logger.exception("Fantzo reminder send failed for %s/%s", row["source"], row["user_id"])
             _mark_send(str(row["source"]), int(row["user_id"]), stage, campaign_key, "failed")
@@ -440,6 +594,10 @@ async def _start_background_loop_when_running(application) -> None:
 
 
 def start_background_loop(application) -> None:
+    try:
+        repair_business_connections()
+    except Exception:
+        logger.exception("Fantzo Business reminder mapping repair failed")
     asyncio.create_task(
         _start_background_loop_when_running(application),
         name="fantzo-reminder-loop-starter",
@@ -449,8 +607,31 @@ def start_background_loop(application) -> None:
 def stats() -> dict:
     ensure_tables()
     with core.db() as conn:
-        users = conn.execute("SELECT COUNT(*) AS c FROM reminder_users WHERE opted_out = 0").fetchone()["c"]
-        dm = conn.execute("SELECT COUNT(*) AS c FROM reminder_users WHERE source = 'business_dm' AND opted_out = 0").fetchone()["c"]
-        bot = conn.execute("SELECT COUNT(*) AS c FROM reminder_users WHERE source = 'bot' AND opted_out = 0").fetchone()["c"]
-        sent = conn.execute("SELECT COUNT(*) AS c FROM reminder_sends WHERE status = 'sent'").fetchone()["c"]
-    return {"users": users, "dm": dm, "bot": bot, "sent": sent}
+        users = conn.execute(
+            "SELECT COUNT(DISTINCT user_id) AS c FROM reminder_users "
+            "WHERE opted_out=0 AND COALESCE(delivery_disabled,0)=0"
+        ).fetchone()["c"]
+        dm = conn.execute(
+            "SELECT COUNT(*) AS c FROM reminder_users "
+            "WHERE source='business_dm' AND opted_out=0 "
+            "AND COALESCE(delivery_disabled,0)=0"
+        ).fetchone()["c"]
+        bot = conn.execute(
+            "SELECT COUNT(*) AS c FROM reminder_users "
+            "WHERE source='bot' AND opted_out=0 "
+            "AND COALESCE(delivery_disabled,0)=0"
+        ).fetchone()["c"]
+        sent = conn.execute(
+            "SELECT COUNT(*) AS c FROM reminder_sends WHERE status='sent'"
+        ).fetchone()["c"]
+        undeliverable = conn.execute(
+            "SELECT COUNT(*) AS c FROM reminder_users "
+            "WHERE opted_out=0 AND COALESCE(delivery_disabled,0)=1"
+        ).fetchone()["c"]
+    return {
+        "users": users,
+        "dm": dm,
+        "bot": bot,
+        "sent": sent,
+        "undeliverable": undeliverable,
+    }

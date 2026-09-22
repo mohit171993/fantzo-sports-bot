@@ -900,6 +900,18 @@ def _fast_matches(mode: str):
             )
             if live:
                 return live[:40], "Highlightly display fallback"
+
+            # DURA safety fallback: if Roanuz auth is unavailable and the stricter
+            # raw live-state classifier yields nothing, reuse the already proven
+            # Highlightly display list used by V21 instead of rendering an empty V40.
+            display_fallback = v20._OLD_MATCHES_MODE("live")
+            display_fallback = [m for m in display_fallback if v21._display_ok(m)]
+            if display_fallback:
+                logger.warning(
+                    "IBETIN V23 live display fallback matches=%s",
+                    len(display_fallback),
+                )
+                return display_fallback[:40], "Highlightly display fallback"
             logger.info("IBETIN V23 live coverage fallback has no live/tossed matches")
         except Exception as exc:
             logger.warning("IBETIN V23 live coverage fallback failed: %s", str(exc)[:160])

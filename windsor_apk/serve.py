@@ -1,12 +1,15 @@
 import base64
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import urlsplit
 
 APK = Path("/srv/Windsor.apk")
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        if self.path == "/health" or self.path == "/":
+        path = urlsplit(self.path).path
+
+        if path == "/health" or path == "/":
             body = b"Windsor APK ready"
             self.send_response(200)
             self.send_header("Content-Type", "text/plain; charset=utf-8")
@@ -15,7 +18,7 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
             return
 
-        if self.path == "/Windsor.apk":
+        if path == "/Windsor.apk":
             data = APK.read_bytes()
             self.send_response(200)
             self.send_header("Content-Type", "application/vnd.android.package-archive")
@@ -26,7 +29,7 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(data)
             return
 
-        if self.path == "/Windsor.b64":
+        if path == "/Windsor.b64":
             data = base64.b64encode(APK.read_bytes())
             self.send_response(200)
             self.send_header("Content-Type", "text/plain; charset=ascii")

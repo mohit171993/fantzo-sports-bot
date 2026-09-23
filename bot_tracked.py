@@ -1114,11 +1114,13 @@ async def configure_telegram_ui(application) -> None:
         ]
     )
 
-    # Default menu is Commands so an unverified user cannot bypass the
-    # verification gate through Telegram's native Menu button. A per-user
-    # "Open DURASPORTS" WebApp menu is enabled immediately after verification.
+    # Keep the native Telegram menu button on the DURA Mini App itself.
+    # Live Line remains separately verification-gated inside its own flow.
     await application.bot.set_chat_menu_button(
-        menu_button=MenuButtonCommands()
+        menu_button=MenuButtonWebApp(
+            text="Open DURA",
+            web_app=WebAppInfo(url=hub.hub_url("home")),
+        )
     )
 
     application.add_handler(CommandHandler("news", news_command))

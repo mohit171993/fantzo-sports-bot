@@ -20,7 +20,7 @@ import android.widget.ProgressBar;
 
 public class MainActivity extends Activity {
     private static final String DASHBOARD_URL =
-            "https://meta-ads-control-production.up.railway.app/dashboard";
+            "https://meta-ads-control-production.up.railway.app/windsor-login";
     private static final String PREFS = "windsor_auth";
     private static final String KEY_USER = "username";
     private static final String KEY_PASS = "password";

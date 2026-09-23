@@ -66,8 +66,7 @@ VERIFY_REPLY = (
     "Verify your Telegram-linked mobile once to continue with IBETIN Live Line.\n\n"
     "Tap <b>📱 VERIFY & CONTINUE</b> below. By continuing, you agree that the "
     "IBETIN team may contact you by <b>phone call or WhatsApp</b>. "
-    "You can opt out anytime.\n\n"
-    "🔞 <b>18+ • Play responsibly</b>"
+    "You can opt out anytime."
 )
 
 

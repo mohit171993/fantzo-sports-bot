@@ -31,13 +31,10 @@ APP_TIMEZONE = ZoneInfo("Asia/Dubai")
 
 FANTZO_HOME = "https://fantzo.com"
 FANTZO_LIVE = "https://fantzo.com/en/live"
-FANTZO_SLOTS = "https://fantzo.com/en/slots"
-FANTZO_REGISTER = "https://fantzo.com/en/registration"
 
 DB_PATH = os.getenv("DB_PATH", "fantzo_bot.db")
 
 DIVIDER = "━━━━━━━━━━━━━━━━━━"
-RESPONSIBLE_NOTE = "🔞 18+ • Play responsibly • T&Cs apply"
 
 TEXT = {
     "en": {
@@ -50,8 +47,7 @@ TEXT = {
             "🔥 Featured live action\n"
             "🔔 Match alerts\n\n"
             "🎯 Follow the game here — then explore more on <b>Fantzo</b>.\n\n"
-            "Choose your next move 👇\n\n"
-            "🔞 18+ • Play responsibly • T&Cs apply"
+            "Choose your next move 👇"
         ),
         "settings": (
             "⚙️ <b>FANTZO SETTINGS</b>\n"
@@ -64,16 +60,13 @@ TEXT = {
             "Ready to go beyond scores?\n\n"
             "🌐 Visit Fantzo\n"
             "🔴 Explore live action\n"
-            "📝 Create your account\n"
-            "🎰 Discover more entertainment\n\n"
-            "🔞 18+ • Play responsibly • T&Cs apply"
+            "📝 Create your account"
         ),
         "join": (
             "🚀 <b>JOIN FANTZO</b>\n"
             "━━━━━━━━━━━━━━━━━━\n\n"
             "Create your Fantzo account and explore the full experience.\n\n"
-            "No exaggerated promises — just direct access to Fantzo.\n\n"
-            "🔞 18+ • Play responsibly • T&Cs apply"
+            "No exaggerated promises — just direct access to Fantzo."
         ),
         "lang_saved": "✅ Language changed to English.",
         "sub_on": (
@@ -96,8 +89,7 @@ TEXT = {
             "🔥 Featured live action\n"
             "🔔 Match alerts\n\n"
             "🎯 गेम को यहाँ follow करें और फिर <b>Fantzo</b> explore करें।\n\n"
-            "अपना विकल्प चुनें 👇\n\n"
-            "🔞 18+ • जिम्मेदारी से खेलें • T&Cs लागू"
+            "अपना विकल्प चुनें 👇"
         ),
         "settings": (
             "⚙️ <b>FANTZO SETTINGS</b>\n"
@@ -110,15 +102,12 @@ TEXT = {
             "Scores से आगे बढ़ना चाहते हैं?\n\n"
             "🌐 Fantzo खोलें\n"
             "🔴 Live section देखें\n"
-            "📝 Account बनाएं\n"
-            "🎰 और entertainment explore करें\n\n"
-            "🔞 18+ • जिम्मेदारी से खेलें • T&Cs लागू"
+            "📝 Account बनाएं"
         ),
         "join": (
             "🚀 <b>JOIN FANTZO</b>\n"
             "━━━━━━━━━━━━━━━━━━\n\n"
-            "Fantzo account बनाकर पूरा experience explore करें।\n\n"
-            "🔞 18+ • जिम्मेदारी से खेलें • T&Cs लागू"
+            "Fantzo account बनाकर पूरा experience explore करें।"
         ),
         "lang_saved": "✅ भाषा हिंदी कर दी गई है।",
         "sub_on": (
@@ -131,6 +120,7 @@ TEXT = {
         ),
     },
 }
+
 
 CRICKET_LIVE_STATES = {
     "in play",
@@ -298,11 +288,7 @@ def explore_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
             [InlineKeyboardButton("✨ Open Fantzo", url=FANTZO_HOME)],
-            [
-                InlineKeyboardButton("🔴 Live Section", url=FANTZO_LIVE),
-                InlineKeyboardButton("🚀 Join Now", url=FANTZO_REGISTER),
-            ],
-            [InlineKeyboardButton("🎰 Explore More", url=FANTZO_SLOTS)],
+            [InlineKeyboardButton("🔴 Live Section", url=FANTZO_LIVE)],
             [InlineKeyboardButton("⬅️ Back to Home", callback_data="back")],
         ]
     )
@@ -311,7 +297,6 @@ def explore_keyboard() -> InlineKeyboardMarkup:
 def join_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
-            [InlineKeyboardButton("🚀 Create Fantzo Account", url=FANTZO_REGISTER)],
             [InlineKeyboardButton("✨ Visit Fantzo", url=FANTZO_HOME)],
             [InlineKeyboardButton("⬅️ Back to Home", callback_data="back")],
         ]
@@ -376,8 +361,7 @@ def empty_keyboard(action: str) -> InlineKeyboardMarkup:
 def promo_footer() -> str:
     return (
         f"\n\n{DIVIDER}\n"
-        "⚡ <b>FANTZO</b> • Follow the action. Explore more.\n"
-        f"{RESPONSIBLE_NOTE}"
+        "⚡ <b>FANTZO</b> • Follow the action. Explore more."
     )
 
 

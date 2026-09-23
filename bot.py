@@ -340,7 +340,7 @@ def promo_footer() -> str:
     )
 
 
-async def _highlightly_get_onceasync def _highlightly_get_once(path: str, params=None):
+async def _highlightly_get_once(path: str, params=None):
     headers = {"x-rapidapi-key": HIGHLIGHTLY_API_KEY}
     timeout = httpx.Timeout(20.0, connect=10.0)
     async with httpx.AsyncClient(timeout=timeout) as client:

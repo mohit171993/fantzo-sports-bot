@@ -1094,7 +1094,7 @@ async def configure_telegram_ui(application) -> None:
         "Welcome to IBETIN Sports Hub. Follow cricket and football updates, "
         "open IBETIN Live Line, view match results and sports news, manage "
         "match alerts, and access official support. Verify your Telegram-linked "
-        "mobile once to continue. 18+ • Play responsibly."
+        "mobile once to continue."
     )
 
     await application.bot.set_my_commands(

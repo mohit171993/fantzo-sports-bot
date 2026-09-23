@@ -1,43 +1,38 @@
 package com.windsor.dashboard;
 
 import android.app.Activity;
-import android.app.AlertDialog;
-import android.content.SharedPreferences;
+import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.os.Bundle;
-import android.text.InputType;
 import android.view.View;
 import android.webkit.CookieManager;
 import android.webkit.HttpAuthHandler;
 import android.webkit.WebChromeClient;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.widget.EditText;
 import android.widget.FrameLayout;
-import android.widget.LinearLayout;
 import android.widget.ProgressBar;
+import android.widget.Toast;
 
 public class MainActivity extends Activity {
-    private static final String DASHBOARD_URL =
+    private static final String LOGIN_URL =
             "https://meta-ads-control-production.up.railway.app/windsor-login";
-    private static final String PREFS = "windsor_auth";
-    private static final String KEY_USER = "username";
-    private static final String KEY_PASS = "password";
 
     private WebView webView;
     private ProgressBar progressBar;
-    private boolean authDialogVisible = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
         FrameLayout root = new FrameLayout(this);
-        root.setBackgroundColor(Color.WHITE);
+        root.setBackgroundColor(Color.rgb(11, 16, 32));
 
         webView = new WebView(this);
-        webView.setBackgroundColor(Color.WHITE);
+        webView.setBackgroundColor(Color.rgb(11, 16, 32));
 
         progressBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         progressBar.setMax(100);
@@ -62,6 +57,7 @@ public class MainActivity extends Activity {
         settings.setSupportZoom(false);
         settings.setBuiltInZoomControls(false);
         settings.setDisplayZoomControls(false);
+        settings.setCacheMode(WebSettings.LOAD_DEFAULT);
 
         CookieManager cookieManager = CookieManager.getInstance();
         cookieManager.setAcceptCookie(true);
@@ -69,80 +65,56 @@ public class MainActivity extends Activity {
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
+            public void onPageStarted(WebView view, String url, Bitmap favicon) {
+                progressBar.setVisibility(View.VISIBLE);
+                super.onPageStarted(view, url, favicon);
+            }
+
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                CookieManager.getInstance().flush();
+                super.onPageFinished(view, url);
+            }
+
+            @Override
             public void onReceivedHttpAuthRequest(
                     WebView view,
                     HttpAuthHandler handler,
                     String host,
                     String realm) {
+                // Windsor now uses its own session login page. Never enter a
+                // Basic-Auth retry loop from stale credentials.
+                handler.cancel();
+                if (!view.getUrl().contains("/windsor-login")) {
+                    view.loadUrl(LOGIN_URL);
+                }
+            }
 
-                SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
-                String savedUser = prefs.getString(KEY_USER, "");
-                String savedPass = prefs.getString(KEY_PASS, "");
-
-                if (!savedUser.isEmpty() && !savedPass.isEmpty()) {
-                    handler.proceed(savedUser, savedPass);
+            @Override
+            public void onReceivedHttpError(
+                    WebView view,
+                    WebResourceRequest request,
+                    WebResourceResponse errorResponse) {
+                if (request.isForMainFrame() && errorResponse.getStatusCode() == 401) {
+                    view.loadUrl(LOGIN_URL);
                     return;
                 }
+                super.onReceivedHttpError(view, request, errorResponse);
+            }
 
-                if (authDialogVisible) {
-                    return;
+            @Override
+            public void onReceivedError(
+                    WebView view,
+                    WebResourceRequest request,
+                    android.webkit.WebResourceError error) {
+                if (request.isForMainFrame()) {
+                    Toast.makeText(
+                            MainActivity.this,
+                            "Windsor could not load. Check internet and tap Back/ reopen.",
+                            Toast.LENGTH_LONG
+                    ).show();
                 }
-                authDialogVisible = true;
-
-                final EditText userInput = new EditText(MainActivity.this);
-                userInput.setHint("Username");
-                userInput.setSingleLine(true);
-                userInput.setText("admin");
-
-                final EditText passInput = new EditText(MainActivity.this);
-                passInput.setHint("Password");
-                passInput.setSingleLine(true);
-                passInput.setInputType(
-                        InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
-
-                LinearLayout form = new LinearLayout(MainActivity.this);
-                form.setOrientation(LinearLayout.VERTICAL);
-                int pad = (int) (24 * getResources().getDisplayMetrics().density);
-                form.setPadding(pad, pad / 2, pad, 0);
-                form.addView(userInput);
-                form.addView(passInput);
-
-                AlertDialog dialog = new AlertDialog.Builder(MainActivity.this)
-                        .setTitle("Windsor Login")
-                        .setMessage("Enter your dashboard credentials")
-                        .setView(form)
-                        .setCancelable(false)
-                        .setPositiveButton("Login", null)
-                        .setNegativeButton("Cancel", (d, which) -> {
-                            authDialogVisible = false;
-                            handler.cancel();
-                        })
-                        .create();
-
-                dialog.setOnShowListener(d -> {
-                    dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
-                        String username = userInput.getText().toString().trim();
-                        String password = passInput.getText().toString();
-
-                        if (username.isEmpty() || password.isEmpty()) {
-                            if (username.isEmpty()) userInput.setError("Required");
-                            if (password.isEmpty()) passInput.setError("Required");
-                            return;
-                        }
-
-                        prefs.edit()
-                                .putString(KEY_USER, username)
-                                .putString(KEY_PASS, password)
-                                .apply();
-
-                        authDialogVisible = false;
-                        handler.proceed(username, password);
-                        dialog.dismiss();
-                    });
-                });
-
-                dialog.setOnDismissListener(d -> authDialogVisible = false);
-                dialog.show();
+                super.onReceivedError(view, request, error);
             }
         });
 
@@ -155,7 +127,7 @@ public class MainActivity extends Activity {
         });
 
         if (savedInstanceState == null) {
-            webView.loadUrl(DASHBOARD_URL);
+            webView.loadUrl(LOGIN_URL);
         } else {
             webView.restoreState(savedInstanceState);
         }

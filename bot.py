@@ -29,105 +29,81 @@ ADMIN_USER_ID = int(os.getenv("ADMIN_USER_ID", "8992664481"))
 HIGHLIGHTLY_API_BASE = "https://sports.highlightly.net"
 APP_TIMEZONE = ZoneInfo("Asia/Dubai")
 
-FANTZO_HOME = "https://fantzo.com"
-FANTZO_LIVE = "https://fantzo.com/en/live"
-FANTZO_SLOTS = "https://fantzo.com/en/slots"
-FANTZO_REGISTER = "https://fantzo.com/en/registration"
-
 DB_PATH = os.getenv("DB_PATH", "fantzo_bot.db")
 
 DIVIDER = "━━━━━━━━━━━━━━━━━━"
-RESPONSIBLE_NOTE = "🔞 18+ • Play responsibly • T&Cs apply"
-
 TEXT = {
     "en": {
         "welcome": (
-            "⚡ <b>FANTZO SPORTS HUB</b>\n"
+            "⚡ <b>DURA SPORTS HUB</b>\n"
             "━━━━━━━━━━━━━━━━━━\n\n"
-            "🏟 <b>Live action. Fast updates. One place.</b>\n\n"
+            "🏟 <b>Live scores. Fixtures. Match updates.</b>\n\n"
             "🏏 Cricket scores & fixtures\n"
             "⚽ Football scores & fixtures\n"
-            "🔥 Featured live action\n"
+            "🔥 Featured matches\n"
             "🔔 Match alerts\n\n"
-            "🎯 Follow the game here — then explore more on <b>Fantzo</b>.\n\n"
-            "Choose your next move 👇\n\n"
-            "🔞 18+ • Play responsibly • T&Cs apply"
+            "Choose a sports option below 👇"
         ),
         "settings": (
-            "⚙️ <b>FANTZO SETTINGS</b>\n"
+            "⚙️ <b>DURA SETTINGS</b>\n"
             "━━━━━━━━━━━━━━━━━━\n\n"
-            "Choose your language and notification preferences."
+            "Choose your language and sports notification preferences."
         ),
         "explore": (
-            "✨ <b>EXPLORE FANTZO</b>\n"
+            "🏟 <b>DURA SPORTS</b>\n"
             "━━━━━━━━━━━━━━━━━━\n\n"
-            "Ready to go beyond scores?\n\n"
-            "🌐 Visit Fantzo\n"
-            "🔴 Explore live action\n"
-            "📝 Create your account\n"
-            "🎰 Discover more entertainment\n\n"
-            "🔞 18+ • Play responsibly • T&Cs apply"
+            "Use DURA for live scores, fixtures, results and match alerts."
         ),
         "join": (
-            "🚀 <b>JOIN FANTZO</b>\n"
+            "🏟 <b>DURA SPORTS</b>\n"
             "━━━━━━━━━━━━━━━━━━\n\n"
-            "Create your Fantzo account and explore the full experience.\n\n"
-            "No exaggerated promises — just direct access to Fantzo.\n\n"
-            "🔞 18+ • Play responsibly • T&Cs apply"
+            "Live scores, fixtures, results and sports updates are available from the DURA menu."
         ),
         "lang_saved": "✅ Language changed to English.",
         "sub_on": (
             "🔔 <b>MATCH ALERTS ON</b>\n\n"
-            "You are subscribed to Fantzo sports alerts.\n"
+            "You are subscribed to DURA sports alerts.\n"
             "We’ll keep the updates useful and relevant."
         ),
         "sub_off": (
             "🔕 <b>MATCH ALERTS OFF</b>\n\n"
-            "You will no longer receive Fantzo sports alerts."
+            "You will no longer receive DURA sports alerts."
         ),
     },
     "hi": {
         "welcome": (
-            "⚡ <b>FANTZO SPORTS HUB</b>\n"
+            "⚡ <b>DURA SPORTS HUB</b>\n"
             "━━━━━━━━━━━━━━━━━━\n\n"
-            "🏟 <b>लाइव एक्शन • तेज़ अपडेट • एक ही जगह</b>\n\n"
+            "🏟 <b>लाइव स्कोर • फिक्स्चर • मैच अपडेट</b>\n\n"
             "🏏 क्रिकेट स्कोर और फिक्स्चर\n"
             "⚽ फुटबॉल स्कोर और फिक्स्चर\n"
-            "🔥 Featured live action\n"
+            "🔥 Featured matches\n"
             "🔔 Match alerts\n\n"
-            "🎯 गेम को यहाँ follow करें और फिर <b>Fantzo</b> explore करें।\n\n"
-            "अपना विकल्प चुनें 👇\n\n"
-            "🔞 18+ • जिम्मेदारी से खेलें • T&Cs लागू"
+            "नीचे अपना sports option चुनें 👇"
         ),
         "settings": (
-            "⚙️ <b>FANTZO SETTINGS</b>\n"
+            "⚙️ <b>DURA SETTINGS</b>\n"
             "━━━━━━━━━━━━━━━━━━\n\n"
-            "भाषा और notification preferences चुनें।"
+            "भाषा और sports notification preferences चुनें।"
         ),
         "explore": (
-            "✨ <b>EXPLORE FANTZO</b>\n"
+            "🏟 <b>DURA SPORTS</b>\n"
             "━━━━━━━━━━━━━━━━━━\n\n"
-            "Scores से आगे बढ़ना चाहते हैं?\n\n"
-            "🌐 Fantzo खोलें\n"
-            "🔴 Live section देखें\n"
-            "📝 Account बनाएं\n"
-            "🎰 और entertainment explore करें\n\n"
-            "🔞 18+ • जिम्मेदारी से खेलें • T&Cs लागू"
+            "DURA पर live scores, fixtures, results और match alerts देखें।"
         ),
         "join": (
-            "🚀 <b>JOIN FANTZO</b>\n"
+            "🏟 <b>DURA SPORTS</b>\n"
             "━━━━━━━━━━━━━━━━━━\n\n"
-            "Fantzo account बनाकर पूरा experience explore करें।\n\n"
-            "🔞 18+ • जिम्मेदारी से खेलें • T&Cs लागू"
+            "DURA menu से live scores, fixtures, results और sports updates देखें।"
         ),
         "lang_saved": "✅ भाषा हिंदी कर दी गई है।",
         "sub_on": (
             "🔔 <b>MATCH ALERTS ON</b>\n\n"
-            "अब आपको Fantzo sports alerts मिलेंगे।"
+            "अब आपको DURA sports alerts मिलेंगे।"
         ),
         "sub_off": (
             "🔕 <b>MATCH ALERTS OFF</b>\n\n"
-            "अब आपको Fantzo sports alerts नहीं मिलेंगे।"
+            "अब आपको DURA sports alerts नहीं मिलेंगे।"
         ),
     },
 }
@@ -279,10 +255,6 @@ def main_keyboard() -> InlineKeyboardMarkup:
                 InlineKeyboardButton("🔎 Find Team", callback_data="find_team"),
                 InlineKeyboardButton("🔔 Match Alerts", callback_data="subscribe"),
             ],
-            [
-                InlineKeyboardButton("✨ Explore Fantzo", callback_data="explore"),
-                InlineKeyboardButton("🚀 Join Fantzo", callback_data="join_fantzo"),
-            ],
             [InlineKeyboardButton("⚙️ Settings", callback_data="settings")],
         ]
     )
@@ -297,25 +269,17 @@ def back_keyboard(extra=None) -> InlineKeyboardMarkup:
 def explore_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
-            [InlineKeyboardButton("✨ Open Fantzo", url=FANTZO_HOME)],
             [
-                InlineKeyboardButton("🔴 Live Section", url=FANTZO_LIVE),
-                InlineKeyboardButton("🚀 Join Now", url=FANTZO_REGISTER),
+                InlineKeyboardButton("🔴 Live Now", callback_data="live_now"),
+                InlineKeyboardButton("🗓 Upcoming", callback_data="upcoming"),
             ],
-            [InlineKeyboardButton("🎰 Explore More", url=FANTZO_SLOTS)],
             [InlineKeyboardButton("⬅️ Back to Home", callback_data="back")],
         ]
     )
 
 
 def join_keyboard() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        [
-            [InlineKeyboardButton("🚀 Create Fantzo Account", url=FANTZO_REGISTER)],
-            [InlineKeyboardButton("✨ Visit Fantzo", url=FANTZO_HOME)],
-            [InlineKeyboardButton("⬅️ Back to Home", callback_data="back")],
-        ]
-    )
+    return explore_keyboard()
 
 
 def settings_keyboard() -> InlineKeyboardMarkup:
@@ -335,7 +299,6 @@ def subscription_keyboard(current: bool) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
             [InlineKeyboardButton(label, callback_data="toggle_sub")],
-            [InlineKeyboardButton("✨ Explore Fantzo", callback_data="explore")],
             [InlineKeyboardButton("⬅️ Back to Home", callback_data="back")],
         ]
     )
@@ -346,11 +309,11 @@ def score_keyboard(action: str) -> InlineKeyboardMarkup:
         [
             [
                 InlineKeyboardButton("🔄 Refresh", callback_data=action),
-                InlineKeyboardButton("✨ Explore Fantzo", callback_data="explore"),
+                InlineKeyboardButton("🔎 Find Team", callback_data="find_team"),
             ],
             [
-                InlineKeyboardButton("🔎 Find Team", callback_data="find_team"),
-                InlineKeyboardButton("🚀 Join Fantzo", callback_data="join_fantzo"),
+                InlineKeyboardButton("🗓 Upcoming", callback_data="upcoming"),
+                InlineKeyboardButton("🔔 Match Alerts", callback_data="subscribe"),
             ],
             [InlineKeyboardButton("⬅️ Back to Home", callback_data="back")],
         ]
@@ -364,10 +327,7 @@ def empty_keyboard(action: str) -> InlineKeyboardMarkup:
                 InlineKeyboardButton("🔄 Check Again", callback_data=action),
                 InlineKeyboardButton("🗓 Upcoming", callback_data="upcoming"),
             ],
-            [
-                InlineKeyboardButton("🔎 Find Team", callback_data="find_team"),
-                InlineKeyboardButton("✨ Explore Fantzo", callback_data="explore"),
-            ],
+            [InlineKeyboardButton("🔎 Find Team", callback_data="find_team")],
             [InlineKeyboardButton("⬅️ Back to Home", callback_data="back")],
         ]
     )
@@ -376,12 +336,11 @@ def empty_keyboard(action: str) -> InlineKeyboardMarkup:
 def promo_footer() -> str:
     return (
         f"\n\n{DIVIDER}\n"
-        "⚡ <b>FANTZO</b> • Follow the action. Explore more.\n"
-        f"{RESPONSIBLE_NOTE}"
+        "⚡ <b>DURA</b> • Live scores • Fixtures • Match updates"
     )
 
 
-async def _highlightly_get_once(path: str, params=None):
+async def _highlightly_get_onceasync def _highlightly_get_once(path: str, params=None):
     headers = {"x-rapidapi-key": HIGHLIGHTLY_API_KEY}
     timeout = httpx.Timeout(20.0, connect=10.0)
     async with httpx.AsyncClient(timeout=timeout) as client:
@@ -547,7 +506,7 @@ def format_match_list(
             f"{DIVIDER}\n\n"
             "😴 <b>Nothing live here at the moment.</b>\n\n"
             f"{empty_text}\n\n"
-            "Try upcoming fixtures, search a team, or explore Fantzo while you wait."
+            "Try upcoming fixtures, search a team, or check DURA sports while you wait."
         )
         return text + (promo_footer() if promotional else "")
 
@@ -565,7 +524,7 @@ def format_match_list(
 
     if promotional:
         lines.append("")
-        lines.append("🎯 <b>Enjoying the action?</b> Explore the full Fantzo experience.")
+        lines.append("🎯 <b>Enjoying the action?</b> Explore the full DURA experience.")
         lines.append(promo_footer())
 
     return "\n".join(lines).strip()
@@ -583,7 +542,7 @@ def format_featured(cricket_matches, football_matches) -> str:
             "🔥 <b>FEATURED NOW</b>\n"
             f"{DIVIDER}\n\n"
             "No live featured matches right now.\n\n"
-            "Check upcoming fixtures or explore Fantzo."
+            "Check upcoming fixtures or check DURA sports."
             + promo_footer()
         )
 
@@ -602,7 +561,7 @@ def format_featured(cricket_matches, football_matches) -> str:
     lines.extend(
         [
             "",
-            "✨ <b>More action is one tap away on Fantzo.</b>",
+            "✨ <b>More action is one tap away on DURA.</b>",
             promo_footer(),
         ]
     )
@@ -739,7 +698,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     touch_user(update)
     await update.effective_message.reply_text(
-        "⚡ <b>Fantzo Quick Guide</b>\n\n"
+        "⚡ <b>DURA Quick Guide</b>\n\n"
         "• /start — premium home menu\n"
         "• /team TEAMNAME — find cricket or football teams\n"
         "• /sports — check sports coverage\n\n"
@@ -753,12 +712,12 @@ async def sports_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     touch_user(update)
     api_state = "✅ Connected" if HIGHLIGHTLY_API_KEY else "❌ Missing API key"
     text = (
-        "🏟 <b>FANTZO SPORTS COVERAGE</b>\n"
+        "🏟 <b>DURA SPORTS COVERAGE</b>\n"
         f"{DIVIDER}\n\n"
         "🏏 Cricket — live scores, teams and fixtures\n"
         "⚽ Football — live scores, teams and fixtures\n\n"
         f"Data connection: <b>{api_state}</b>\n\n"
-        "✨ Explore Fantzo for more."
+        "✨ DURA Sports for more."
     )
     await update.effective_message.reply_text(
         text,
@@ -828,8 +787,8 @@ async def team_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
         rows.append(
             [
-                InlineKeyboardButton("✨ Explore Fantzo", callback_data="explore"),
-                InlineKeyboardButton("🚀 Join Fantzo", callback_data="join_fantzo"),
+                InlineKeyboardButton("✨ DURA Sports", callback_data="explore"),
+                InlineKeyboardButton("🚀 DURA Sports", callback_data="join_fantzo"),
             ]
         )
 
@@ -872,7 +831,7 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
     api_state = "✅ configured" if HIGHLIGHTLY_API_KEY else "❌ missing"
     await update.effective_message.reply_text(
-        "🛠 <b>FANTZO ADMIN</b>\n"
+        "🛠 <b>DURA ADMIN</b>\n"
         f"{DIVIDER}\n\n"
         f"👥 Users: <b>{total}</b>\n"
         f"🔔 Subscribers: <b>{subs}</b>\n"
@@ -905,9 +864,7 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             await context.bot.send_message(
                 chat_id=row["user_id"],
                 text=message,
-                reply_markup=InlineKeyboardMarkup(
-                    [[InlineKeyboardButton("✨ Explore Fantzo", url=FANTZO_HOME)]]
-                ),
+                reply_markup=main_keyboard(),
             )
             sent += 1
         except Exception:
@@ -1004,7 +961,7 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 [
                     "",
                     f"📡 Live matches found: <b>{total_live}</b>",
-                    "🎯 Follow the scores here, then explore more on Fantzo.",
+                    "🎯 Follow the scores here, then check more sports updates on DURA.",
                     promo_footer(),
                 ]
             )
@@ -1059,10 +1016,10 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             "<code>/team India</code>\n"
             "<code>/team Arsenal</code>\n\n"
             "Then choose the team to see upcoming or recent matches.\n\n"
-            "✨ You can explore Fantzo anytime from the menu.",
+            "✨ You can check DURA sports anytime from the menu.",
             parse_mode="HTML",
             reply_markup=back_keyboard(
-                [[InlineKeyboardButton("✨ Explore Fantzo", callback_data="explore")]]
+                [[InlineKeyboardButton("✨ DURA Sports", callback_data="explore")]]
             ),
         )
         return
@@ -1076,17 +1033,17 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             f"{DIVIDER}\n\n"
             f"Search a team with <code>/team TEAMNAME</code>, choose it, then tap <b>{word.title()}</b>.\n\n"
             "Example: <code>/team India</code>\n\n"
-            "🎯 Follow the action and keep Fantzo one tap away.",
+            "🎯 Follow the action and keep DURA one tap away.",
             parse_mode="HTML",
             reply_markup=back_keyboard(
                 [
                     [InlineKeyboardButton("🔎 Find Team", callback_data="find_team")],
                     [
                         InlineKeyboardButton(
-                            "✨ Explore Fantzo", callback_data="explore"
+                            "✨ DURA Sports", callback_data="explore"
                         ),
                         InlineKeyboardButton(
-                            "🚀 Join Fantzo", callback_data="join_fantzo"
+                            "🚀 DURA Sports", callback_data="join_fantzo"
                         ),
                     ],
                 ]
@@ -1128,7 +1085,7 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                             callback_data=f"team_recent:{sport}:{team_id}",
                         ),
                     ],
-                    [InlineKeyboardButton("✨ Explore Fantzo", callback_data="explore")],
+                    [InlineKeyboardButton("✨ DURA Sports", callback_data="explore")],
                 ]
             ),
         )
@@ -1202,7 +1159,7 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         return
 
     await query.edit_message_text(
-        "⚡ Fantzo Sports Hub",
+        "⚡ DURA Sports Hub",
         reply_markup=back_keyboard(),
     )
 
@@ -1221,7 +1178,7 @@ def run() -> None:
     app.add_handler(CommandHandler("broadcast", broadcast))
     app.add_handler(CallbackQueryHandler(callback_router))
 
-    logger.info("Starting Fantzo Premium Sports Hub with Highlightly")
+    logger.info("Starting DURA Premium Sports Hub with Highlightly")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 

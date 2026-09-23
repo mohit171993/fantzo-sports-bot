@@ -1,15 +1,16 @@
 package com.windsor.dashboard;
 
 import android.app.Activity;
+import android.content.ActivityNotFoundException;
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.net.Uri;
 import android.os.Bundle;
 import android.view.View;
 import android.webkit.CookieManager;
-import android.webkit.HttpAuthHandler;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
-import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -18,8 +19,8 @@ import android.widget.ProgressBar;
 import android.widget.Toast;
 
 public class MainActivity extends Activity {
-    private static final String LOGIN_URL =
-            "https://meta-ads-control-production.up.railway.app/windsor-login";
+    private static final String DASHBOARD_URL =
+            "https://onboard.windsor.ai/app/facebook";
 
     private WebView webView;
     private ProgressBar progressBar;
@@ -58,6 +59,8 @@ public class MainActivity extends Activity {
         settings.setBuiltInZoomControls(false);
         settings.setDisplayZoomControls(false);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
+        settings.setJavaScriptCanOpenWindowsAutomatically(true);
+        settings.setSupportMultipleWindows(false);
 
         CookieManager cookieManager = CookieManager.getInstance();
         cookieManager.setAcceptCookie(true);
@@ -77,30 +80,19 @@ public class MainActivity extends Activity {
             }
 
             @Override
-            public void onReceivedHttpAuthRequest(
-                    WebView view,
-                    HttpAuthHandler handler,
-                    String host,
-                    String realm) {
-                // Windsor uses its own session login page. Never enter a
-                // Basic-Auth retry loop from stale credentials.
-                handler.cancel();
-                String currentUrl = view.getUrl();
-                if (currentUrl == null || !currentUrl.contains("/windsor-login")) {
-                    view.loadUrl(LOGIN_URL);
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                Uri uri = request.getUrl();
+                String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase();
+                if ("http".equals(scheme) || "https".equals(scheme)) {
+                    return false;
                 }
-            }
-
-            @Override
-            public void onReceivedHttpError(
-                    WebView view,
-                    WebResourceRequest request,
-                    WebResourceResponse errorResponse) {
-                if (request.isForMainFrame() && errorResponse.getStatusCode() == 401) {
-                    view.loadUrl(LOGIN_URL);
-                    return;
+                try {
+                    Intent intent = new Intent(Intent.ACTION_VIEW, uri);
+                    startActivity(intent);
+                } catch (ActivityNotFoundException ignored) {
+                    Toast.makeText(MainActivity.this, "Unable to open this link.", Toast.LENGTH_SHORT).show();
                 }
-                super.onReceivedHttpError(view, request, errorResponse);
+                return true;
             }
 
             @Override
@@ -111,7 +103,7 @@ public class MainActivity extends Activity {
                 if (request.isForMainFrame()) {
                     Toast.makeText(
                             MainActivity.this,
-                            "Windsor could not load. Check internet and reopen the app.",
+                            "Windsor dashboard could not load. Check internet and reopen the app.",
                             Toast.LENGTH_LONG
                     ).show();
                 }
@@ -128,7 +120,7 @@ public class MainActivity extends Activity {
         });
 
         if (savedInstanceState == null) {
-            webView.loadUrl(LOGIN_URL);
+            webView.loadUrl(DASHBOARD_URL);
         } else {
             webView.restoreState(savedInstanceState);
         }

@@ -20,7 +20,7 @@ import android.widget.Toast;
 
 public class MainActivity extends Activity {
     private static final String DASHBOARD_URL =
-            "https://onboard.windsor.ai/app/facebook";
+            "https://meta-ads-control-production.up.railway.app/windsor-login";
 
     private WebView webView;
     private ProgressBar progressBar;

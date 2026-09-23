@@ -37,7 +37,7 @@ FANTZO_REGISTER = "https://fantzo.com/en/registration"
 DB_PATH = os.getenv("DB_PATH", "fantzo_bot.db")
 
 DIVIDER = "━━━━━━━━━━━━━━━━━━"
-RESPONSIBLE_NOTE = "🔞 18+ • Play responsibly • T&Cs apply"
+RESPONSIBLE_NOTE = ""
 
 TEXT = {
     "en": {
@@ -51,7 +51,7 @@ TEXT = {
             "🔔 Match alerts\n\n"
             "🎯 Follow the game here — then explore more on <b>Fantzo</b>.\n\n"
             "Choose your next move 👇\n\n"
-            "🔞 18+ • Play responsibly • T&Cs apply"
+            ""
         ),
         "settings": (
             "⚙️ <b>FANTZO SETTINGS</b>\n"
@@ -66,14 +66,14 @@ TEXT = {
             "🔴 Explore live action\n"
             "📝 Create your account\n"
             "🎰 Discover more entertainment\n\n"
-            "🔞 18+ • Play responsibly • T&Cs apply"
+            ""
         ),
         "join": (
             "🚀 <b>JOIN FANTZO</b>\n"
             "━━━━━━━━━━━━━━━━━━\n\n"
             "Create your Fantzo account and explore the full experience.\n\n"
             "No exaggerated promises — just direct access to Fantzo.\n\n"
-            "🔞 18+ • Play responsibly • T&Cs apply"
+            ""
         ),
         "lang_saved": "✅ Language changed to English.",
         "sub_on": (
@@ -97,7 +97,7 @@ TEXT = {
             "🔔 Match alerts\n\n"
             "🎯 गेम को यहाँ follow करें और फिर <b>Fantzo</b> explore करें।\n\n"
             "अपना विकल्प चुनें 👇\n\n"
-            "🔞 18+ • जिम्मेदारी से खेलें • T&Cs लागू"
+            ""
         ),
         "settings": (
             "⚙️ <b>FANTZO SETTINGS</b>\n"
@@ -112,13 +112,13 @@ TEXT = {
             "🔴 Live section देखें\n"
             "📝 Account बनाएं\n"
             "🎰 और entertainment explore करें\n\n"
-            "🔞 18+ • जिम्मेदारी से खेलें • T&Cs लागू"
+            ""
         ),
         "join": (
             "🚀 <b>JOIN FANTZO</b>\n"
             "━━━━━━━━━━━━━━━━━━\n\n"
             "Fantzo account बनाकर पूरा experience explore करें।\n\n"
-            "🔞 18+ • जिम्मेदारी से खेलें • T&Cs लागू"
+            ""
         ),
         "lang_saved": "✅ भाषा हिंदी कर दी गई है।",
         "sub_on": (

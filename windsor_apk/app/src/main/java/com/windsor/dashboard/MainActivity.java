@@ -14,7 +14,7 @@ import android.widget.ProgressBar;
 
 public class MainActivity extends Activity {
     private static final String DASHBOARD_URL =
-            "https://ads-manager-api-production.up.railway.app/dashboard";
+            "https://meta-ads-control-production.up.railway.app/dashboard";
 
     private WebView webView;
     private ProgressBar progressBar;

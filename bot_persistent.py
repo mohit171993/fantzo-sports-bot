@@ -296,6 +296,30 @@ def run() -> None:
     fantzo_autoreply.ensure_setting()
     fantzo_business.ensure_tables()
 
+    try:
+        with core.db() as conn:
+            auto_row = conn.execute(
+                "SELECT value FROM settings WHERE key='auto_reply_enabled' LIMIT 1"
+            ).fetchone()
+            business_total = conn.execute(
+                "SELECT COUNT(*) AS c FROM business_connections"
+            ).fetchone()["c"]
+            business_enabled = conn.execute(
+                "SELECT COUNT(*) AS c FROM business_connections WHERE enabled=1"
+            ).fetchone()["c"]
+            business_customers = conn.execute(
+                "SELECT COUNT(*) AS c FROM business_customers"
+            ).fetchone()["c"]
+        logger.info(
+            "DURA Business DM diagnostic autoreply=%s connections=%s enabled=%s customers=%s",
+            str(auto_row["value"] if auto_row else ""),
+            int(business_total or 0),
+            int(business_enabled or 0),
+            int(business_customers or 0),
+        )
+    except Exception:
+        logger.exception("DURA Business DM diagnostic failed")
+
     app = (
         Application.builder()
         .token(core.BOT_TOKEN)

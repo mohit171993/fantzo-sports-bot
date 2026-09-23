@@ -87,7 +87,83 @@ async def configure_telegram_ui_with_restored_features(application) -> None:
 tracked.app.configure_telegram_ui = configure_telegram_ui_with_restored_features
 
 
+def _force_fantzo_test_unverified_once() -> None:
+    """Make only Mohit_97saxena unverified while preserving saved mobile/CRM."""
+    marker = "fantzo_test_unverified:2026-09-23-manual"
+    username = "mohit_97saxena"
+    core = tracked.app.core
+
+    with core.db() as conn:
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY,value TEXT)"
+        )
+        if conn.execute(
+            "SELECT 1 FROM settings WHERE key=?",
+            (marker,),
+        ).fetchone():
+            return
+
+        rows = conn.execute(
+            "SELECT user_id FROM users WHERE lower(COALESCE(username,''))=?",
+            (username,),
+        ).fetchall()
+        ids = {int(row["user_id"]) for row in rows}
+        if len(ids) != 1:
+            logger.warning(
+                "Fantzo test unverify skipped: username match count=%s",
+                len(ids),
+            )
+            return
+
+        uid = next(iter(ids))
+        row = conn.execute(
+            """
+            SELECT mobile_e164,capture_method
+            FROM live_tv_mobile_users
+            WHERE user_id=?
+            """,
+            (uid,),
+        ).fetchone()
+        if not row:
+            logger.warning("Fantzo test unverify skipped: verification row unavailable")
+            return
+
+        saved_mobile = bool(str(row["mobile_e164"] or "").strip())
+        was_verified = str(row["capture_method"] or "") == "telegram_contact"
+
+        conn.execute(
+            """
+            UPDATE live_tv_mobile_users
+            SET capture_method='test_unverified',
+                source='manual_test_reset',
+                updated_at=?
+            WHERE user_id=?
+            """,
+            (core.now_iso(), uid),
+        )
+        conn.execute(
+            "INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)",
+            (marker, "applied"),
+        )
+
+        verified_after = bool(conn.execute(
+            """
+            SELECT 1 FROM live_tv_mobile_users
+            WHERE user_id=? AND capture_method='telegram_contact'
+            """,
+            (uid,),
+        ).fetchone())
+
+    logger.info(
+        "FANTZO test account forced unverified was_verified=%s verified_after=%s saved_mobile=%s",
+        was_verified,
+        verified_after,
+        saved_mobile,
+    )
+
+
 if __name__ == "__main__":
+    _force_fantzo_test_unverified_once()
     tracked.private_apk_upload.install_on_tracking_handler(tracked.analytics)
     tracked.trial_live_tv.install_on_tracking_handler(tracked.analytics)
     tracked.fantzo_live_tv.install_on_tracking_handler(tracked.analytics)

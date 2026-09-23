@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 from html import escape
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlencode, urlparse
+from zoneinfo import ZoneInfo
 
 import bot as core
 
@@ -17,6 +18,7 @@ logger = logging.getLogger(__name__)
 TRACKING_BASE_URL = os.getenv("TRACKING_BASE_URL", "").strip().rstrip("/")
 FANTZO_BASE_URL = os.getenv("FANTZO_MINI_APP_URL", "https://www.fantzo.com").strip().rstrip("/") + "/"
 _server_started = False
+REPORT_TZ = ZoneInfo("Asia/Dubai")
 
 DESTINATION_PATHS = {
     "home": "",
@@ -140,8 +142,29 @@ def _metric_count(conn, sql: str, params=()) -> int:
         return 0
 
 
+def _report_day_windows(days: int = 3):
+    now_local = datetime.now(timezone.utc).astimezone(REPORT_TZ)
+    today = now_local.date()
+    windows = []
+    for offset in range(days):
+        day = today - timedelta(days=offset)
+        start_local = datetime(day.year, day.month, day.day, tzinfo=REPORT_TZ)
+        end_local = start_local + timedelta(days=1)
+        windows.append(
+            (
+                day.isoformat(),
+                start_local.astimezone(timezone.utc).isoformat(),
+                end_local.astimezone(timezone.utc).isoformat(),
+            )
+        )
+    return windows
+
+
 def _report_metrics_payload() -> dict:
     cutoff_24h = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+    day_windows = _report_day_windows(3)
+    verified_by_date = {day: 0 for day, _, _ in day_windows}
+
     with core.db() as conn:
         bot_users = _metric_count(conn, "SELECT COUNT(*) FROM users") if _table_exists(conn, "users") else 0
 
@@ -156,8 +179,24 @@ def _report_metrics_payload() -> dict:
                 leads_24h = _metric_count(conn, "SELECT COUNT(*) FROM sales_leads WHERE created_at>=?", (cutoff_24h,))
             if _table_exists(conn, "lead_user_map"):
                 verified = _metric_count(conn, "SELECT COUNT(DISTINCT user_id) FROM lead_user_map")
-                if _column_exists(conn, "lead_user_map", "created_at"):
-                    verified_24h = _metric_count(conn, "SELECT COUNT(DISTINCT user_id) FROM lead_user_map WHERE created_at>=?", (cutoff_24h,))
+                verified_time_col = None
+                for candidate in ("linked_at", "created_at"):
+                    if _column_exists(conn, "lead_user_map", candidate):
+                        verified_time_col = candidate
+                        break
+                if verified_time_col:
+                    verified_24h = _metric_count(
+                        conn,
+                        f"SELECT COUNT(DISTINCT user_id) FROM lead_user_map WHERE {verified_time_col}>=?",
+                        (cutoff_24h,),
+                    )
+                    for day, start_utc, end_utc in day_windows:
+                        verified_by_date[day] = _metric_count(
+                            conn,
+                            f"SELECT COUNT(DISTINCT user_id) FROM lead_user_map "
+                            f"WHERE {verified_time_col}>=? AND {verified_time_col}<?",
+                            (start_utc, end_utc),
+                        )
         elif _table_exists(conn, "ibetin_leads"):
             leads = _metric_count(conn, "SELECT COUNT(*) FROM ibetin_leads")
             if _column_exists(conn, "ibetin_leads", "first_seen_at"):
@@ -168,6 +207,13 @@ def _report_metrics_payload() -> dict:
                 verified = _metric_count(conn, "SELECT COUNT(DISTINCT user_id) FROM liveline_verified_users")
                 if _column_exists(conn, "liveline_verified_users", "verified_at"):
                     verified_24h = _metric_count(conn, "SELECT COUNT(DISTINCT user_id) FROM liveline_verified_users WHERE verified_at>=?", (cutoff_24h,))
+                    for day, start_utc, end_utc in day_windows:
+                        verified_by_date[day] = _metric_count(
+                            conn,
+                            "SELECT COUNT(DISTINCT user_id) FROM liveline_verified_users "
+                            "WHERE verified_at>=? AND verified_at<?",
+                            (start_utc, end_utc),
+                        )
 
         registration_clicks = 0
         registration_clicks_24h = 0
@@ -192,6 +238,8 @@ def _report_metrics_payload() -> dict:
             "completed_registrations": None,
             "verified": verified,
             "verified_24h": verified_24h,
+            "verified_by_date": verified_by_date,
+            "verified_timezone": "Asia/Dubai",
             "registration_note": "Completed external-site registrations are not available unless the destination sends a conversion event back.",
         }
 

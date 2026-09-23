@@ -31,13 +31,10 @@ APP_TIMEZONE = ZoneInfo("Asia/Dubai")
 
 FANTZO_HOME = "https://fantzo.com"
 FANTZO_LIVE = "https://fantzo.com/en/live"
-FANTZO_SLOTS = "https://fantzo.com/en/slots"
-FANTZO_REGISTER = "https://fantzo.com/en/registration"
 
 DB_PATH = os.getenv("DB_PATH", "fantzo_bot.db")
 
 DIVIDER = "━━━━━━━━━━━━━━━━━━"
-RESPONSIBLE_NOTE = "🔞 18+ • Play responsibly • T&Cs apply"
 
 TEXT = {
     "en": {
@@ -50,8 +47,7 @@ TEXT = {
             "🔥 Featured live action\n"
             "🔔 Match alerts\n\n"
             "🎯 Follow the game here — then explore more on <b>Fantzo</b>.\n\n"
-            "Choose your next move 👇\n\n"
-            "🔞 18+ • Play responsibly • T&Cs apply"
+            "Choose your next move 👇"
         ),
         "settings": (
             "⚙️ <b>FANTZO SETTINGS</b>\n"
@@ -63,17 +59,12 @@ TEXT = {
             "━━━━━━━━━━━━━━━━━━\n\n"
             "Ready to go beyond scores?\n\n"
             "🌐 Visit Fantzo\n"
-            "🔴 Explore live action\n"
-            "📝 Create your account\n"
-            "🎰 Discover more entertainment\n\n"
-            "🔞 18+ • Play responsibly • T&Cs apply"
+            "🔴 Explore live action"
         ),
         "join": (
-            "🚀 <b>JOIN FANTZO</b>\n"
+            "🚀 <b>VISIT FANTZO</b>\n"
             "━━━━━━━━━━━━━━━━━━\n\n"
-            "Create your Fantzo account and explore the full experience.\n\n"
-            "No exaggerated promises — just direct access to Fantzo.\n\n"
-            "🔞 18+ • Play responsibly • T&Cs apply"
+            "Visit Fantzo for more sports coverage."
         ),
         "lang_saved": "✅ Language changed to English.",
         "sub_on": (
@@ -96,8 +87,7 @@ TEXT = {
             "🔥 Featured live action\n"
             "🔔 Match alerts\n\n"
             "🎯 गेम को यहाँ follow करें और फिर <b>Fantzo</b> explore करें।\n\n"
-            "अपना विकल्प चुनें 👇\n\n"
-            "🔞 18+ • जिम्मेदारी से खेलें • T&Cs लागू"
+            "अपना विकल्प चुनें 👇"
         ),
         "settings": (
             "⚙️ <b>FANTZO SETTINGS</b>\n"
@@ -109,16 +99,12 @@ TEXT = {
             "━━━━━━━━━━━━━━━━━━\n\n"
             "Scores से आगे बढ़ना चाहते हैं?\n\n"
             "🌐 Fantzo खोलें\n"
-            "🔴 Live section देखें\n"
-            "📝 Account बनाएं\n"
-            "🎰 और entertainment explore करें\n\n"
-            "🔞 18+ • जिम्मेदारी से खेलें • T&Cs लागू"
+            "🔴 Live section देखें"
         ),
         "join": (
-            "🚀 <b>JOIN FANTZO</b>\n"
+            "🚀 <b>VISIT FANTZO</b>\n"
             "━━━━━━━━━━━━━━━━━━\n\n"
-            "Fantzo account बनाकर पूरा experience explore करें।\n\n"
-            "🔞 18+ • जिम्मेदारी से खेलें • T&Cs लागू"
+            "अधिक sports coverage के लिए Fantzo पर जाएं।"
         ),
         "lang_saved": "✅ भाषा हिंदी कर दी गई है।",
         "sub_on": (
@@ -279,10 +265,6 @@ def main_keyboard() -> InlineKeyboardMarkup:
                 InlineKeyboardButton("🔎 Find Team", callback_data="find_team"),
                 InlineKeyboardButton("🔔 Match Alerts", callback_data="subscribe"),
             ],
-            [
-                InlineKeyboardButton("✨ Explore Fantzo", callback_data="explore"),
-                InlineKeyboardButton("🚀 Join Fantzo", callback_data="join_fantzo"),
-            ],
             [InlineKeyboardButton("⚙️ Settings", callback_data="settings")],
         ]
     )
@@ -298,11 +280,7 @@ def explore_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
             [InlineKeyboardButton("✨ Open Fantzo", url=FANTZO_HOME)],
-            [
-                InlineKeyboardButton("🔴 Live Section", url=FANTZO_LIVE),
-                InlineKeyboardButton("🚀 Join Now", url=FANTZO_REGISTER),
-            ],
-            [InlineKeyboardButton("🎰 Explore More", url=FANTZO_SLOTS)],
+            [InlineKeyboardButton("🔴 Live Section", url=FANTZO_LIVE)],
             [InlineKeyboardButton("⬅️ Back to Home", callback_data="back")],
         ]
     )
@@ -311,7 +289,6 @@ def explore_keyboard() -> InlineKeyboardMarkup:
 def join_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
-            [InlineKeyboardButton("🚀 Create Fantzo Account", url=FANTZO_REGISTER)],
             [InlineKeyboardButton("✨ Visit Fantzo", url=FANTZO_HOME)],
             [InlineKeyboardButton("⬅️ Back to Home", callback_data="back")],
         ]
@@ -335,7 +312,6 @@ def subscription_keyboard(current: bool) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
             [InlineKeyboardButton(label, callback_data="toggle_sub")],
-            [InlineKeyboardButton("✨ Explore Fantzo", callback_data="explore")],
             [InlineKeyboardButton("⬅️ Back to Home", callback_data="back")],
         ]
     )
@@ -344,14 +320,8 @@ def subscription_keyboard(current: bool) -> InlineKeyboardMarkup:
 def score_keyboard(action: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
-            [
-                InlineKeyboardButton("🔄 Refresh", callback_data=action),
-                InlineKeyboardButton("✨ Explore Fantzo", callback_data="explore"),
-            ],
-            [
-                InlineKeyboardButton("🔎 Find Team", callback_data="find_team"),
-                InlineKeyboardButton("🚀 Join Fantzo", callback_data="join_fantzo"),
-            ],
+            [InlineKeyboardButton("🔄 Refresh", callback_data=action)],
+            [InlineKeyboardButton("🔎 Find Team", callback_data="find_team")],
             [InlineKeyboardButton("⬅️ Back to Home", callback_data="back")],
         ]
     )
@@ -364,10 +334,7 @@ def empty_keyboard(action: str) -> InlineKeyboardMarkup:
                 InlineKeyboardButton("🔄 Check Again", callback_data=action),
                 InlineKeyboardButton("🗓 Upcoming", callback_data="upcoming"),
             ],
-            [
-                InlineKeyboardButton("🔎 Find Team", callback_data="find_team"),
-                InlineKeyboardButton("✨ Explore Fantzo", callback_data="explore"),
-            ],
+            [InlineKeyboardButton("🔎 Find Team", callback_data="find_team")],
             [InlineKeyboardButton("⬅️ Back to Home", callback_data="back")],
         ]
     )
@@ -376,8 +343,7 @@ def empty_keyboard(action: str) -> InlineKeyboardMarkup:
 def promo_footer() -> str:
     return (
         f"\n\n{DIVIDER}\n"
-        "⚡ <b>FANTZO</b> • Follow the action. Explore more.\n"
-        f"{RESPONSIBLE_NOTE}"
+        "⚡ <b>FANTZO</b> • Follow the action. Scores & fixtures.\n"
     )
 
 
@@ -547,7 +513,7 @@ def format_match_list(
             f"{DIVIDER}\n\n"
             "😴 <b>Nothing live here at the moment.</b>\n\n"
             f"{empty_text}\n\n"
-            "Try upcoming fixtures, search a team, or explore Fantzo while you wait."
+            "Check upcoming fixtures or search for a team while you wait."
         )
         return text + (promo_footer() if promotional else "")
 
@@ -826,13 +792,6 @@ async def team_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             )
             return
 
-        rows.append(
-            [
-                InlineKeyboardButton("✨ Explore Fantzo", callback_data="explore"),
-                InlineKeyboardButton("🚀 Join Fantzo", callback_data="join_fantzo"),
-            ]
-        )
-
         await update.effective_message.reply_text(
             f"🔎 <b>SEARCH RESULTS</b>\n"
             f"{DIVIDER}\n\n"
@@ -1058,12 +1017,9 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             "Type a command like:\n\n"
             "<code>/team India</code>\n"
             "<code>/team Arsenal</code>\n\n"
-            "Then choose the team to see upcoming or recent matches.\n\n"
-            "✨ You can explore Fantzo anytime from the menu.",
+            "Then choose the team to see upcoming or recent matches.",
             parse_mode="HTML",
-            reply_markup=back_keyboard(
-                [[InlineKeyboardButton("✨ Explore Fantzo", callback_data="explore")]]
-            ),
+            reply_markup=back_keyboard(),
         )
         return
 
@@ -1075,20 +1031,11 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             f"{icon} <b>{heading}</b>\n"
             f"{DIVIDER}\n\n"
             f"Search a team with <code>/team TEAMNAME</code>, choose it, then tap <b>{word.title()}</b>.\n\n"
-            "Example: <code>/team India</code>\n\n"
-            "🎯 Follow the action and keep Fantzo one tap away.",
+            "Example: <code>/team India</code>",
             parse_mode="HTML",
             reply_markup=back_keyboard(
                 [
                     [InlineKeyboardButton("🔎 Find Team", callback_data="find_team")],
-                    [
-                        InlineKeyboardButton(
-                            "✨ Explore Fantzo", callback_data="explore"
-                        ),
-                        InlineKeyboardButton(
-                            "🚀 Join Fantzo", callback_data="join_fantzo"
-                        ),
-                    ],
                 ]
             ),
         )
@@ -1128,7 +1075,6 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                             callback_data=f"team_recent:{sport}:{team_id}",
                         ),
                     ],
-                    [InlineKeyboardButton("✨ Explore Fantzo", callback_data="explore")],
                 ]
             ),
         )

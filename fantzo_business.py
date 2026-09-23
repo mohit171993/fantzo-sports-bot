@@ -14,7 +14,7 @@ import fantzo_reminders as reminders
 
 logger = logging.getLogger(__name__)
 
-RESPONSIBLE_NOTE = "<i>🔞 18+ • Play responsibly • T&Cs apply</i>"
+RESPONSIBLE_NOTE = ""
 FANTZO_CHANNEL_URL = "https://t.me/fantzoupdates"
 
 WELCOME_REPLY = (

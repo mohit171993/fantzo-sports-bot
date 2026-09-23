@@ -87,19 +87,19 @@ def _install_ibetin_hub_copy() -> None:
                 "🔔 Match Alerts\n"
                 "🛟 Support\n\n"
                 "More sections are available inside the Mini App.\n\n"
-                "🔞 18+ • Play responsibly • T&Cs apply"
+                ""
             ),
             "explore": (
                 "🌐 <b>DURASPORTS MINI APP HUB</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
                 "Every navigation button opens inside Telegram.\n\n"
-                "🔞 18+ • Play responsibly • T&Cs apply"
+                ""
             ),
             "join": (
                 "🌐 <b>OPEN DURASPORTS</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
                 "Continue inside Telegram using the DURASPORTS Mini App.\n\n"
-                "🔞 18+ • Play responsibly • T&Cs apply"
+                ""
             ),
             "settings": (
                 "⚙️ <b>DURASPORTS SETTINGS</b>\n"
@@ -124,19 +124,19 @@ def _install_ibetin_hub_copy() -> None:
                 "🔔 Match Alerts\n"
                 "🛟 Support\n\n"
                 "बाकी सभी sections Mini App के अंदर उपलब्ध हैं।\n\n"
-                "🔞 18+ • जिम्मेदारी से खेलें • T&Cs लागू"
+                ""
             ),
             "explore": (
                 "🌐 <b>DURASPORTS MINI APP HUB</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
                 "सभी navigation विकल्प Telegram के अंदर खुलेंगे।\n\n"
-                "🔞 18+ • जिम्मेदारी से खेलें • T&Cs लागू"
+                ""
             ),
             "join": (
                 "🌐 <b>OPEN DURASPORTS</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
                 "DURASPORTS को Telegram Mini App के अंदर खोलें।\n\n"
-                "🔞 18+ • जिम्मेदारी से खेलें • T&Cs लागू"
+                ""
             ),
         }
     )
@@ -598,8 +598,7 @@ async def _prompt_mobile_verification(update, context, source: str = "bot_start"
         f"{detail}\n\n"
         "Tap <b>📱 VERIFY & CONTINUE</b> below. Telegram will share your linked mobile number.\n\n"
         "By continuing, you agree that the DURASPORTS team may contact you by "
-        "<b>phone call or WhatsApp</b>. You can opt out anytime.\n\n"
-        "🔞 <b>18+ • Play responsibly</b>",
+        "<b>phone call or WhatsApp</b>. You can opt out anytime.",
         parse_mode="HTML",
         reply_markup=_verification_reply_keyboard(),
     )
@@ -1097,7 +1096,7 @@ async def configure_telegram_ui(application) -> None:
         "Welcome to DURASPORTS Sports Hub. Follow cricket and football updates, "
         "open DURASPORTS Live Line, view match results and sports news, manage "
         "match alerts, and access official support. Verify your Telegram-linked "
-        "mobile once to continue. 18+ • Play responsibly."
+        "mobile once to continue."
     )
 
     await application.bot.set_my_commands(

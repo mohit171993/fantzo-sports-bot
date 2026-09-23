@@ -18,5 +18,6 @@ RUN gradle --no-daemon assembleDebug && cp app/build/outputs/apk/debug/app-debug
 FROM python:3.12-slim
 WORKDIR /srv
 COPY --from=build /tmp/Windsor.apk /srv/Windsor.apk
+COPY serve.py /srv/serve.py
 EXPOSE 8080
-CMD ["python","-m","http.server","8080","--directory","/srv"]
+CMD ["python","/srv/serve.py"]

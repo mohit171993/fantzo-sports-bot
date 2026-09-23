@@ -71,7 +71,7 @@ def reset_test_once(reports):
 
 def force_test_unverified_once(reports):
     """Explicit operator request: keep only mohit_97saxena unverified for testing."""
-    marker = "ibetin_test_unverified:2026-09-22"
+    marker = "ibetin_test_unverified:2026-09-23-manual"
     with reports.core.db() as conn:
         conn.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY,value TEXT)")
         if conn.execute("SELECT 1 FROM settings WHERE key=?", (marker,)).fetchone():

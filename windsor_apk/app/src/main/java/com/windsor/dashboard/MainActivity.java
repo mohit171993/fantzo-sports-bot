@@ -82,10 +82,11 @@ public class MainActivity extends Activity {
                     HttpAuthHandler handler,
                     String host,
                     String realm) {
-                // Windsor now uses its own session login page. Never enter a
+                // Windsor uses its own session login page. Never enter a
                 // Basic-Auth retry loop from stale credentials.
                 handler.cancel();
-                if (!view.getUrl().contains("/windsor-login")) {
+                String currentUrl = view.getUrl();
+                if (currentUrl == null || !currentUrl.contains("/windsor-login")) {
                     view.loadUrl(LOGIN_URL);
                 }
             }
@@ -110,7 +111,7 @@ public class MainActivity extends Activity {
                 if (request.isForMainFrame()) {
                     Toast.makeText(
                             MainActivity.this,
-                            "Windsor could not load. Check internet and tap Back/ reopen.",
+                            "Windsor could not load. Check internet and reopen the app.",
                             Toast.LENGTH_LONG
                     ).show();
                 }

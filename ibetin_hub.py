@@ -364,7 +364,7 @@ def _page(section: str) -> str:
         <section class="section">
           <h2>Designed for speed</h2>
           <p>No crowded bot menus. Use the dashboard above, or the four shortcuts at the bottom.</p>
-          <p class="note">🔞 18+ • Play responsibly • T&Cs apply</p>
+          
         </section>
         """
     elif section == "alerts":
@@ -594,14 +594,14 @@ def _install_clean_runtime_ui() -> None:
         "━━━━━━━━━━━━━━━━━━\n\n"
         "<b>Your sports & entertainment command center.</b>\n\n"
         "Everything opens inside Telegram. Use the clean shortcuts below or open the full Mini App.\n\n"
-        "🔞 18+ • Play responsibly • T&Cs apply"
+        ""
     )
     app.core.TEXT["hi"]["welcome"] = (
         "⚡ <b>IBETIN</b>\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
         "<b>आपका sports & entertainment command center.</b>\n\n"
         "सभी विकल्प Telegram के अंदर खुलते हैं। नीचे quick shortcuts चुनें या पूरा Mini App खोलें।\n\n"
-        "🔞 18+ • जिम्मेदारी से खेलें • T&Cs लागू"
+        ""
     )
 
     app.core.main_keyboard = clean_main_keyboard

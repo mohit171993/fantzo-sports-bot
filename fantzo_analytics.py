@@ -142,6 +142,76 @@ def _metric_count(conn, sql: str, params=()) -> int:
         return 0
 
 
+def _campaign_breakdown_payload(conn, cutoff_24h: str) -> dict:
+    """Return non-PII first-touch campaign quality metrics for the ads optimizer."""
+    out = {}
+
+    if _table_exists(conn, "sales_leads") and _column_exists(conn, "sales_leads", "campaign"):
+        created_expr = "created_at" if _column_exists(conn, "sales_leads", "created_at") else "updated_at"
+        try:
+            rows = conn.execute(
+                f"""
+                SELECT lower(COALESCE(NULLIF(campaign,''),'direct')) campaign,
+                       COUNT(*) leads,
+                       COUNT(*) verified,
+                       SUM(CASE WHEN {created_expr}>=? THEN 1 ELSE 0 END) verified_24h
+                FROM sales_leads
+                GROUP BY lower(COALESCE(NULLIF(campaign,''),'direct'))
+                """,
+                (cutoff_24h,),
+            ).fetchall()
+            for row in rows:
+                key = str(row["campaign"] if hasattr(row, "keys") else row[0]).lower()
+                if not key:
+                    continue
+                out[key] = {
+                    "leads": int(row["leads"] if hasattr(row, "keys") else row[1] or 0),
+                    "verified": int(row["verified"] if hasattr(row, "keys") else row[2] or 0),
+                    "verified_24h": int(row["verified_24h"] if hasattr(row, "keys") else row[3] or 0),
+                }
+        except Exception:
+            pass
+        return out
+
+    if _table_exists(conn, "ibetin_leads") and _column_exists(conn, "ibetin_leads", "campaign"):
+        has_verified = _column_exists(conn, "ibetin_leads", "verified_at")
+        try:
+            if has_verified:
+                rows = conn.execute(
+                    """
+                    SELECT lower(COALESCE(NULLIF(campaign,''),'direct')) campaign,
+                           COUNT(*) leads,
+                           SUM(CASE WHEN verified_at IS NOT NULL AND verified_at!='' THEN 1 ELSE 0 END) verified,
+                           SUM(CASE WHEN verified_at>=? THEN 1 ELSE 0 END) verified_24h
+                    FROM ibetin_leads
+                    GROUP BY lower(COALESCE(NULLIF(campaign,''),'direct'))
+                    """,
+                    (cutoff_24h,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT lower(COALESCE(NULLIF(campaign,''),'direct')) campaign,
+                           COUNT(*) leads, 0 verified, 0 verified_24h
+                    FROM ibetin_leads
+                    GROUP BY lower(COALESCE(NULLIF(campaign,''),'direct'))
+                    """
+                ).fetchall()
+            for row in rows:
+                key = str(row["campaign"] if hasattr(row, "keys") else row[0]).lower()
+                if not key:
+                    continue
+                out[key] = {
+                    "leads": int(row["leads"] if hasattr(row, "keys") else row[1] or 0),
+                    "verified": int(row["verified"] if hasattr(row, "keys") else row[2] or 0),
+                    "verified_24h": int(row["verified_24h"] if hasattr(row, "keys") else row[3] or 0),
+                }
+        except Exception:
+            pass
+
+    return out
+
+
 def _report_day_windows(days: int = 3):
     now_local = datetime.now(timezone.utc).astimezone(REPORT_TZ)
     today = now_local.date()
@@ -215,6 +285,8 @@ def _report_metrics_payload() -> dict:
                             (start_utc, end_utc),
                         )
 
+        by_campaign = _campaign_breakdown_payload(conn, cutoff_24h)
+
         registration_clicks = 0
         registration_clicks_24h = 0
         if _table_exists(conn, "clicks") and _column_exists(conn, "clicks", "action"):
@@ -240,6 +312,7 @@ def _report_metrics_payload() -> dict:
             "verified_24h": verified_24h,
             "verified_by_date": verified_by_date,
             "verified_timezone": "Asia/Dubai",
+            "by_campaign": by_campaign,
             "registration_note": "Completed external-site registrations are not available unless the destination sends a conversion event back.",
         }
 

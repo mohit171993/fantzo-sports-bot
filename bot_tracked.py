@@ -1169,11 +1169,11 @@ async def admin_crm_text_handler(update, context) -> None:
 async def configure_telegram_ui(application) -> None:
     # Telegram shows these before a new user verifies their account.
     await application.bot.set_my_short_description(
-        "DURASPORTS • Secure account access and support"
+        "DURA LIVE LINE • Live cricket scores and updates"
     )
     await application.bot.set_my_description(
-        "Welcome to DURASPORTS. Verify the mobile number linked to your "
-        "Telegram account to continue. For assistance, use official support."
+        "DURA LIVE LINE shows live cricket scores, fixtures and results. "
+        "Verify your Telegram-linked mobile in chat to continue to account support."
     )
     await application.bot.set_my_commands(PREVERIFY_COMMANDS)
 

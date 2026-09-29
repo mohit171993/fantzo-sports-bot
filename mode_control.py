@@ -118,4 +118,3 @@ def http_route(mode: str, method: str, path: str) -> str:
     if method == "POST" and path.rstrip("/") == "/roanuz/match/feed/v1":
         return "pass"
     return "redirect" if method == "GET" else "deny"
-

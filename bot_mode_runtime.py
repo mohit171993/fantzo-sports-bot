@@ -501,4 +501,3 @@ def install(brand: str) -> None:
     match_alerts._send = alert_send_by_mode
     _installed = True
     log.info("Bot mode controller installed brand=%s initial_mode=%s", brand, _mode())
-

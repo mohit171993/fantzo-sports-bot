@@ -122,4 +122,3 @@ def score_page(rows: list[dict], brand: str, mode: str = "live") -> str:
         '<h2>' + escape(mode.title()) + '</h2>' + ''.join(cards)
         + '</main></body></html>'
     )
-

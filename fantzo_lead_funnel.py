@@ -207,10 +207,12 @@ def record_start(user_id: int, arg: str = "") -> str:
             conn.execute(
                 """
                 UPDATE lead_attribution
-                SET campaign=?, last_start_arg=?, last_seen_at=?
+                SET campaign=?,
+                    last_start_arg=CASE WHEN ? <> '' THEN ? ELSE last_start_arg END,
+                    last_seen_at=?
                 WHERE user_id=?
                 """,
-                (chosen, start_arg, now, int(user_id)),
+                (chosen, start_arg, start_arg, now, int(user_id)),
             )
             campaign = chosen
         else:
@@ -256,6 +258,17 @@ def campaign_for_user(user_id: int) -> str:
             (int(user_id),),
         ).fetchone()
     return str(row["campaign"]) if row and row["campaign"] else "direct"
+
+
+def last_start_arg_for_user(user_id: int) -> str:
+    """Use the current entry link for navigation without changing first-touch attribution."""
+    ensure_tables()
+    with core.db() as conn:
+        row = conn.execute(
+            "SELECT last_start_arg FROM lead_attribution WHERE user_id=?",
+            (int(user_id),),
+        ).fetchone()
+    return _clean_start_arg(row["last_start_arg"]) if row else ""
 
 
 def on_verification_prompt(user_id: int, source: str) -> None:
@@ -421,47 +434,53 @@ def _styled_button(label: str, *, style: str | None = None, **kwargs):
     return InlineKeyboardButton(label, **kwargs)
 
 
-def _campaign_primary(campaign: str) -> tuple[str, str]:
-    value = str(campaign or "").lower()
-    if "cricket" in value:
-        return "🏏 CRICKET NOW", "cricket"
-    if "football" in value or "soccer" in value:
-        return "⚽ FOOTBALL NOW", "football"
-    if "fixture" in value:
+def _campaign_primary(start_arg: str) -> tuple[str, str]:
+    """Route only known feature words; never turn a deep-link payload into a URL."""
+    words = set(re.split(r"[_-]+", _clean_start_arg(start_arg).lower()))
+    if ({"tv", "livetv", "stream"} & words) and tracked.LIVE_TV_MODE == "public" and tracked.sky_admin_url():
+        return "📺 CHECK LIVE TV", "live_tv_status"
+    if "cricket" in words:
+        return "🏏 CRICKET UPDATES", "cricket"
+    if {"football", "soccer"} & words:
+        return "⚽ FOOTBALL UPDATES", "football"
+    if {"fixture", "fixtures", "upcoming"} & words:
         return "📅 TODAY'S FIXTURES", "upcoming"
-    if "live" in value or "score" in value:
-        return "🔴 LIVE SCORES", "live_now"
-    return "🔴 LIVE SCORES", "live_now"
+    return "🔴 CHECK LIVE SCORES", "live_now"
+
+
+def has_feature_intent(start_arg: str) -> bool:
+    words = set(re.split(r"[_-]+", _clean_start_arg(start_arg).lower()))
+    return bool(words & {"tv", "livetv", "stream", "cricket", "football", "soccer", "fixture", "fixtures", "upcoming", "live", "score", "scores"})
 
 
 def post_verify_keyboard(user_id: int) -> InlineKeyboardMarkup:
-    """IBETIN-style first conversion funnel only: three clear actions."""
-    del user_id
+    """Show the feature that brought this verified user in, then useful next steps."""
+    primary_label, primary_action = _campaign_primary(last_start_arg_for_user(user_id))
     return InlineKeyboardMarkup(
         [
             [
                 _styled_button(
-                    "🚀 JOIN FANTZO",
+                    primary_label,
                     style="success",
-                    web_app=WebAppInfo(
-                        url=tracked.analytics.tracking_url(
-                            "verified_join_fantzo",
-                            "home",
-                        )
-                    ),
+                    callback_data=primary_action,
                 )
             ],
             [
                 _styled_button(
-                    "📺 WATCH LIVE TV",
+                    "🔎 FIND MY TEAM",
                     style="primary",
-                    callback_data="live_tv_status",
+                    callback_data="find_team",
                 )
             ],
             [
-                InlineKeyboardButton(
-                    "📢 JOIN CHANNEL",
-                    url="https://t.me/fantzoupdates",
+                _styled_button(
+                    "🚀 OPEN FANTZO",
+                    web_app=WebAppInfo(
+                        url=tracked.analytics.tracking_url(
+                            "verified_open_fantzo",
+                            "home",
+                        )
+                    ),
                 )
             ],
         ]
@@ -469,15 +488,23 @@ def post_verify_keyboard(user_id: int) -> InlineKeyboardMarkup:
 
 
 def post_verify_text(user_id: int) -> str:
-    del user_id
+    _, action = _campaign_primary(last_start_arg_for_user(user_id))
+    detail = {
+        "live_tv_status": "Check what is available on Fantzo Live TV now.",
+        "cricket": "Start with cricket updates, then follow a team if you like.",
+        "football": "Start with football updates, then follow a team if you like.",
+        "upcoming": "Start with today's fixtures, then follow a team if you like.",
+        "live_now": "Check the latest live scores, then follow a team if you like.",
+    }[action]
     return (
         "👋 <b>Welcome to FANTZO</b>\n\n"
-        "Choose what you want to do next."
+        f"{detail}"
     )
 
 
 async def send_post_verify(message, user_id: int) -> None:
     record_post_verify_view(user_id)
+    record_event(user_id, "post_verify_route", _campaign_primary(last_start_arg_for_user(user_id))[1])
     await message.reply_text(
         post_verify_text(user_id),
         parse_mode="HTML",

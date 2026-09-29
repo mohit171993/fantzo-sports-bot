@@ -15,6 +15,21 @@ import ibetin_ui_start as ui_start
 
 logger = logging.getLogger(__name__)
 
+
+def _note_team_alerts(nodes) -> None:
+    """Hand already-fetched match payloads to follow-a-team alerts.
+
+    This does not request new data. Failures stay inside the alert module so
+    the live feed still renders.
+    """
+    try:
+        import dura_match_alerts
+
+        dura_match_alerts.note_observed(nodes if isinstance(nodes, list) else [nodes])
+    except Exception:
+        logger.warning("DURA team-alert observe skipped")
+
+
 liveline.LIVELINE_PATH = "/admin/liveline-ibetinv23"
 liveline.LIVELINE_API_PATH = "/admin/liveline-ibetinv23/api"
 _BASE_NORMALIZE = v20._normalize_roanuz_match
@@ -191,6 +206,7 @@ def _persist_webhook_state(key: str, node, terminal: bool = False):
 
 def _restore_webhook_state():
     restored = 0
+    restored_nodes = []
     try:
         with core.db() as conn:
             rows = conn.execute(
@@ -212,8 +228,11 @@ def _restore_webhook_state():
                 with _ROANUZ_WEBHOOK_LOCK:
                     _ROANUZ_WEBHOOK_MATCHES[key] = (time.monotonic() - age, node)
                 restored += 1
+                restored_nodes.append(node)
             except Exception:
                 continue
+        if restored_nodes:
+            _note_team_alerts(restored_nodes)
     except Exception as exc:
         logger.warning("IBETIN webhook state restore unavailable: %s", str(exc)[:140])
     logger.info("IBETIN webhook state restore rows=%s", restored)
@@ -434,6 +453,7 @@ def _accept_roanuz_webhook(payload):
         _toss_done(node),
         terminal,
     )
+    _note_team_alerts([node])
     return key
 
 
@@ -1100,6 +1120,25 @@ def _match_detail_v23(key: str):
             "winner": node.get("winner"),
         },
     }
+
+
+_FAST_MATCHES_IMPL = _fast_matches
+_MATCH_DETAIL_IMPL = _match_detail_v23
+
+
+def _fast_matches(mode: str):
+    result = _FAST_MATCHES_IMPL(mode)
+    rows = result[0] if isinstance(result, tuple) else result
+    if isinstance(rows, list) and rows:
+        _note_team_alerts(rows)
+    return result
+
+
+def _match_detail_v23(key: str):
+    detail = _MATCH_DETAIL_IMPL(key)
+    if isinstance(detail, dict):
+        _note_team_alerts([detail])
+    return detail
 
 
 v21._matches = _fast_matches

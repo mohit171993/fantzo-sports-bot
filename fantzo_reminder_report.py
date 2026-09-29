@@ -131,6 +131,77 @@ async def send_report(application):
     )
 
 
+async def alert_new_delivery_failures(application):
+    """Report newly failed reminder sends once, without replaying old history."""
+    reminders.ensure_tables()
+    with core.db() as conn:
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)"
+        )
+        marker = conn.execute(
+            "SELECT value FROM settings WHERE key='fantzo_admin_failure_last_id'"
+        ).fetchone()
+        latest = int(conn.execute(
+            "SELECT COALESCE(MAX(id),0) FROM reminder_sends"
+        ).fetchone()[0])
+        if marker is None:
+            conn.execute(
+                "INSERT INTO settings(key,value) VALUES('fantzo_admin_failure_last_id',?)",
+                (str(latest),),
+            )
+            return
+        last_id = int(marker[0] or 0)
+        failures = conn.execute(
+            "SELECT id,source,user_id,status FROM reminder_sends "
+            "WHERE id>? AND status IN ('failed','bad_request') ORDER BY id",
+            (last_id,),
+        ).fetchall()
+    if not failures:
+        if latest > last_id:
+            with core.db() as conn:
+                conn.execute(
+                    "UPDATE settings SET value=? WHERE key='fantzo_admin_failure_last_id'",
+                    (str(latest),),
+                )
+        return
+
+    sample = ", ".join(
+        f"{row['source']}:{int(row['user_id'])} ({row['status']})"
+        for row in failures[:5]
+    )
+    await application.bot.send_message(
+        chat_id=core.ADMIN_USER_ID,
+        text=(
+            "⚠️ <b>FANTZO REMINDER DELIVERY FAILED</b>\n"
+            f"New failures: <b>{len(failures)}</b>\n"
+            f"Examples: <code>{sample}</code>\n"
+            "Check the Fantzo admin delivery report."
+        ),
+        parse_mode="HTML",
+    )
+    with core.db() as conn:
+        conn.execute(
+            "UPDATE settings SET value=? WHERE key='fantzo_admin_failure_last_id'",
+            (str(latest),),
+        )
+    logger.info(
+        "FANTZO_ADMIN_DELIVERY_FAILURE_ALERT_SENT chat_id=%s count=%s",
+        core.ADMIN_USER_ID, len(failures),
+    )
+
+
+async def failure_alert_loop(application):
+    await asyncio.sleep(20)
+    while True:
+        try:
+            await alert_new_delivery_failures(application)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Fantzo delivery failure alert check failed")
+        await asyncio.sleep(60)
+
+
 async def report_loop(application):
     # One summary per day at 09:00 India time. Startup remains quiet.
     while True:
@@ -150,6 +221,7 @@ async def _start_report_when_running(application):
     while not application.running:
         await asyncio.sleep(0.2)
     application.create_task(report_loop(application))
+    application.create_task(failure_alert_loop(application))
 
 
 def start(application):

@@ -840,6 +840,16 @@ async def pending_verification_command_handler(update, context) -> None:
     raise ApplicationHandlerStop
 
 
+async def pending_verification_media_handler(update, context) -> None:
+    user = update.effective_user
+    message = update.effective_message
+    if not user or not message or phone_verify.is_verified(user.id):
+        return
+    await _set_user_menu_button(context.bot, user.id, False)
+    await _prompt_mobile_verification(update, context, "bot_start")
+    raise ApplicationHandlerStop
+
+
 async def verified_fixed_reply_handler(update, context) -> None:
     user = update.effective_user
     message = update.effective_message
@@ -1185,6 +1195,13 @@ async def configure_telegram_ui(application) -> None:
         MessageHandler(
             filters.UpdateType.MESSAGE & filters.COMMAND,
             pending_verification_command_handler,
+        ),
+        group=-15,
+    )
+    application.add_handler(
+        MessageHandler(
+            filters.UpdateType.MESSAGE & ~(filters.TEXT | filters.CONTACT),
+            pending_verification_media_handler,
         ),
         group=-15,
     )

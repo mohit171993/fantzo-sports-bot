@@ -114,6 +114,30 @@ class PreverificationGateTests(unittest.TestCase):
             asyncio.run(handler(update, types.SimpleNamespace(bot=object())))
         self.assertEqual(calls, ["menu", "verify"])
 
+    def test_unverified_media_cannot_reach_admin_upload(self):
+        calls = []
+
+        async def mark(name, *args):
+            calls.append(name)
+
+        class Stop(Exception):
+            pass
+
+        namespace = {
+            "phone_verify": types.SimpleNamespace(is_verified=lambda uid: False),
+            "_set_user_menu_button": lambda *args: mark("menu"),
+            "_prompt_mobile_verification": lambda *args: mark("verify"),
+            "ApplicationHandlerStop": Stop,
+        }
+        handler = function("bot_tracked.py", "pending_verification_media_handler", namespace)
+        update = types.SimpleNamespace(
+            effective_user=types.SimpleNamespace(id=123),
+            effective_message=types.SimpleNamespace(photo=[object()]),
+        )
+        with self.assertRaises(Stop):
+            asyncio.run(handler(update, types.SimpleNamespace(bot=object())))
+        self.assertEqual(calls, ["menu", "verify"])
+
     def test_creative_test_skips_unverified_recipient(self):
         namespace = {"phone_verify": types.SimpleNamespace(is_verified=lambda uid: False)}
         bot_target = function("ibetin_creatives.py", "_send_test_to_bot_target", namespace)

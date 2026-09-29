@@ -440,6 +440,8 @@ def _start_acquisition_snapshot_logger(reports) -> None:
 def main():
     # The existing entry point sets persistent DB_PATH before importing core.
     import ibetin_liveline_v30_unified_ui as runtime
+    import bot_mode_runtime
+    bot_mode_runtime.install("dura")
     import ibetin_reports as reports
     install(reports)
     reports.ensure_tables()

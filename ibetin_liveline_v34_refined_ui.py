@@ -93,4 +93,6 @@ logger.info('IBETIN V34 installed: compact premium UI + Telegram safe-area fix +
 app = v33.app
 
 if __name__ == '__main__':
+    import bot_mode_runtime
+    bot_mode_runtime.install("dura")
     app.base.ibetin_start.main()

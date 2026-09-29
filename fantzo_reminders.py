@@ -386,7 +386,7 @@ def _copy_for(interest: str, stage: int, source: str, user_id: int = 0):
                 [
                     TelegramInlineKeyboardButton(
                         "🚀 JOIN IBETIN",
-                        url=business.telegram_mini_app_url("home"),
+                        url=business.telegram_mini_app_url("home", user_id),
                     )
                 ],
                 [

@@ -1,6 +1,8 @@
 import logging
 import os
+import re
 from io import BytesIO
+from pathlib import Path
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo, InputFile
 from telegram.ext import CommandHandler, MessageHandler, filters
@@ -22,6 +24,12 @@ LIVE_LINE_MINI_APP_URL = os.getenv(
 ).strip()
 TEST_CAMPAIGN_KEY = "liveline-direct-v40-test-mohit-97saxena-20260918-v3"
 CREATIVE_UNLOCK_CODE = os.getenv("IBETIN_CREATIVE_UNLOCK_CODE", "").strip()
+APPROVED_BRAND = "dura"
+FALLBACK_FILES = {
+    "channel": Path(__file__).resolve().parent / "assets" / "dura-channel-banner.png",
+    "reminder": Path(__file__).resolve().parent / "assets" / "dura-reminder-banner.png",
+}
+OTHER_BRAND = re.compile(r"(?i)(?:fantzo|ibetin|ibtn|betroxy)")
 
 
 def ensure_tables() -> None:
@@ -50,10 +58,14 @@ def ensure_tables() -> None:
                 filename TEXT DEFAULT '',
                 pool TEXT NOT NULL,
                 created_at TEXT NOT NULL,
-                active INTEGER NOT NULL DEFAULT 1
+                active INTEGER NOT NULL DEFAULT 1,
+                brand TEXT NOT NULL DEFAULT ''
             )
             """
         )
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(creative_assets)")}
+        if "brand" not in columns:
+            conn.execute("ALTER TABLE creative_assets ADD COLUMN brand TEXT NOT NULL DEFAULT ''")
 
 
 def _creative_admin_id():
@@ -179,16 +191,15 @@ async def _resolve_dimensions(bot, file_id: str, width: int = 0, height: int = 0
 
 
 def _save(file_id: str, file_unique_id: str, media_type: str, pool: str,
-          width: int = 0, height: int = 0, filename: str = "") -> bool:
+          width: int = 0, height: int = 0, filename: str = "") -> int:
     ensure_tables()
     with core.db() as conn:
-        before = conn.total_changes
         conn.execute(
             """
             INSERT INTO creative_assets(
                 file_id, file_unique_id, media_type, width, height,
-                filename, pool, created_at, active
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+                filename, pool, created_at, active, brand
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, '')
             ON CONFLICT(file_unique_id) DO UPDATE SET
                 file_id = excluded.file_id,
                 media_type = excluded.media_type,
@@ -196,7 +207,8 @@ def _save(file_id: str, file_unique_id: str, media_type: str, pool: str,
                 height = excluded.height,
                 filename = excluded.filename,
                 pool = excluded.pool,
-                active = 1
+                active = 0,
+                brand = ''
             """,
             (
                 file_id, file_unique_id, media_type,
@@ -204,7 +216,18 @@ def _save(file_id: str, file_unique_id: str, media_type: str, pool: str,
                 pool, core.now_iso(),
             ),
         )
-        return conn.total_changes > before
+        return int(conn.execute(
+            "SELECT id FROM creative_assets WHERE file_unique_id = ?", (file_unique_id,)
+        ).fetchone()[0])
+
+
+def _fallback_creative(pool: str):
+    path = FALLBACK_FILES.get(pool)
+    if path is None or not path.is_file():
+        return None
+    return {"id": 0, "file_id": str(path), "file_unique_id": "",
+            "media_type": "bundled_photo", "filename": path.name,
+            "pool": pool, "brand": APPROVED_BRAND}
 
 
 def pick_creative(pool: str, key: int = 0):
@@ -218,13 +241,13 @@ def pick_creative(pool: str, key: int = 0):
             """
             SELECT *
             FROM creative_assets
-            WHERE active = 1 AND pool = ?
+            WHERE active = 1 AND pool = ? AND brand = ?
             ORDER BY id ASC
             """,
-            (pool,),
+            (pool, APPROVED_BRAND),
         ).fetchall()
     if not rows:
-        return None
+        return _fallback_creative(pool)
     try:
         index = abs(int(key or 0)) % len(rows)
     except Exception:
@@ -239,9 +262,10 @@ def counts() -> dict:
             """
             SELECT pool, COUNT(*) AS c
             FROM creative_assets
-            WHERE active = 1
+            WHERE active = 1 AND brand = ?
             GROUP BY pool
-            """
+            """,
+            (APPROVED_BRAND,),
         ).fetchall()
     out = {"channel": 0, "dm": 0, "reminder": 0}
     for row in rows:
@@ -269,6 +293,9 @@ async def bulkcreatives_command(update, context) -> None:
         "• Square / 1:1 → <b>Bot Reminder</b>\n\n"
         "Optional caption tags override sorting: <code>#channel</code>, "
         "<code>#dm</code>, <code>#reminder</code>.\n\n"
+        "Each asset remains pending until you preview it with "
+        "<code>/creativepreview ID</code> and approve it with "
+        "<code>/creativeapprove ID</code>.\n\n"
         "When finished, send <b>/done</b>.",
         parse_mode="HTML",
     )
@@ -308,18 +335,26 @@ async def creative_upload(update, context) -> None:
     else:
         return
 
+    if OTHER_BRAND.search(" ".join((message.caption or "", filename))):
+        await message.reply_text(
+            "⛔ This upload mentions another brand. Use a DURA-only creative."
+        )
+        return
+
     if not (width and height):
         width, height = await _resolve_dimensions(context.bot, file_id, width, height)
 
     pool = _pool_from(message, width, height, filename)
-    _save(file_id, unique_id, media_type, pool, width, height, filename)
+    creative_id = _save(file_id, unique_id, media_type, pool, width, height, filename)
     added = context.user_data.setdefault(
         "creative_bulk_added", {"channel": 0, "dm": 0, "reminder": 0}
     )
     added[pool] = int(added.get(pool, 0)) + 1
 
     await message.reply_text(
-        f"✅ Saved → <b>{pool.upper()}</b>",
+        f"✅ Saved as pending DURA review: <b>#{creative_id}</b> → <b>{pool.upper()}</b>\n"
+        f"Preview with <code>/creativepreview {creative_id}</code>, then approve with "
+        f"<code>/creativeapprove {creative_id}</code>.",
         parse_mode="HTML",
     )
 
@@ -342,9 +377,9 @@ async def done_command(update, context) -> None:
         f"This batch: Channel <b>{batch.get('channel', 0)}</b> · "
         f"DM <b>{batch.get('dm', 0)}</b> · "
         f"Reminder <b>{batch.get('reminder', 0)}</b>\n\n"
-        f"Creative library: Channel <b>{total['channel']}</b> · "
+        f"Approved creative library: Channel <b>{total['channel']}</b> · "
         f"DM <b>{total['dm']}</b> · Reminder <b>{total['reminder']}</b>\n\n"
-        "Use /creativepool anytime to check the library.",
+        "Use /creativeaudit to review pending images and /creativepool to check the library.",
         parse_mode="HTML",
     )
 
@@ -354,12 +389,118 @@ async def creativepool_command(update, context) -> None:
     if not message or not _is_admin(update):
         return
     c = counts()
+    with core.db() as conn:
+        pending = int(conn.execute(
+            "SELECT COUNT(*) FROM creative_assets WHERE brand != ?",
+            (APPROVED_BRAND,),
+        ).fetchone()[0])
     await message.reply_text(
-        "🗂 <b>IBETIN CREATIVE LIBRARY</b>\n\n"
+        "🗂 <b>DURA CREATIVE LIBRARY</b>\n\n"
         f"📢 Channel: <b>{c['channel']}</b>\n"
         f"💬 DM: <b>{c['dm']}</b>\n"
-        f"🔔 Bot Reminder: <b>{c['reminder']}</b>",
+        f"🔔 Bot Reminder: <b>{c['reminder']}</b>\n"
+        f"🔎 Pending visual review: <b>{pending}</b>\n\n"
+        "DURA fallback images cover channel and reminders until approved assets are available.",
         parse_mode="HTML",
+    )
+
+
+async def creativeaudit_command(update, context) -> None:
+    message = update.effective_message
+    if not message or not _is_admin(update):
+        return
+    ensure_tables()
+    with core.db() as conn:
+        rows = conn.execute(
+            "SELECT id, pool, active, brand, filename FROM creative_assets ORDER BY id LIMIT 50"
+        ).fetchall()
+        total = conn.execute("SELECT COUNT(*) FROM creative_assets").fetchone()[0]
+    lines = [f"DURA creative audit: {total} assets (showing first {len(rows)})"]
+    for row in rows:
+        status = "approved" if row["brand"] == APPROVED_BRAND and row["active"] else "pending/off"
+        name = str(row["filename"] or "unnamed")[:32]
+        lines.append(f"#{row['id']} {row['pool']} {status} {name}")
+    lines.append("Preview each image with /creativepreview ID before approving it.")
+    await message.reply_text("\n".join(lines))
+
+
+def _requested_creative_id(context) -> int | None:
+    try:
+        value = int(context.args[0])
+        return value if value > 0 else None
+    except (IndexError, ValueError, TypeError):
+        return None
+
+
+async def creativepreview_command(update, context) -> None:
+    message = update.effective_message
+    if not message or not _is_admin(update):
+        return
+    creative_id = _requested_creative_id(context)
+    if creative_id is None:
+        await message.reply_text("Usage: /creativepreview ID")
+        return
+    ensure_tables()
+    with core.db() as conn:
+        creative = conn.execute(
+            "SELECT * FROM creative_assets WHERE id = ?", (creative_id,)
+        ).fetchone()
+    if creative is None:
+        await message.reply_text("Creative not found.")
+        return
+    caption = f"DURA review #{creative_id} · pool={creative['pool']} · filename={str(creative['filename'] or '')[:60]}"
+    try:
+        if creative["media_type"] == "photo":
+            await message.reply_photo(photo=creative["file_id"], caption=caption)
+        else:
+            await message.reply_document(document=creative["file_id"], caption=caption)
+    except Exception as exc:
+        logger.warning("DURA creative preview failed id=%s error=%s", creative_id, str(exc)[:140])
+        await message.reply_text("Preview failed. This asset remains unavailable for sending.")
+        return
+    context.user_data["dura_creative_reviewed_id"] = creative_id
+    await message.reply_text(f"If this image shows only DURA branding, send /creativeapprove {creative_id}.")
+
+
+async def creativeapprove_command(update, context) -> None:
+    message = update.effective_message
+    if not message or not _is_admin(update):
+        return
+    creative_id = _requested_creative_id(context)
+    if creative_id is None or context.user_data.get("dura_creative_reviewed_id") != creative_id:
+        await message.reply_text("Preview this exact image first: /creativepreview ID")
+        return
+    ensure_tables()
+    with core.db() as conn:
+        creative = conn.execute(
+            "SELECT filename FROM creative_assets WHERE id = ?", (creative_id,)
+        ).fetchone()
+        if creative is None or OTHER_BRAND.search(str(creative["filename"] or "")):
+            await message.reply_text("Approval blocked: asset missing or filename mentions another brand.")
+            return
+        conn.execute(
+            "UPDATE creative_assets SET brand = ?, active = 1 WHERE id = ?",
+            (APPROVED_BRAND, creative_id),
+        )
+    context.user_data.pop("dura_creative_reviewed_id", None)
+    await message.reply_text(f"✅ DURA creative #{creative_id} approved for its assigned pool.")
+
+
+async def creativeoff_command(update, context) -> None:
+    message = update.effective_message
+    if not message or not _is_admin(update):
+        return
+    creative_id = _requested_creative_id(context)
+    if creative_id is None:
+        await message.reply_text("Usage: /creativeoff ID")
+        return
+    ensure_tables()
+    with core.db() as conn:
+        result = conn.execute(
+            "UPDATE creative_assets SET active = 0 WHERE id = ?", (creative_id,)
+        )
+    await message.reply_text(
+        f"Creative #{creative_id} switched off." if result.rowcount else "Creative not found."
     )
 
 
@@ -434,15 +575,16 @@ def _find_target_username(username: str):
 def _latest_channel_creative():
     ensure_tables()
     with core.db() as conn:
-        return conn.execute(
+        row = conn.execute(
             """
             SELECT *
             FROM creative_assets
-            WHERE active = 1 AND pool = 'channel'
+            WHERE active = 1 AND brand = ? AND pool = 'channel'
             ORDER BY id DESC
             LIMIT 1
-            """
+            """, (APPROVED_BRAND,)
         ).fetchone()
+    return row or _fallback_creative("channel")
 
 
 def _latest_test_creative():
@@ -452,22 +594,23 @@ def _latest_test_creative():
             """
             SELECT *
             FROM creative_assets
-            WHERE active = 1 AND pool = 'dm'
+            WHERE active = 1 AND brand = ? AND pool = 'dm'
             ORDER BY id DESC
             LIMIT 1
-            """
+            """, (APPROVED_BRAND,)
         ).fetchone()
         if row:
             return row
-        return conn.execute(
+        row = conn.execute(
             """
             SELECT *
             FROM creative_assets
-            WHERE active = 1
+            WHERE active = 1 AND brand = ?
             ORDER BY CASE pool WHEN 'reminder' THEN 0 WHEN 'channel' THEN 1 ELSE 2 END, id DESC
             LIMIT 1
-            """
+            """, (APPROVED_BRAND,)
         ).fetchone()
+    return row or _fallback_creative("reminder")
 
 
 async def _send_creative_as_photo(bot, creative, kwargs):
@@ -479,6 +622,12 @@ async def _send_creative_as_photo(bot, creative, kwargs):
     creative_id = int(creative["id"])
     media_type = str(creative["media_type"] or "")
     file_id = str(creative["file_id"])
+
+    if media_type == "bundled_photo":
+        with open(file_id, "rb") as image_file:
+            return await bot.send_photo(
+                photo=InputFile(image_file, filename=Path(file_id).name), **kwargs
+            )
 
     if media_type == "photo":
         return await bot.send_photo(photo=file_id, **kwargs)
@@ -498,11 +647,12 @@ async def _send_creative_as_photo(bot, creative, kwargs):
         if message.photo:
             normalized = message.photo[-1]
             with core.db() as conn:
+                # Keep the upload's unique ID as the asset identity. Converted
+                # photos may share a unique ID with another stored asset.
                 conn.execute(
                     """
                     UPDATE creative_assets
                     SET file_id = ?,
-                        file_unique_id = ?,
                         media_type = 'photo',
                         width = ?,
                         height = ?
@@ -510,7 +660,6 @@ async def _send_creative_as_photo(bot, creative, kwargs):
                     """,
                     (
                         normalized.file_id,
-                        normalized.file_unique_id,
                         int(normalized.width or 0),
                         int(normalized.height or 0),
                         creative_id,
@@ -898,6 +1047,10 @@ def install(application) -> None:
     application.add_handler(CommandHandler("bulkcreatives", bulkcreatives_command), group=-5)
     application.add_handler(CommandHandler("done", done_command), group=-5)
     application.add_handler(CommandHandler("creativepool", creativepool_command), group=-5)
+    application.add_handler(CommandHandler("creativeaudit", creativeaudit_command), group=-5)
+    application.add_handler(CommandHandler("creativepreview", creativepreview_command), group=-5)
+    application.add_handler(CommandHandler("creativeapprove", creativeapprove_command), group=-5)
+    application.add_handler(CommandHandler("creativeoff", creativeoff_command), group=-5)
     application.add_handler(CommandHandler("senddmtest", senddmtest_command), group=-5)
     application.add_handler(
         MessageHandler(
@@ -912,12 +1065,12 @@ def install(application) -> None:
     try:
         c = counts()
         logger.info(
-            "IBETIN creative pools ready channel=%s dm=%s reminder=%s",
+            "DURA approved creative pools ready channel=%s dm=%s reminder=%s",
             c["channel"], c["dm"], c["reminder"],
         )
     except Exception:
-        logger.exception("Could not read IBETIN creative pool status")
+        logger.exception("Could not read DURA creative pool status")
     logger.info(
-        "IBETIN creative manager installed: bulk upload + pools + manual DM test; "
+        "DURA creative manager installed: review gate + branded fallback + manual DM test; "
         "startup test sends disabled"
     )

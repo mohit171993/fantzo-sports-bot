@@ -17,6 +17,7 @@ from telegram.ext import ApplicationHandlerStop, CommandHandler, MessageHandler,
 
 import bot_persistent as app
 import fantzo_analytics as analytics
+import fantzo_business
 import fantzo_live_tv
 import fantzo_reminders as reminders
 import ibetin_hub as hub
@@ -498,16 +499,24 @@ async def smart_show_home(update, context) -> None:
         return
     app.core.touch_user(update)
     lang = app.core.get_user_lang(user.id)
-    banner_file_id = app.get_banner_file_id()
+    try:
+        banner = ibetin_creatives.pick_creative("channel", key=user.id)
+    except Exception:
+        logger.exception("Could not select DURA home creative")
+        banner = None
     markup = premium_main_keyboard(user.id)
 
-    if banner_file_id:
+    if banner:
         try:
-            await message.reply_photo(
-                photo=banner_file_id,
-                caption=app.core.TEXT[lang]["welcome"],
-                parse_mode="HTML",
-                reply_markup=markup,
+            await ibetin_creatives._send_creative_as_photo(
+                context.bot,
+                banner,
+                {
+                    "chat_id": message.chat_id,
+                    "caption": app.core.TEXT[lang]["welcome"],
+                    "parse_mode": "HTML",
+                    "reply_markup": markup,
+                },
             )
             return
         except Exception as exc:
@@ -522,6 +531,24 @@ async def smart_show_home(update, context) -> None:
 
 
 app.show_home = smart_show_home
+
+
+async def safe_setbanner_command(update, context) -> None:
+    if not ibetin_creatives._is_admin(update):
+        await update.effective_message.reply_text("This command is restricted.")
+        return
+    await update.effective_message.reply_text(
+        "DURA home images use the reviewed creative library. "
+        "Use /bulkcreatives, then /creativepreview ID and /creativeapprove ID."
+    )
+
+
+async def blocked_legacy_banner_upload(update, context) -> None:
+    return
+
+
+app.setbanner_command = safe_setbanner_command
+app.banner_upload = blocked_legacy_banner_upload
 
 
 def _verification_reply_keyboard() -> ReplyKeyboardMarkup:

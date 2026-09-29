@@ -21,10 +21,14 @@ def ensure_table(conn):
             filename TEXT DEFAULT '',
             pool TEXT NOT NULL,
             created_at TEXT NOT NULL,
-            active INTEGER NOT NULL DEFAULT 1
+            active INTEGER NOT NULL DEFAULT 1,
+            brand TEXT NOT NULL DEFAULT ''
         )
         """
     )
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(creative_assets)")}
+    if "brand" not in columns:
+        conn.execute("ALTER TABLE creative_assets ADD COLUMN brand TEXT NOT NULL DEFAULT ''")
 
 
 def image_dimensions(data: bytes):
@@ -107,7 +111,7 @@ def main():
         """
         SELECT id, file_id, width, height, pool
         FROM creative_assets
-        WHERE active = 1
+        WHERE active = 1 AND brand = 'dura'
         ORDER BY id ASC
         """
     ).fetchall()
@@ -148,7 +152,7 @@ def main():
         """
         SELECT pool, COUNT(*) AS c
         FROM creative_assets
-        WHERE active = 1
+        WHERE active = 1 AND brand = 'dura'
         GROUP BY pool
         """
     ):
@@ -160,7 +164,7 @@ def main():
             """
             SELECT id
             FROM creative_assets
-            WHERE active = 1 AND pool = 'channel'
+            WHERE active = 1 AND brand = 'dura' AND pool = 'channel'
             ORDER BY id ASC
             """
         ).fetchall()
@@ -181,18 +185,23 @@ def main():
         """
         SELECT pool, COUNT(*) AS c
         FROM creative_assets
-        WHERE active = 1
+        WHERE active = 1 AND brand = 'dura'
         GROUP BY pool
         """
     ):
         counts[str(row["pool"])] = int(row["c"])
 
+    unreviewed = conn.execute(
+        "SELECT COUNT(*) FROM creative_assets WHERE active = 1 AND brand != 'dura'"
+    ).fetchone()[0]
     print(
         "DURA_CREATIVE_REPAIR "
         f"moved={moved} dims_recovered={repaired_dims} batch_split={batch_split} "
-        f"channel={counts['channel']} dm={counts['dm']} reminder={counts['reminder']}",
+        f"channel={counts['channel']} dm={counts['dm']} reminder={counts['reminder']} "
+        f"unreviewed={unreviewed}",
         flush=True,
     )
+    conn.close()
 
 
 if __name__ == "__main__":

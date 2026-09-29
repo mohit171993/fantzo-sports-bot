@@ -539,7 +539,7 @@ async def _send_with_retry(bot, row, stage: int) -> bool:
             if attempt >= 2:
                 raise
             await asyncio.sleep(max(1.0, delay) + 1.0)
-        except BadRequest:
+        except (BadRequest, OSError):
             if creative is not None:
                 logger.warning(
                     "IBETIN reminder creative rejected; falling back to text user_id=%s stage=%s",
@@ -687,20 +687,7 @@ def _daily_channel_campaign_key(local_now: datetime) -> str:
 def _channel_daily_creative(local_now: datetime):
     try:
         import ibetin_creatives as creatives
-        creatives.ensure_tables()
-        with core.db() as conn:
-            rows = conn.execute(
-                """
-                SELECT *
-                FROM creative_assets
-                WHERE active = 1 AND pool = 'channel'
-                ORDER BY id ASC
-                """
-            ).fetchall()
-        if not rows:
-            return None, creatives
-        index = local_now.toordinal() % len(rows)
-        return rows[index], creatives
+        return creatives.pick_creative("channel", key=local_now.toordinal()), creatives
     except Exception as exc:
         logger.warning("IBETIN channel creative lookup failed: %s", str(exc)[:180])
         return None, None
@@ -739,18 +726,22 @@ async def send_liveline_channel_daily(application, local_now: datetime | None = 
     try:
         creative, creatives = _channel_daily_creative(local_now)
         if creative is not None and creatives is not None:
-            msg = await creatives._send_creative_as_photo(
-                application.bot,
-                creative,
-                {
-                    "chat_id": IBETIN_CHANNEL_CHAT_ID,
-                    "caption": caption,
-                    "parse_mode": "HTML",
-                    "reply_markup": markup,
-                },
-            )
-            creative_id = int(creative["id"])
-        else:
+            try:
+                msg = await creatives._send_creative_as_photo(
+                    application.bot,
+                    creative,
+                    {
+                        "chat_id": IBETIN_CHANNEL_CHAT_ID,
+                        "caption": caption,
+                        "parse_mode": "HTML",
+                        "reply_markup": markup,
+                    },
+                )
+                creative_id = int(creative["id"])
+            except (BadRequest, OSError) as exc:
+                logger.warning("DURA channel creative failed; sending text: %s", str(exc)[:140])
+                creative = None
+        if creative is None or creatives is None:
             msg = await application.bot.send_message(
                 chat_id=IBETIN_CHANNEL_CHAT_ID,
                 text=caption,

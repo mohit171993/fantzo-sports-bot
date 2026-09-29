@@ -553,12 +553,13 @@ async def _send_with_retry(bot, row, stage: int) -> bool:
         except (BadRequest, OSError):
             if creative is not None or use_fallback_banner:
                 logger.warning(
-                    "IBETIN reminder creative rejected; falling back to text user_id=%s stage=%s",
+                    "IBETIN reminder creative rejected; using safe fallback user_id=%s stage=%s",
                     user_id,
                     stage,
                 )
+                failed_uploaded_creative = creative is not None
                 creative = None
-                use_fallback_banner = False
+                use_fallback_banner = failed_uploaded_creative and creatives is not None
                 continue
             raise
         except Forbidden:

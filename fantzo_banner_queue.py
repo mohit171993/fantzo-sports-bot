@@ -546,4 +546,3 @@ def install(application):
         _start_scheduler_when_running(application),
         name="fantzo-banner-scheduler-starter",
     )
-

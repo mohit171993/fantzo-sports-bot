@@ -35,4 +35,3 @@ Local tests: `test_fantzo_mode.py` (14 tests with Telegram API stubs), Python sy
 ## Review branch
 
 `feat/fantzo-live-tv-mode` is based on `origin/main` at `c6fb097`. It includes only the mode files and mode-specific changes; the separate first-visit work in the original checkout is excluded. The branch is local and has not been pushed.
-

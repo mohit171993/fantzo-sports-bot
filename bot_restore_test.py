@@ -112,4 +112,3 @@ if __name__ == "__main__":
     tracked.analytics.start_tracking_server()
     logger.info("Starting Fantzo with Fantzo-first user funnel")
     tracked.app.run()
-

@@ -797,4 +797,3 @@ def register_handlers(application) -> None:
         group=-10,
     )
     logger.info("Fantzo global Telegram-only mobile verification handlers registered")
-

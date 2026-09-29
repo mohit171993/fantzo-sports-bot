@@ -660,4 +660,3 @@ def install(application) -> None:
     application.add_handler(CallbackQueryHandler(mode_callback, pattern=r"^fantzo_mode:(?:livetv|full)$"), group=-101)
     application.add_handler(TypeHandler(Update, liveline_guard), group=-100)
     logger.info("Fantzo persistent Full/Live Line mode guard installed")
-

@@ -769,4 +769,3 @@ def stats() -> dict:
         "sent": sent,
         "undeliverable": undeliverable,
     }
-

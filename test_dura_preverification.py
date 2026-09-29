@@ -39,7 +39,6 @@ class PreverificationCopyTests(unittest.TestCase):
         for copy in (business_copy, reminder_copy):
             self.assertIn("VERIFY & CONTINUE", copy)
             self.assertIsNone(PUBLIC_TERMS.search(copy))
-            self.assertIn("the DURA team may contact you", copy)
             self.assertNotIn("IBETIN", copy)
             self.assertNotIn("ibetin.com", copy.lower())
             self.assertNotIn("18+", copy)
@@ -85,11 +84,157 @@ class PreverificationCopyTests(unittest.TestCase):
                         for call in desc_calls]
         for copy in descriptions:
             self.assertIsNone(PUBLIC_TERMS.search(copy))
-        for _, copy in commands:
-            self.assertIsNone(PUBLIC_TERMS.search(copy))
+        for _name, description in commands:
+            self.assertIsNone(PUBLIC_TERMS.search(description))
+
+    def test_business_welcome_and_buttons_use_dura_only_after_verification(self):
+        tree = ast.parse((ROOT / "fantzo_business.py").read_text(encoding="utf-8"))
+        welcome = next(n for n in tree.body if isinstance(n, ast.Assign)
+                       and any(isinstance(t, ast.Name) and t.id == "WELCOME_REPLY"
+                               for t in n.targets))
+        self.assertIn("DURASPORTS", ast.literal_eval(welcome.value))
+        self.assertNotIn("IBETIN", ast.literal_eval(welcome.value))
+
+        class Button:
+            def __init__(self, label, **kwargs):
+                self.label, self.kwargs = label, kwargs
+
+        keyboard = function("fantzo_business.py", "business_keyboard", {
+            "_button": lambda label, section, uid: Button(label, section=section),
+            "TelegramInlineKeyboardButton": Button,
+            "InlineKeyboardMarkup": lambda rows: rows,
+        })(123)
+        labels = [button.label for row in keyboard for button in row]
+        self.assertTrue(any("DURASPORTS" in label for label in labels))
+        self.assertTrue(all("IBETIN" not in label for label in labels))
+        self.assertEqual(keyboard[-1][0].kwargs["url"], "https://t.me/durasportsofficial")
+
+    def test_dura_hub_route_does_not_replace_verification_ui(self):
+        calls = []
+
+        class Handler:
+            def do_GET(self):
+                pass
+
+            def do_POST(self):
+                pass
+
+        install = function("ibetin_hub.py", "install_on_tracking_handler", {
+            "_install_clean_runtime_ui": lambda: calls.append("overrode DURA UI"),
+            "logger": types.SimpleNamespace(info=lambda *args: None),
+            "HUB_PATH": "/hub",
+        })
+        install(types.SimpleNamespace(TrackingHandler=Handler), install_runtime_ui=False)
+        self.assertTrue(Handler._ibetin_hub_installed)
+        self.assertEqual(calls, [])
+        source = (ROOT / "bot_tracked.py").read_text(encoding="utf-8")
+        self.assertIn("hub.install_on_tracking_handler(analytics, install_runtime_ui=False)", source)
 
 
 class PreverificationGateTests(unittest.TestCase):
+    def test_all_contact_prompt_paths_use_private_chat_only(self):
+        class Stop(Exception):
+            pass
+
+        class Button:
+            def __init__(self, label, **kwargs):
+                self.label, self.kwargs = label, kwargs
+
+        for chat_type in ("group", "supergroup", "channel"):
+            with self.subTest(chat_type=chat_type):
+                replies = []
+
+                async def reply_text(text, **kwargs):
+                    replies.append((text, kwargs))
+
+                async def answer(*args):
+                    return None
+
+                def must_not_run(*args):
+                    raise AssertionError("contact keyboard or verified handler reached public chat")
+
+                namespace = {
+                    "re": re,
+                    "InlineKeyboardButton": Button,
+                    "InlineKeyboardMarkup": lambda rows: rows,
+                    "phone_verify": types.SimpleNamespace(is_verified=lambda uid: False),
+                    "_verification_reply_keyboard": must_not_run,
+                    "_set_user_menu_button": must_not_run,
+                    "ApplicationHandlerStop": Stop,
+                }
+                namespace["_is_private_chat"] = function("bot_tracked.py", "_is_private_chat", namespace)
+                namespace["_open_private_chat_prompt"] = function(
+                    "bot_tracked.py", "_open_private_chat_prompt", namespace
+                )
+                message = types.SimpleNamespace(
+                    text="/start", contact=types.SimpleNamespace(user_id=123),
+                    reply_text=reply_text,
+                )
+                update = types.SimpleNamespace(
+                    effective_user=types.SimpleNamespace(id=123),
+                    effective_chat=types.SimpleNamespace(type=chat_type),
+                    effective_message=message,
+                )
+                context = types.SimpleNamespace(
+                    bot=types.SimpleNamespace(username="DuraAccessBot"),
+                    user_data={}, args=[],
+                )
+                asyncio.run(function("bot_tracked.py", "_prompt_mobile_verification", namespace)(
+                    update, context
+                ))
+                contact_handler = function("bot_tracked.py", "mobile_contact_handler", namespace)
+                for contact_user_id in (123, 999, None):
+                    message.contact = types.SimpleNamespace(
+                        user_id=contact_user_id, phone_number=""
+                    )
+                    asyncio.run(contact_handler(update, context))
+                asyncio.run(function("bot_tracked.py", "smart_start", namespace)(update, context))
+
+                message.text = "typed mobile number"
+                with self.assertRaises(Stop):
+                    asyncio.run(function(
+                        "bot_tracked.py", "pending_verification_text_handler", namespace
+                    )(update, context))
+
+                update.callback_query = types.SimpleNamespace(
+                    data="dura_today", answer=answer, message=message,
+                )
+                asyncio.run(function("bot_tracked.py", "smart_callback_router", namespace)(
+                    update, context
+                ))
+
+                self.assertEqual(len(replies), 7)
+                for text, kwargs in replies:
+                    self.assertEqual(text, "Open this bot in a private chat and send /start to continue.")
+                    self.assertIsNone(PUBLIC_TERMS.search(text))
+                    button = kwargs["reply_markup"][0][0]
+                    self.assertEqual(button.label, "OPEN PRIVATE CHAT")
+                    self.assertNotIn("request_contact", button.kwargs)
+
+    def test_private_verification_prompt_is_neutral_and_requests_self_contact(self):
+        replies = []
+
+        async def reply_text(text, **kwargs):
+            replies.append((text, kwargs))
+
+        namespace = {
+            "phone_verify": types.SimpleNamespace(is_verified=lambda uid: False),
+            "reminders": types.SimpleNamespace(touch_user=lambda *args: None),
+            "logger": types.SimpleNamespace(exception=lambda *args: None),
+            "_verification_reply_keyboard": lambda: "contact button",
+        }
+        namespace["_is_private_chat"] = function("bot_tracked.py", "_is_private_chat", namespace)
+        prompt = function("bot_tracked.py", "_prompt_mobile_verification", namespace)
+        update = types.SimpleNamespace(
+            effective_user=types.SimpleNamespace(id=123),
+            effective_chat=types.SimpleNamespace(type="private"),
+            effective_message=types.SimpleNamespace(reply_text=reply_text),
+        )
+        asyncio.run(prompt(update, types.SimpleNamespace(bot=object(), user_data={})))
+        self.assertEqual(len(replies), 1)
+        self.assertEqual(replies[0][1]["reply_markup"], "contact button")
+        self.assertIsNone(PUBLIC_TERMS.search(replies[0][0]))
+
     def test_profile_commands_switch_to_full_menu_after_verification(self):
         calls = []
 

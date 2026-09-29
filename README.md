@@ -1,69 +1,51 @@
-# IBETIN Sports Updates Bot
+# DURASPORTS Telegram bot
 
-## DURA production branch verification hotfix
+This production branch is dedicated to DURASPORTS. It uses the established
+Live Line feed with Roanuz first and Highlightly as a fallback. The `ibetin_*`
+Python module and environment names are legacy implementation names; configure
+the DURA deployment separately from IBETIN and Fantzo.
 
-The `durasports-production-2026-09-22` branch uses this code with a separate
-Telegram bot. Its public short description, long description, and default
-commands are set to neutral verification text at startup. A contact-request
-button is sent only in a private chat. The active Telegram username is read
-from `get_me()` when the bot library has not populated it; if unavailable,
-verification deep links are omitted rather than pointing to the old IBETIN bot.
+Production branch: `durasports-production-2026-09-22`. Start command:
+`python bot_tracked.py`.
 
-Before deployment, inspect the existing public BotFather display name,
-username, avatar, about text, and any manually configured menu or web app.
-This source change cannot confirm or rename those live public fields.
+The active bot username is resolved from Telegram at startup for verification
+links. If Telegram cannot supply it, those links are omitted without stopping
+the bot or falling back to another brand. Inspect the live BotFather display
+name, username, avatar, about text, and manual menu before deployment; source
+review alone cannot confirm them. This change preserves the existing channel
+posting schedule, destination, and enabled state. Verify the live channel
+configuration before any future routing change.
 
-This hotfix does not change the existing channel schedule, destination, or
-posting behavior. Review channel routing separately before the larger DURA
-engagement feature is deployed.
+## Verified lead entry
 
-Telegram sports bot deployment for **IBETIN**.
+Before mobile verification, the bot chat and public profile show neutral
+verification copy. After verification, the first card leads with Live Line,
+offers the on-demand **Today on DURA** match briefing, and keeps the Mini App
+one tap away. The briefing shows at most three actual feed rows, with an empty
+state when the feed cannot provide a current result. It adds no reminders.
 
-This branch is dedicated to IBETIN and was created from the Fantzo code snapshot locked on 14 September 2026. It is intentionally isolated from the live Fantzo project and is not merged back into Fantzo.
+A campaign `/start` payload can route to a specific match only when it is
+listed in `DURA_ENTRY_MAP`. Example configuration (use a real provider key
+confirmed from the DURA Live Line feed):
 
-## Current features
-
-- Welcome screen
-- Cricket, football, live, upcoming, results, news, subscribe and settings menus
-- Direct IBETIN website buttons
-- Telegram Business auto replies
-- Smart reminders and analytics
-- Restricted admin command using `ADMIN_USER_ID`
-- Live TV / MiniTV integration from the locked source snapshot
-
-## Environment variables
-
-- `BOT_TOKEN` — use a separate IBETIN Telegram bot token
-- `ADMIN_USER_ID` (defaults to `8992664481`)
-- `DB_PATH` (IBETIN deployment uses `ibetin_bot.db`)
-- `IBETIN_HOME_URL` (default `https://ibetin.com`)
-- `IBETIN_MINI_APP_URL` (default `https://ibetin.com`)
-- `IBETIN_SPORTS_BOT_URL` (optional)
-- `IBETIN_CHANNEL_URL` (optional)
-- `IBETIN_MINI_APP_DEEP_LINK` (optional)
-- `IBETIN_LIVE_TV_URL` (optional)
-
-## Railway
-
-Project: `ibetin`
-
-Service: `ibetin-app`
-
-Source branch: `ibetin-locked-2026-09-14`
-
-Start command:
-
-```bash
-python bot_tracked.py
+```text
+DURA_ENTRY_MAP={"dura_live":"liveline","dura_matchday":{"kind":"match","match_key":"PROVIDER_MATCH_KEY"}}
 ```
 
-## IBETIN links
+The bot never treats the payload as a URL. The match key is restricted to
+letters, digits, underscores, hyphens, periods and colons. The pending route
+survives a bot restart during contact verification and expires after 24 hours.
+The Live Line opens the requested match only when its current feed lists that
+key; an expired or missing match leaves the standard match board available.
+Unknown campaign payloads show the regular DURA card.
 
-- Home: https://ibetin.com
-- Live: https://ibetin.com/en/live
-- Slots: https://ibetin.com/en/slots
-- Registration: https://ibetin.com/en/registration
+Keep the existing DURA `DB_PATH` on persistent storage so this handoff survives
+a process restart. The existing `IBETIN_LIVE_LINE_URL` must point to the
+approved DURA Live Line endpoint. A Mini App button open is an open, not a
+completed registration or confirmed stream playback.
 
-## Compatibility note
+Run focused tests with:
 
-Some internal Python module names and callback identifiers still contain the legacy `fantzo` prefix. They are intentionally retained to preserve the behavior of the locked 14/09 code snapshot. User-facing branding, links and the IBETIN deployment configuration are separate.
+```bash
+python -m unittest test_dura_entry test_dura_preverification test_dura_automation_controls test_dura_creative_gate
+```

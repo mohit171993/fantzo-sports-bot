@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import re
@@ -18,6 +19,8 @@ from telegram import (
 from telegram.ext import ApplicationHandlerStop, CommandHandler, MessageHandler, filters
 
 import bot_persistent as app
+import dura_briefing
+import dura_entry
 import fantzo_analytics as analytics
 import fantzo_business
 import fantzo_live_tv
@@ -286,7 +289,8 @@ PREVERIFY_COMMANDS = (
 )
 
 VERIFIED_COMMANDS = (
-    BotCommand("start", "Open DURASPORTS Mini App Hub"),
+    BotCommand("start", "Open the DURASPORTS match board"),
+    BotCommand("today", "Today's DURA match briefing"),
     BotCommand("news", "Open Sports News Mini App"),
     BotCommand("website", "Open DURASPORTS Mini App"),
     BotCommand("live", "Open Live Mini App"),
@@ -358,8 +362,9 @@ def premium_main_keyboard(user_id: int = 0) -> InlineKeyboardMarkup:
         )
 
     rows = [
-        [hub_button("🚀 JOIN DURASPORTS", "home")],
         [live_line_button],
+        [InlineKeyboardButton("📋 TODAY ON DURA", callback_data="dura_today")],
+        [hub_button("🚀 JOIN DURASPORTS", "home")],
         [
             site_button("🔴 LIVE NOW", IBETIN_LIVE_URL),
             site_button("🏆 SPORTS", IBETIN_SPORTS_URL),
@@ -385,16 +390,65 @@ def premium_main_keyboard(user_id: int = 0) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(rows)
 
 
-def conversion_keyboard(user_id: int) -> InlineKeyboardMarkup:
-    """Focused post-verification menu for paid-traffic conversion."""
+def _entry_live_line_url(user_id: int, entry: dict | None = None) -> str:
     live_url = phone_verify.live_line_url(user_id, IBETIN_LIVE_LINE_URL)
+    if entry and entry.get("kind") == "match":
+        key = dura_entry.valid_match_key(entry.get("match_key", ""))
+        if key:
+            return live_url + ("&" if "?" in live_url else "?") + urlencode({"match": key})
+    return live_url
+
+
+def conversion_keyboard(user_id: int, entry: dict | None = None) -> InlineKeyboardMarkup:
+    """Give verified leads the promised DURA feature before the broad hub."""
+    is_match = bool(
+        entry
+        and entry.get("kind") == "match"
+        and dura_entry.valid_match_key(entry.get("match_key", ""))
+    )
     return InlineKeyboardMarkup(
         [
-            [hub_button("🚀 JOIN DURASPORTS", "home")],
-            [site_button("🏏 OPEN DURASPORTS LIVE LINE", live_url)],
-            [InlineKeyboardButton("📢 JOIN CHANNEL", url=IBETIN_CHANNEL_URL)],
+            [site_button(
+                "🏏 OPEN YOUR MATCH" if is_match else "🏏 OPEN DURASPORTS LIVE LINE",
+                _entry_live_line_url(user_id, entry),
+            )],
+            [InlineKeyboardButton("📋 TODAY ON DURA", callback_data="dura_today")],
+            [hub_button("🚀 DURASPORTS MINI APP", "home")],
         ]
     )
+
+
+def _entry_intro(entry: dict | None = None) -> str:
+    kind = (entry or {}).get("kind", "menu")
+    if kind == "match":
+        return "🏏 Open the match from your link. If its feed is unavailable, browse the match board."
+    if kind == "liveline":
+        return "🏏 Open Live Line for current cricket scores, fixtures and results."
+    return "⚡ <b>Today on DURA</b>\nCheck the current match board in Live Line."
+
+
+async def _send_today_briefing(message, user_id: int) -> None:
+    try:
+        rows = await asyncio.wait_for(asyncio.to_thread(dura_briefing.fetch_today_rows), timeout=6)
+    except TimeoutError:
+        logger.warning("DURA briefing feed timed out")
+        rows = []
+    except Exception:
+        logger.exception("DURA briefing feed unavailable")
+        rows = []
+    await message.reply_text(
+        dura_briefing.format_briefing(rows),
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup([
+            [site_button("🏏 OPEN DURASPORTS LIVE LINE", _entry_live_line_url(user_id))],
+            [hub_button("🚀 DURASPORTS MINI APP", "home")],
+        ]),
+        disable_web_page_preview=True,
+    )
+    try:
+        app.core.track(user_id, "dura_today_briefing_open")
+    except Exception:
+        logger.exception("Could not track DURA briefing open")
 
 
 def premium_join_keyboard() -> InlineKeyboardMarkup:
@@ -605,7 +659,9 @@ async def _open_private_chat_prompt(update, context) -> None:
     markup = None
     if re.fullmatch(r"[A-Za-z0-9_]{5,32}", username):
         markup = InlineKeyboardMarkup([[
-            InlineKeyboardButton("OPEN PRIVATE CHAT", url=f"https://t.me/{username}?start=verify")
+            InlineKeyboardButton(
+                "OPEN PRIVATE CHAT", url=f"https://t.me/{username}?start=verify"
+            )
         ]])
     await message.reply_text(
         "Open this bot in a private chat and send /start to continue.",
@@ -660,6 +716,8 @@ async def _prompt_mobile_verification(update, context, source: str = "bot_start"
 
     context.user_data["ibetin_mobile_verify_pending"] = True
     context.user_data["ibetin_mobile_verify_source"] = source
+    if source == "liveline":
+        dura_entry.remember(user.id, "liveline")
     try:
         # Verification happens in the normal bot chat even when the user came
         # from Live Line or a Telegram Business handoff, so use the bot route.
@@ -788,21 +846,7 @@ async def mobile_contact_handler(update, context) -> None:
     if not was_verified:
         await _notify_verified_lead(context, user, phone, source, campaign)
 
-    if source == "liveline":
-        success_markup = InlineKeyboardMarkup(
-            [[InlineKeyboardButton(
-                "🏏 OPEN DURASPORTS LIVE LINE",
-                web_app=WebAppInfo(
-                    url=phone_verify.live_line_url(user.id, IBETIN_LIVE_LINE_URL)
-                ),
-            )]]
-        )
-        success_text = (
-            "✅ <b>Mobile verified</b>\n"
-            f"<code>{masked}</code>\n\n"
-            "🏏 Live Line is ready."
-        )
-    elif source == "business_dm":
+    if source == "business_dm":
         success_markup = fantzo_business.business_keyboard(user.id)
         success_text = (
             "✅ <b>Mobile verified</b>\n"
@@ -810,11 +854,14 @@ async def mobile_contact_handler(update, context) -> None:
             "Choose what you want to do next."
         )
     else:
-        success_markup = conversion_keyboard(user.id)
+        entry = dura_entry.consume(user.id)
+        if source == "liveline" and entry["kind"] == "menu":
+            entry = {"kind": "liveline", "match_key": ""}
+        success_markup = conversion_keyboard(user.id, entry)
         success_text = (
             "✅ <b>Mobile verified</b>\n"
             f"<code>{masked}</code>\n\n"
-            "Choose what you want to do next."
+            + _entry_intro(entry)
         )
 
     await message.reply_text(
@@ -947,6 +994,15 @@ async def liveline_command(update, context) -> None:
     await _prompt_mobile_verification(update, context, "liveline")
 
 
+async def today_command(update, context) -> None:
+    if not await _require_verified(update, context):
+        return
+    message = update.effective_message
+    user = update.effective_user
+    if message and user:
+        await _send_today_briefing(message, user.id)
+
+
 async def start_button_handler(update, context) -> None:
     await smart_start(update, context)
 
@@ -990,6 +1046,7 @@ async def smart_start(update, context) -> None:
     if arg in {"verifyliveline", "liveline", "livelineverify"}:
         ibetin_leads.record_start(user.id, source="liveline")
         context.user_data["ibetin_mobile_verify_source"] = "liveline"
+        dura_entry.remember(user.id, "liveline")
         await _prompt_mobile_verification(update, context, "liveline")
         return
 
@@ -997,6 +1054,7 @@ async def smart_start(update, context) -> None:
     ibetin_leads.record_start(user.id, campaign=campaign, source="bot")
     context.user_data["ibetin_campaign"] = campaign
     context.user_data["ibetin_mobile_verify_source"] = "bot_start"
+    entry = dura_entry.remember(user.id, arg)
     try:
         app.core.track(user.id, f"campaign_start:{campaign}")
     except Exception:
@@ -1017,11 +1075,10 @@ async def smart_start(update, context) -> None:
         return
 
     await _set_user_menu_button(context.bot, user.id, True)
-    await message.reply_text("✅ Your quick access buttons are ready below.", reply_markup=app.QUICK_MENU)
     await message.reply_text(
-        "👋 <b>Welcome back to DURASPORTS</b>\n\nChoose what you want to do next.",
+        "👋 <b>Welcome back to DURASPORTS</b>\n\n" + _entry_intro(entry),
         parse_mode="HTML",
-        reply_markup=conversion_keyboard(user.id),
+        reply_markup=conversion_keyboard(user.id, entry),
         disable_web_page_preview=True,
     )
 
@@ -1140,6 +1197,21 @@ async def smart_callback_router(update, context) -> None:
         await _prompt_mobile_verification(update, context, "liveline")
         return
 
+    if query and query.data == "dura_today":
+        if not await _require_verified(update, context):
+            try:
+                await query.answer()
+            except Exception:
+                pass
+            return
+        try:
+            await query.answer("Checking the DURA match feed…")
+        except Exception:
+            pass
+        if query.message and user:
+            await _send_today_briefing(query.message, user.id)
+        return
+
     # Legacy callbacks can still arrive from old messages; keep them compatible.
     await _original_callback_router(update, context)
 
@@ -1248,10 +1320,9 @@ async def _set_active_bot_username(bot) -> str:
         os.environ["IBETIN_BOT_USERNAME"] = username
         logger.info("DURA active Telegram bot username: @%s", username)
         return username
-    else:
-        os.environ.pop("IBETIN_BOT_USERNAME", None)
-        logger.warning("DURA verification deep links disabled until bot identity is available")
-        return ""
+    os.environ.pop("IBETIN_BOT_USERNAME", None)
+    logger.warning("DURA verification deep links disabled until bot identity is available")
+    return ""
 
 
 async def configure_telegram_ui(application) -> None:
@@ -1276,6 +1347,7 @@ async def configure_telegram_ui(application) -> None:
     application.add_handler(CommandHandler("live", live_command))
     application.add_handler(CommandHandler("support", support_command))
     application.add_handler(CommandHandler("liveline", liveline_command))
+    application.add_handler(CommandHandler("today", today_command))
     application.add_handler(CommandHandler("reports", ibetin_reports.reports_command))
     application.add_handler(
         MessageHandler(

@@ -30,6 +30,7 @@ if os.path.isdir(_IBETIN_PERSIST_DIR):
 
 import ibetin_liveline_v25_fast_cache as v25
 import ibetin_phone_verify as phone_verify
+import dura_entry
 
 logger = logging.getLogger(__name__)
 v23 = v25.v23
@@ -93,9 +94,12 @@ def _set_liveline_cookie(handler, token: str) -> None:
     )
 
 
-def _send_liveline_redirect_with_cookie(handler, token: str) -> None:
+def _send_liveline_redirect_with_cookie(handler, token: str, match_key: str = "") -> None:
     handler.send_response(302)
-    handler.send_header("Location", IBETIN_PUBLIC_LIVELINE_PATH)
+    location = IBETIN_PUBLIC_LIVELINE_PATH
+    if match_key:
+        location += "?" + v23.urlencode({"match": match_key})
+    handler.send_header("Location", location)
     handler.send_header("Cache-Control", "no-store")
     _set_liveline_cookie(handler, token)
     handler.send_header("Content-Length", "0")
@@ -1642,6 +1646,31 @@ def _page_v40_public() -> str:
         "if(v40EventSource||typeof EventSource==='undefined')return;",
         1,
     )
+    # A campaign can point to a match only after a verified bot button has
+    # supplied a configured provider key. Check it against current lists before
+    # opening the detail; stale or missing matches leave the normal board usable.
+    html = html.replace(
+        "load('live',true);\n</script>",
+        """const CAMPAIGN_MATCH_KEY=qs.get('match')||'';
+async function loadCampaignEntry(){
+  await load('live',true);
+  const key=CAMPAIGN_MATCH_KEY;
+  if(!/^[A-Za-z0-9_.:-]{1,96}$/.test(key))return;
+  let present=allMatches.some(m=>matchKey(m)===key);
+  if(!present){
+    for(const nextMode of ['upcoming','results']){
+      try{const j=await api({action:'matches',mode:nextMode},false);
+        if((j.matches||[]).some(m=>matchKey(m)===key)){present=true;break}
+      }catch(e){}
+    }
+  }
+  if(present){await openMatch(key);return}
+  document.getElementById('status').textContent='Selected match is unavailable in the current feed. Browse matches below.';
+}
+loadCampaignEntry();
+</script>""",
+        1,
+    )
     return html
 
 
@@ -1673,10 +1702,18 @@ def _install_public_liveline_routes() -> None:
             try:
                 query = parse_qs(parsed.query, keep_blank_values=True)
                 if (query.get("access") or [""])[0].strip():
-                    _send_liveline_redirect_with_cookie(self, token)
+                    match_key = dura_entry.valid_match_key((query.get("match") or [""])[0])
+                    _send_liveline_redirect_with_cookie(self, token, match_key)
                     return
             except Exception:
                 pass
+
+            try:
+                v23.core.track(user_id, "dura_liveline_page_open")
+                if dura_entry.valid_match_key((parse_qs(parsed.query).get("match") or [""])[0]):
+                    v23.core.track(user_id, "dura_match_entry_page_open")
+            except Exception:
+                logger.exception("Could not track DURA Live Line page open")
 
             v23.liveline._send_html(self, 200, _page_v40_public())
             return

@@ -689,7 +689,6 @@ def _fallback_live_candidates():
     """Use raw Highlightly records so toss/report fields are not lost in normalization."""
     today = datetime.now(liveline.DUBAI_TZ).date().isoformat()
     raw_today = liveline._matches_for_date(today)
-    _log_csa_feed_probe("highlightly-day", raw_today, liveline._normalize_match)
     if not isinstance(raw_today, list):
         return []
 
@@ -750,37 +749,6 @@ def _dedupe_matches(rows):
     return out
 
 
-def _log_csa_feed_probe(source, rows, normalizer):
-    matched = 0
-    for raw in rows or []:
-        if not isinstance(raw, dict):
-            continue
-        try:
-            match = normalizer(raw)
-            home = (match.get("home") or {}).get("name") or ""
-            away = (match.get("away") or {}).get("name") or ""
-            league = (match.get("league") or {}).get("name") or ""
-            label = f"{home} {away} {league}".casefold()
-            if not any(term in label for term in ("limpopo", "tuskers", "csa t20", "sa emerging", "warriors")):
-                continue
-            matched += 1
-            logger.info(
-                "IBETIN CSA probe source=%s key=%s home=%s away=%s league=%s state=%s start=%s score=%s/%s",
-                source,
-                match.get("roanuzMatchKey") or match.get("id"),
-                home,
-                away,
-                league,
-                match.get("state"),
-                match.get("startTime"),
-                match.get("homeScore"),
-                match.get("awayScore"),
-            )
-        except Exception as exc:
-            logger.warning("IBETIN CSA probe normalization failed source=%s: %s", source, str(exc)[:120])
-    logger.info("IBETIN CSA probe source=%s scanned=%s matched=%s", source, len(rows or []), matched)
-
-
 def _roanuz_toss_promotions():
     """Scan the full fixture list for live evidence, then inspect nearby fixtures."""
     try:
@@ -789,7 +757,6 @@ def _roanuz_toss_promotions():
         logger.warning("IBETIN V23 Roanuz fixture live scan unavailable: %s", str(exc)[:140])
         return []
 
-    _log_csa_feed_probe("roanuz-fixtures", fixtures, v20._normalize_roanuz_match)
     now = datetime.now(liveline.DUBAI_TZ)
     near, promoted = [], []
     for raw in fixtures or []:
@@ -881,7 +848,6 @@ def _fast_matches(mode: str):
         _WEBHOOK_REST_FALLBACK_COUNT += 1
         try:
             raw = v20._roanuz_featured_raw()
-            _log_csa_feed_probe("roanuz-featured", raw, v20._normalize_roanuz_match)
             selected_raw = _webhook_live_rows()
             featured_live = [x for x in raw if isinstance(x, dict) and _is_live_coverage_match(x)]
             for item in featured_live:

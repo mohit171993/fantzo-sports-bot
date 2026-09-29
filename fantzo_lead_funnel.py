@@ -474,13 +474,25 @@ def post_verify_keyboard(user_id: int) -> InlineKeyboardMarkup:
             ],
             [
                 _styled_button(
-                    "🚀 OPEN FANTZO",
+                    "🚀 JOIN FANTZO",
                     web_app=WebAppInfo(
                         url=tracked.analytics.tracking_url(
-                            "verified_open_fantzo",
+                            "verified_join_fantzo",
                             "home",
                         )
                     ),
+                )
+            ],
+            [
+                _styled_button(
+                    "📺 WATCH LIVE TV",
+                    callback_data="live_tv_status",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    "📢 JOIN CHANNEL",
+                    url="https://t.me/fantzoupdates",
                 )
             ],
         ]

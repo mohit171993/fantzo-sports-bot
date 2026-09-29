@@ -814,7 +814,6 @@ async def verified_fixed_reply_handler(update, context) -> None:
         return
     if not phone_verify.is_verified(user.id):
         return
-
     text = message.text.strip()
     if not text or text in {"▶️ START", "⚡ DURASPORTS Menu"}:
         return
@@ -838,6 +837,9 @@ async def verified_fixed_reply_handler(update, context) -> None:
             "You can still use DURASPORTS and official support anytime.",
             parse_mode="HTML",
         )
+        return
+
+    if not app.fantzo_autoreply.is_enabled():
         return
 
     category, reply, markup = fantzo_business.classify_business_dm(text, user.id)

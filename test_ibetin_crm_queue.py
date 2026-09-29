@@ -1,12 +1,17 @@
 """Synthetic-data tests only: no production database, bot imports or messages."""
+import gc
 import json
+import os
 import sqlite3
 import tempfile
 import unittest
+from contextlib import contextmanager
 from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
 
 from ibetin_crm_audit import snapshot
-from ibetin_crm_queue_start import queue_sql
+from ibetin_crm_queue_start import TEST_USER_ID, force_test_unverified_once, queue_sql
 
 
 class AuditTests(unittest.TestCase):
@@ -20,6 +25,7 @@ CREATE TABLE liveline_verified_users(user_id INTEGER PRIMARY KEY, phone_number T
 CREATE TABLE ibetin_leads(user_id INTEGER PRIMARY KEY, mobile_number TEXT, lead_status TEXT, assigned_to INTEGER);''')
 
     def tearDown(self):
+        gc.collect()
         self.tmp.cleanup()
 
     def seed(self, n=112, phones=9):
@@ -112,6 +118,100 @@ CREATE TABLE ibetin_leads(user_id INTEGER PRIMARY KEY, mobile_number TEXT, lead_
         s = snapshot(self.path)
         self.assertEqual(s['all_source_users'], 112)
         self.assertEqual(s['test_user']['matches'], 1)
+
+    def _reports_for_account_reset(self):
+        @contextmanager
+        def db():
+            conn = sqlite3.connect(self.path)
+            conn.row_factory = sqlite3.Row
+            try:
+                yield conn
+                conn.commit()
+            finally:
+                conn.close()
+
+        return SimpleNamespace(
+            core=SimpleNamespace(db=db),
+            _table_exists=lambda conn, name: bool(conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,)
+            ).fetchone()),
+        )
+
+    def test_exact_account_reset_preserves_history_and_allows_reverification(self):
+        with sqlite3.connect(self.path) as conn:
+            conn.execute("INSERT INTO users VALUES (?,?)", (TEST_USER_ID, "@Mohit_97saxena"))
+            conn.execute("INSERT INTO business_customers VALUES (?,?)", (TEST_USER_ID, "Mohit_97saxena"))
+            conn.execute("INSERT INTO ibetin_leads VALUES (?,?,?,?)", (TEST_USER_ID, None, "new", None))
+            conn.execute("INSERT INTO users VALUES (?,?)", (2, "other"))
+            conn.execute("INSERT INTO liveline_verified_users VALUES (?,?)", (TEST_USER_ID, "+999123456789"))
+            conn.execute("INSERT INTO liveline_verified_users VALUES (?,?)", (2, "+999000000002"))
+
+        reports = self._reports_for_account_reset()
+        force_test_unverified_once(reports)
+        with sqlite3.connect(self.path) as conn:
+            self.assertIsNone(conn.execute(
+                "SELECT 1 FROM liveline_verified_users WHERE user_id=?", (TEST_USER_ID,)
+            ).fetchone())
+            self.assertIsNotNone(conn.execute(
+                "SELECT 1 FROM liveline_verified_users WHERE user_id=2"
+            ).fetchone())
+            self.assertEqual(conn.execute(
+                "SELECT mobile_number FROM ibetin_leads WHERE user_id=?", (TEST_USER_ID,)
+            ).fetchone()[0], "+999123456789")
+            self.assertIsNotNone(conn.execute(
+                "SELECT 1 FROM verification_bypass_exclusions WHERE user_id=?", (TEST_USER_ID,)
+            ).fetchone())
+            conn.execute("INSERT INTO liveline_verified_users VALUES (?,?)", (TEST_USER_ID, "+999123456789"))
+
+        force_test_unverified_once(reports)
+        with sqlite3.connect(self.path) as conn:
+            self.assertIsNotNone(conn.execute(
+                "SELECT 1 FROM liveline_verified_users WHERE user_id=?", (TEST_USER_ID,)
+            ).fetchone())
+
+    def test_account_reset_skips_username_bound_to_another_id(self):
+        with sqlite3.connect(self.path) as conn:
+            conn.execute("INSERT INTO users VALUES (?,?)", (3, "Mohit_97saxena"))
+            conn.execute("INSERT INTO liveline_verified_users VALUES (?,?)", (3, "+999000000003"))
+        force_test_unverified_once(self._reports_for_account_reset())
+        with sqlite3.connect(self.path) as conn:
+            self.assertIsNotNone(conn.execute(
+                "SELECT 1 FROM liveline_verified_users WHERE user_id=3"
+            ).fetchone())
+            self.assertIsNone(conn.execute(
+                "SELECT 1 FROM settings WHERE key='dura_reverify_mohit_97saxena:2026-09-29'"
+            ).fetchone())
+
+
+class PhoneVerifyBypassTests(unittest.TestCase):
+    def test_excluded_admin_must_verify_again_and_can_reverify(self):
+        import ibetin_phone_verify as phone_verify
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "verify.db"
+            with mock.patch.dict(os.environ, {
+                "DB_PATH": str(path),
+                "ADMIN_USER_ID": str(TEST_USER_ID),
+                "IBETIN_REPORT_ADMIN_USER_ID": "42",
+            }):
+                phone_verify.ensure_tables()
+                self.assertTrue(phone_verify.is_verified(TEST_USER_ID))
+                with sqlite3.connect(path) as conn:
+                    conn.execute(
+                        "INSERT INTO verification_bypass_exclusions(user_id,reason,created_at) "
+                        "VALUES(?,?,?)", (TEST_USER_ID, "account reverify", "now")
+                    )
+                conn.close()
+                self.assertFalse(phone_verify.is_verified(TEST_USER_ID))
+                self.assertTrue(phone_verify.is_verified(42))
+                with sqlite3.connect(path) as conn:
+                    conn.execute(
+                        "INSERT INTO liveline_verified_users(user_id,phone_number,verified_at) "
+                        "VALUES(?,?,?)", (TEST_USER_ID, "+999123456789", "now")
+                    )
+                conn.close()
+                self.assertTrue(phone_verify.is_verified(TEST_USER_ID))
+                gc.collect()
 
 
 class QueueTests(unittest.TestCase):

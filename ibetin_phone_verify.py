@@ -62,6 +62,15 @@ def ensure_tables() -> None:
                 )
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS verification_bypass_exclusions (
+                user_id INTEGER PRIMARY KEY,
+                reason TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
             UPDATE liveline_verified_users
             SET first_verified_at=COALESCE(first_verified_at, verified_at)
             WHERE first_verified_at IS NULL OR first_verified_at=''
@@ -177,17 +186,19 @@ def _is_admin_user(user_id: int) -> bool:
 
 
 def is_verified(user_id: int) -> bool:
-    if _is_admin_user(user_id):
-        return True
     if not user_id:
         return False
     ensure_tables()
     with _connect() as conn:
-        row = conn.execute(
+        verified = conn.execute(
             "SELECT 1 FROM liveline_verified_users WHERE user_id = ? LIMIT 1",
             (int(user_id),),
         ).fetchone()
-    return bool(row)
+        bypass_excluded = conn.execute(
+            "SELECT 1 FROM verification_bypass_exclusions WHERE user_id = ? LIMIT 1",
+            (int(user_id),),
+        ).fetchone()
+    return bool(verified) or (not bypass_excluded and _is_admin_user(user_id))
 
 
 def _secret() -> bytes:

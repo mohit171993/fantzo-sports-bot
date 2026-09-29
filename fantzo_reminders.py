@@ -146,6 +146,7 @@ def channel_autopost_enabled() -> bool:
 
 def automation_status() -> dict:
     ensure_tables()
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
     with core.db() as conn:
         last_channel = conn.execute(
             """
@@ -161,8 +162,26 @@ def automation_status() -> dict:
             FROM reminder_sends
             WHERE status='sent' AND sent_at >= ?
             """,
-            ((datetime.now(timezone.utc) - timedelta(hours=24)).isoformat(),),
+            (cutoff,),
         ).fetchone()["c"]
+        delivery_rows = conn.execute(
+            """
+            SELECT source, status, COUNT(*) AS count
+            FROM reminder_sends
+            WHERE sent_at >= ?
+            GROUP BY source, status
+            """,
+            (cutoff,),
+        ).fetchall()
+    delivery_24h = {
+        source: {"sent": 0, "failed": 0, "bad_request": 0, "blocked": 0}
+        for source in ("bot", "business_dm")
+    }
+    for row in delivery_rows:
+        source = str(row["source"] or "")
+        status = str(row["status"] or "")
+        if source in delivery_24h and status in delivery_24h[source]:
+            delivery_24h[source][status] = int(row["count"] or 0)
     now = datetime.now(APP_TZ)
     target = now.replace(
         hour=CHANNEL_AUTOPOST_HOUR,
@@ -204,6 +223,7 @@ def automation_status() -> dict:
         "channel_time": f"{CHANNEL_AUTOPOST_HOUR:02d}:{CHANNEL_AUTOPOST_MINUTE:02d}",
         "next_channel_at": target.isoformat(),
         "reminder_sent_24h": int(reminder_sent_24h or 0),
+        "reminder_delivery_24h": delivery_24h,
         "last_channel": dict(last_channel) if last_channel else None,
     }
 
@@ -952,8 +972,23 @@ async def _send_liveline_channel_launch_after_start(application) -> None:
 async def reminder_loop(application) -> None:
     ensure_tables()
     await asyncio.sleep(20)
+    last_logged_hour = ""
     while True:
         try:
+            hour = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H")
+            if hour != last_logged_hour:
+                status = automation_status()
+                bot = status["reminder_delivery_24h"]["bot"]
+                business = status["reminder_delivery_24h"]["business_dm"]
+                logger.info(
+                    "DURA automation heartbeat reminders_enabled=%s channel_enabled=%s "
+                    "bot_sent_24h=%s bot_rejected_24h=%s "
+                    "business_sent_24h=%s business_rejected_24h=%s",
+                    status["reminders_enabled"], status["channel_enabled"],
+                    bot["sent"], bot["bad_request"] + bot["blocked"],
+                    business["sent"], business["bad_request"] + business["blocked"],
+                )
+                last_logged_hour = hour
             await run_due_reminders(application)
         except asyncio.CancelledError:
             raise

@@ -446,7 +446,7 @@ def _verification_reminder_copy(stage: int):
         "DURASPORTS team may contact you by phone or WhatsApp. You can opt out anytime."
     )
     markup = ReplyKeyboardMarkup(
-        [[KeyboardButton("📱 VERIFY & CONTINUE", request_contact=True)]],
+        [[KeyboardButton("📱 VERIFY & CONTINUE", request_contact=True, api_kwargs={"style": "primary"})]],
         resize_keyboard=True,
         one_time_keyboard=False,
         is_persistent=True,

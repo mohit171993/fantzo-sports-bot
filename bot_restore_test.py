@@ -22,7 +22,6 @@ import fantzo_live_tv_mobile_gate
 import fantzo_lead_funnel
 import fantzo_native_ui
 import fantzo_account_reverify
-import fantzo_hi_probe
 
 logger = logging.getLogger(__name__)
 PUBLIC_SHORT_DESCRIPTION = "Cricket & football scores, fixtures, Live TV and sports updates."
@@ -68,7 +67,6 @@ async def configure_telegram_ui_with_restored_features(application) -> None:
     # pinned Telegram ID. A mismatch leaves every account untouched.
     fantzo_live_tv_mobile_gate.ensure_tables()
     fantzo_account_reverify.apply_once()
-    await fantzo_hi_probe.send_once(application.bot)
 
     try:
         await application.bot.set_my_short_description(

@@ -12,7 +12,7 @@ def _match_detail_contract(key: str):
     result = _ORIGINAL_DETAIL(key)
     if isinstance(result, tuple) and len(result) == 2:
         return result
-    return result, "Roanuz V5 primary"
+    return result, "Highlightly fallback" if str(key or "").strip().isdigit() else "Roanuz V5 primary"
 
 
 # V21's action=match dispatcher does: detail, source = _match_detail(key).

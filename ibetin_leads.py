@@ -44,6 +44,7 @@ def ensure_tables() -> None:
             CREATE TABLE IF NOT EXISTS ibetin_leads (
                 user_id INTEGER PRIMARY KEY,
                 campaign TEXT NOT NULL DEFAULT 'direct',
+                last_requested_campaign TEXT NOT NULL DEFAULT 'direct',
                 source TEXT NOT NULL DEFAULT 'bot',
                 first_seen_at TEXT NOT NULL,
                 last_seen_at TEXT NOT NULL,
@@ -81,6 +82,7 @@ def ensure_tables() -> None:
         }
         migrations = (
             ("mobile_number", "TEXT"),
+            ("last_requested_campaign", "TEXT NOT NULL DEFAULT 'direct'"),
             ("assigned_to", "INTEGER"),
             ("assigned_name", "TEXT"),
             ("next_followup_at", "TEXT"),
@@ -285,11 +287,13 @@ def record_start(
             conn.execute(
                 """
                 UPDATE ibetin_leads
-                SET campaign=?, source=?, last_seen_at=?, updated_at=?
+                SET campaign=?, last_requested_campaign=?, source=?,
+                    last_seen_at=?, updated_at=?
                 WHERE user_id=?
                 """,
                 (
                     chosen_campaign,
+                    campaign_value,
                     chosen_source,
                     now,
                     now,
@@ -301,13 +305,15 @@ def record_start(
         conn.execute(
             """
             INSERT INTO ibetin_leads(
-                user_id, campaign, source, first_seen_at, last_seen_at,
+                user_id, campaign, last_requested_campaign, source,
+                first_seen_at, last_seen_at,
                 lead_status, updated_at
             )
-            VALUES (?, ?, ?, ?, ?, 'new', ?)
+            VALUES (?, ?, ?, ?, ?, ?, 'new', ?)
             """,
             (
                 int(user_id),
+                campaign_value,
                 campaign_value,
                 source_value,
                 now,

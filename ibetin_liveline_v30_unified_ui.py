@@ -10,6 +10,8 @@ import zlib
 from urllib.parse import parse_qs, urlparse
 from urllib.request import Request, urlopen
 
+import ibetin_activation
+
 # Use Railway persistent storage whenever the volume is mounted. This executes
 # before the bot/data modules import DB_PATH, so all SQLite users share one file.
 _IBETIN_PERSIST_DIR = "/app/ibetin_bot_persistent"
@@ -95,22 +97,31 @@ def _set_liveline_cookie(handler, token: str) -> None:
     )
 
 
-def _send_liveline_redirect_with_cookie(handler, token: str) -> None:
+def _send_liveline_redirect_with_cookie(handler, token: str, match_key: str = "") -> None:
     handler.send_response(302)
-    handler.send_header("Location", IBETIN_PUBLIC_LIVELINE_PATH)
+    destination = IBETIN_PUBLIC_LIVELINE_PATH
+    if ibetin_activation.valid_match_key(match_key):
+        destination = ibetin_activation.match_url(destination, match_key)
+    handler.send_header("Location", destination)
     handler.send_header("Cache-Control", "no-store")
     _set_liveline_cookie(handler, token)
     handler.send_header("Content-Length", "0")
     handler.end_headers()
 
 
-def _liveline_verification_page(token: str = "") -> str:
+def _liveline_verification_page(token: str = "", match_key: str = "") -> str:
+    # An invalid access query is not a session to poll or interpolate into HTML.
+    if token and not phone_verify.verify_access_token(token):
+        token = ""
     verify_url = phone_verify.verification_bot_url()
     if token:
         status_url = (
             IBETIN_PUBLIC_VERIFY_STATUS_PATH
             + "?access="
             + token
+        )
+        destination = ibetin_activation.match_url(
+            '/liveline?access=' + token, match_key
         )
         poll_js = f"""
 <script>
@@ -121,7 +132,7 @@ def _liveline_verification_page(token: str = "") -> str:
       const r=await fetch(statusUrl,{{cache:'no-store'}});
       const j=await r.json();
       if(j && j.verified){{
-        window.location.replace('/liveline?access='+encodeURIComponent({json.dumps(token)}));
+        window.location.replace({json.dumps(destination)});
         return;
       }}
     }}catch(e){{}}
@@ -1747,6 +1758,47 @@ def _page_v40_visual_polish() -> str:
     return html
 
 
+IBETIN_MATCH_ARRIVAL_JS = r"""
+<script>
+(function(){
+  const requested=new URLSearchParams(location.search).get('match')||'';
+  if(!/^[A-Za-z0-9_.:\-]{3,180}$/.test(requested))return;
+
+  async function openRequestedMatch(){
+    // Only open a match returned by the current feed. An old campaign link
+    // must never present a guessed score, state, or fixture as current.
+    let feedFailed=false;
+    for(const view of ['live','upcoming','results']){
+      allMatches=[];
+      await load(view,true);
+      if(document.querySelector('#list .err'))feedFailed=true;
+      if(allMatches.some(row=>matchKey(row)===requested)){
+        await openMatch(requested);
+        return;
+      }
+    }
+    allMatches=[];
+    await load('live',true);
+    const tools=document.querySelector('#home .tools');
+    if(tools&&!document.getElementById('ibetinMatchFallback')){
+      const note=document.createElement('div');
+      note.id='ibetinMatchFallback';
+      note.className='notice';
+      note.textContent=feedFailed
+        ? 'This match could not be checked because part of the feed is unavailable. Refresh to try again.'
+        : 'The match from your link is not in the current feed. Browse the matches below.';
+      tools.before(note);
+    }
+  }
+  openRequestedMatch().catch(()=>{
+    const status=document.getElementById('status');
+    if(status)status.textContent='Live Line is temporarily unavailable. Please try Refresh.';
+  });
+})();
+</script>
+"""
+
+
 def _page_v40_public() -> str:
     html = _page_v40_visual_polish()
     html = html.replace(
@@ -1765,6 +1817,7 @@ def _page_v40_public() -> str:
         "if(v40EventSource||typeof EventSource==='undefined')return;",
         1,
     )
+    html = html.replace("</body>", IBETIN_MATCH_ARRIVAL_JS + "\n</body>", 1)
     return html
 
 
@@ -1785,18 +1838,26 @@ def _install_public_liveline_routes() -> None:
 
         if parsed.path == IBETIN_PUBLIC_LIVELINE_PATH:
             user_id, token, verified = _liveline_verified(self, parsed)
+            query = parse_qs(parsed.query, keep_blank_values=True)
+            requested_match = (query.get("match") or [""])[0].strip()
+            match_key = (
+                requested_match
+                if ibetin_activation.valid_match_key(requested_match)
+                else ""
+            )
             if not verified:
                 # Render the verification gate normally; protected data endpoints
                 # remain hard-blocked with 401 until the mobile is verified.
-                v23.liveline._send_html(self, 200, _liveline_verification_page(token))
+                v23.liveline._send_html(
+                    self, 200, _liveline_verification_page(token, match_key)
+                )
                 return
 
             # A signed access token may arrive in the DM/bot button. Convert it
             # to an HttpOnly cookie, then remove it from the visible URL.
             try:
-                query = parse_qs(parsed.query, keep_blank_values=True)
                 if (query.get("access") or [""])[0].strip():
-                    _send_liveline_redirect_with_cookie(self, token)
+                    _send_liveline_redirect_with_cookie(self, token, match_key)
                     return
             except Exception:
                 pass

@@ -22,6 +22,7 @@ import fantzo_business
 import fantzo_live_tv
 import fantzo_reminders as reminders
 import ibetin_hub as hub
+import ibetin_activation
 import ibetin_creatives
 import ibetin_leads
 import ibetin_news as news
@@ -81,8 +82,8 @@ def _install_ibetin_hub_copy() -> None:
                 "⚡ <b>IBETIN</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
                 "Quick access without a crowded menu.\n\n"
-                "🚀 Join IBETIN Mini App\n"
                 "🏏 Live Line\n"
+                "🚀 Join IBETIN Mini App\n"
                 "🔴 Live now\n"
                 "🏆 Sports\n"
                 "📰 Sports News\n"
@@ -349,8 +350,8 @@ def premium_main_keyboard(user_id: int = 0) -> InlineKeyboardMarkup:
         )
 
     rows = [
-        [hub_button("🚀 JOIN IBETIN", "home")],
         [live_line_button],
+        [hub_button("🚀 JOIN IBETIN", "home")],
         [
             site_button("🔴 LIVE NOW", IBETIN_LIVE_URL),
             site_button("🏆 SPORTS", IBETIN_SPORTS_URL),
@@ -376,13 +377,18 @@ def premium_main_keyboard(user_id: int = 0) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(rows)
 
 
-def conversion_keyboard(user_id: int) -> InlineKeyboardMarkup:
-    """Focused post-verification menu for paid-traffic conversion."""
+def conversion_keyboard(user_id: int, campaign: str = "") -> InlineKeyboardMarkup:
+    """Show the promised match/Live Line first after verification."""
     live_url = phone_verify.live_line_url(user_id, IBETIN_LIVE_LINE_URL)
+    match_key = ibetin_activation.campaign_match_key(campaign)
+    live_label = "🏏 OPEN IBETIN LIVE LINE"
+    if match_key:
+        live_url = ibetin_activation.match_url(live_url, match_key)
+        live_label = "🏏 OPEN MATCH IN LIVE LINE"
     return InlineKeyboardMarkup(
         [
+            [site_button(live_label, live_url)],
             [hub_button("🚀 JOIN IBETIN", "home")],
-            [site_button("🏏 OPEN IBETIN LIVE LINE", live_url)],
             [InlineKeyboardButton("📢 JOIN CHANNEL", url=IBETIN_CHANNEL_URL)],
         ]
     )
@@ -679,6 +685,7 @@ async def mobile_contact_handler(update, context) -> None:
         source = "bot_start"
     campaign = str(
         context.user_data.pop("ibetin_campaign", "")
+        or lead.get("last_requested_campaign")
         or lead.get("campaign")
         or "direct"
     )
@@ -700,7 +707,7 @@ async def mobile_contact_handler(update, context) -> None:
 
     context.user_data.pop("ibetin_mobile_verify_pending", None)
     await _set_user_menu_button(context.bot, user.id, True)
-    await message.reply_text("✅ Verification complete. Use START or OPEN IBETIN below.", reply_markup=app.QUICK_MENU)
+    await message.reply_text("✅ Verification complete. Your quick menu is ready.", reply_markup=app.QUICK_MENU)
 
     phone = phone_verify.normalize_phone(contact.phone_number)
     masked = phone
@@ -747,11 +754,16 @@ async def mobile_contact_handler(update, context) -> None:
             "Choose what you want to do next."
         )
     else:
-        success_markup = conversion_keyboard(user.id)
+        success_markup = conversion_keyboard(user.id, campaign)
+        destination = (
+            "Open the match from your link in Live Line, or browse current matches."
+            if ibetin_activation.campaign_match_key(campaign)
+            else "Open Live Line to see current matches."
+        )
         success_text = (
             "✅ <b>Mobile verified</b>\n"
             f"<code>{masked}</code>\n\n"
-            "Choose what you want to do next."
+            f"{destination}"
         )
 
     await message.reply_text(
@@ -926,10 +938,15 @@ async def smart_start(update, context) -> None:
 
     await _set_user_menu_button(context.bot, user.id, True)
     await message.reply_text("✅ Your quick access buttons are ready below.", reply_markup=app.QUICK_MENU)
+    destination = (
+        "Open the match from your link in Live Line, or browse current matches."
+        if ibetin_activation.campaign_match_key(campaign)
+        else "Open Live Line to see current matches."
+    )
     await message.reply_text(
-        "👋 <b>Welcome back to IBETIN</b>\n\nChoose what you want to do next.",
+        f"👋 <b>Welcome back to IBETIN</b>\n\n{destination}",
         parse_mode="HTML",
-        reply_markup=conversion_keyboard(user.id),
+        reply_markup=conversion_keyboard(user.id, campaign),
         disable_web_page_preview=True,
     )
 

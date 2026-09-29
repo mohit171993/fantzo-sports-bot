@@ -61,6 +61,7 @@ async def _send_banner_preview_when_running(application) -> None:
 
 async def configure_telegram_ui_with_restored_features(application) -> None:
     await _original_configure_telegram_ui(application)
+    await fantzo_live_tv_mobile_gate.configure_public_ui(application)
 
     # One owner-requested account reset, guarded by both exact username and
     # pinned Telegram ID. A mismatch leaves every account untouched.

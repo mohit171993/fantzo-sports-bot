@@ -340,27 +340,51 @@ def on_verified(user_id: int, mobile_e164: str, source: str) -> bool:
 
 
 
-async def notify_admin_verified(application, user_id: int, mobile_e164: str, source: str, is_new_lead: bool) -> None:
-    """Notify the Fantzo admin immediately when a new deduplicated lead verifies."""
-    if not is_new_lead:
+async def notify_admin_verified(
+    application,
+    user_id: int,
+    mobile_e164: str,
+    source: str,
+    is_new_lead: bool,
+    is_new_verification: bool = False,
+) -> None:
+    """Alert the Fantzo admin on a new lead or a fresh re-verification."""
+    if not is_new_lead and not is_new_verification:
         return
 
     campaign = campaign_for_user(user_id)
     ensure_tables()
     with core.db() as conn:
+        opted_out = bool(conn.execute(
+            "SELECT 1 FROM lead_contact_opt_outs WHERE user_id=? LIMIT 1",
+            (int(user_id),),
+        ).fetchone())
         user = conn.execute(
             "SELECT username,first_name FROM users WHERE user_id=?",
             (int(user_id),),
         ).fetchone()
+        lead = conn.execute(
+            "SELECT status FROM sales_leads WHERE mobile_e164=?",
+            (str(mobile_e164),),
+        ).fetchone()
+    if opted_out:
+        return
 
     username = str(user["username"] or "") if user else ""
     first_name = str(user["first_name"] or "") if user else ""
+    lead_status = str(lead["status"] or "NEW") if lead else "NEW"
+    kind = "new" if is_new_lead else "reverified"
+    title = (
+        "🔥 <b>NEW VERIFIED FANTZO LEAD</b>"
+        if is_new_lead else
+        "🔁 <b>REVERIFIED FANTZO CONTACT</b>"
+    )
 
     try:
         await application.bot.send_message(
             chat_id=core.ADMIN_USER_ID,
             text=(
-                "🔥 <b>NEW VERIFIED FANTZO LEAD</b>\n"
+                f"{title}\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
                 f"Mobile: <code>{escape(str(mobile_e164))}</code>\n"
                 f"Telegram: @{escape(username) if username else '—'}\n"
@@ -368,15 +392,19 @@ async def notify_admin_verified(application, user_id: int, mobile_e164: str, sou
                 f"Campaign: <code>{escape(campaign)}</code>\n"
                 f"Verification source: <code>{escape(str(source or 'unknown'))}</code>\n"
                 f"User ID: <code>{int(user_id)}</code>\n\n"
-                f"Lead status: <b>NEW</b>\n"
+                f"Lead status: <b>{escape(lead_status)}</b>\n"
                 f"Open: <code>/lead {int(user_id)}</code>\n"
                 f"After contact: <code>/leadstatus {int(user_id)} CONTACTED</code>"
             ),
             parse_mode="HTML",
             disable_web_page_preview=True,
         )
+        logger.info(
+            "FANTZO_VERIFICATION_ADMIN_ALERT_SENT kind=%s user_id=%s chat_id=%s",
+            kind, user_id, core.ADMIN_USER_ID,
+        )
     except Exception:
-        logger.exception("Could not send Fantzo new-lead admin alert")
+        logger.exception("Could not send Fantzo %s admin alert", kind)
 
 
 def record_post_verify_view(user_id: int) -> None:

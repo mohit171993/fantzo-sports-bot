@@ -21,7 +21,7 @@ import ibetin_match_alerts as match_alerts
 import ibetin_phone_verify as phone_verify
 
 logger = logging.getLogger(__name__)
-APP_TZ = ZoneInfo("Asia/Dubai")
+APP_TZ = ZoneInfo("Asia/Kolkata")
 CHECK_INTERVAL_SECONDS = 300
 QUIET_START_HOUR = 22
 QUIET_END_HOUR = 8
@@ -44,8 +44,8 @@ IBETIN_LIVE_LINE_MINI_APP_URL = os.getenv(
 LIVELINE_CHANNEL_CAMPAIGN_KEY = "liveline-v40-launch-20260918"
 SPORTS_BOT_URL = os.getenv("IBETIN_SPORTS_BOT_URL", IBETIN_HOME_URL).strip()
 CHANNEL_AUTOPOST_ENABLED = os.getenv("IBETIN_CHANNEL_AUTOPOST_ENABLED", "false").strip().lower() in {"1", "true", "yes", "on"}
-CHANNEL_AUTOPOST_HOUR = max(0, min(23, int(os.getenv("IBETIN_CHANNEL_AUTOPOST_HOUR", "10"))))
-CHANNEL_AUTOPOST_MINUTE = max(0, min(59, int(os.getenv("IBETIN_CHANNEL_AUTOPOST_MINUTE", "0"))))
+CHANNEL_AUTOPOST_HOUR = max(0, min(23, int(os.getenv("IBETIN_CHANNEL_AUTOPOST_HOUR", "11"))))
+CHANNEL_AUTOPOST_MINUTE = max(0, min(59, int(os.getenv("IBETIN_CHANNEL_AUTOPOST_MINUTE", "30"))))
 CHANNEL_RETRY_MINUTES = max(5, int(os.getenv("IBETIN_CHANNEL_RETRY_MINUTES", "15")))
 CHANNEL_CATCHUP_HOURS = max(1, int(os.getenv("IBETIN_CHANNEL_CATCHUP_HOURS", "6")))
 IBETIN_CHANNEL_CHAT_ID = "@ibetinoffcial"
@@ -711,7 +711,7 @@ def _channel_daily_creative(local_now: datetime):
 
 
 async def send_liveline_channel_daily(application, local_now: datetime | None = None) -> bool:
-    """Send one scheduled Live Line channel post per Dubai calendar day."""
+    """Send one scheduled Live Line channel post per India calendar day."""
     if not channel_autopost_enabled():
         return False
 
@@ -983,12 +983,122 @@ async def _send_liveline_channel_launch_after_start(application) -> None:
     await send_liveline_channel_launch(application)
 
 
+def _admin_report_chat_id() -> int:
+    import ibetin_reports
+    return ibetin_reports.notification_admin_user_id()
+
+
+async def alert_new_delivery_failures(application) -> None:
+    """Notify the owner about new reminder failures, at most once per send row."""
+    ensure_tables()
+    with core.db() as conn:
+        conn.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
+        marker = conn.execute(
+            "SELECT value FROM settings WHERE key='admin_failure_last_id'"
+        ).fetchone()
+        if marker is None:
+            latest = conn.execute(
+                "SELECT COALESCE(MAX(id),0) FROM reminder_sends"
+            ).fetchone()[0]
+            conn.execute(
+                "INSERT INTO settings(key,value) VALUES('admin_failure_last_id',?)",
+                (str(latest),),
+            )
+            return
+        last_id = int(marker[0] or 0)
+        failures = conn.execute(
+            "SELECT id,source,user_id,status FROM reminder_sends "
+            "WHERE id>? AND status IN ('failed','bad_request') ORDER BY id",
+            (last_id,),
+        ).fetchall()
+        latest = conn.execute(
+            "SELECT COALESCE(MAX(id),0) FROM reminder_sends"
+        ).fetchone()[0]
+    if not failures:
+        if int(latest) > last_id:
+            with core.db() as conn:
+                conn.execute(
+                    "UPDATE settings SET value=? WHERE key='admin_failure_last_id'",
+                    (str(latest),),
+                )
+        return
+    sample = ", ".join(
+        f"{row['source']}:{int(row['user_id'])} ({row['status']})"
+        for row in failures[:5]
+    )
+    await application.bot.send_message(
+        chat_id=_admin_report_chat_id(),
+        text=(
+            "⚠️ <b>IBETIN REMINDER DELIVERY FAILED</b>\n"
+            f"New failures: <b>{len(failures)}</b>\n"
+            f"Examples: <code>{sample}</code>\n"
+            "Check the admin delivery dashboard."
+        ),
+        parse_mode="HTML",
+    )
+    with core.db() as conn:
+        conn.execute(
+            "UPDATE settings SET value=? WHERE key='admin_failure_last_id'",
+            (str(latest),),
+        )
+
+
+async def daily_admin_summary_loop(application) -> None:
+    """One owner summary per calendar day at 09:00 IST."""
+    while True:
+        now = datetime.now(APP_TZ)
+        target = now.replace(hour=9, minute=0, second=0, microsecond=0)
+        if target <= now:
+            target += timedelta(days=1)
+        await asyncio.sleep(max(1, (target - now).total_seconds()))
+        day = datetime.now(APP_TZ).date().isoformat()
+        try:
+            with core.db() as conn:
+                conn.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
+                sent = conn.execute(
+                    "SELECT value FROM settings WHERE key='admin_daily_summary_day'"
+                ).fetchone()
+            if sent and sent[0] == day:
+                continue
+            import ibetin_reports
+            status = automation_status()
+            failed_count = status['reminder_failed_24h']
+            text = (
+                "📊 <b>IBETIN DAILY ADMIN SUMMARY</b>\n"
+                f"Date: <b>{day}</b> · 09:00 IST\n\n"
+                + ibetin_reports._overview_text()
+                + "\n\n<b>DELIVERY · LAST 24H</b>\n"
+                + f"Reminders sent: <b>{status['reminder_sent_24h']}</b>\n"
+                + f"Delivery failures: <b>{failed_count}</b>\n"
+                + f"Reminders enabled: <b>{'YES' if status['reminders_enabled'] else 'NO'}</b>\n"
+                + f"Channel posting enabled: <b>{'YES' if status['channel_enabled'] else 'NO'}</b>"
+            )
+            await application.bot.send_message(
+                chat_id=ibetin_reports.notification_admin_user_id(),
+                text=text,
+                parse_mode="HTML",
+                disable_web_page_preview=True,
+            )
+            with core.db() as conn:
+                conn.execute(
+                    "INSERT INTO settings(key,value) VALUES('admin_daily_summary_day',?) "
+                    "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    (day,),
+                )
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("IBETIN daily admin summary failed")
+
+
 async def reminder_loop(application) -> None:
     ensure_tables()
     await asyncio.sleep(20)
     while True:
         try:
+            await alert_new_delivery_failures(application)
             await run_due_reminders(application)
+            await alert_new_delivery_failures(application)
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -1004,6 +1114,9 @@ def start_background_loop(application) -> None:
     application.bot_data["ibetin_reminder_task"] = asyncio.create_task(
         reminder_loop(application), name="ibetin-reminders"
     )
+    application.bot_data["ibetin_admin_summary_task"] = asyncio.create_task(
+        daily_admin_summary_loop(application), name="ibetin-daily-admin-summary"
+    )
     application.bot_data["ibetin_match_alert_task"] = asyncio.create_task(
         match_alerts.match_alert_loop(application), name="ibetin-match-alerts"
     )
@@ -1017,7 +1130,7 @@ def start_background_loop(application) -> None:
             name="ibetin-channel-autopost",
         )
     logger.info(
-        "IBETIN reminder and real-time match-alert workers started; channel_autopost=%s time=%02d:%02d Asia/Dubai",
+        "IBETIN reminder and real-time match-alert workers started; channel_autopost=%s time=%02d:%02d Asia/Kolkata",
         CHANNEL_AUTOPOST_ENABLED,
         CHANNEL_AUTOPOST_HOUR,
         CHANNEL_AUTOPOST_MINUTE,

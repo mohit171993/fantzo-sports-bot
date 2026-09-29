@@ -1190,45 +1190,6 @@ async def admin_crm_text_handler(update, context) -> None:
         raise ApplicationHandlerStop
 
 
-async def _send_requested_hi_once(bot) -> None:
-    """One-time operator-authorized delivery probe; removed after its result."""
-    target_id = 1456774567
-    marker = "ibetin_hi_probe_mohit_97saxena:2026-09-29"
-    with app.core.db() as conn:
-        matches = {
-            int(row[0]) for row in conn.execute(
-                "SELECT user_id FROM users WHERE lower(username)=?",
-                ("mohit_97saxena",),
-            ).fetchall()
-        }
-        matches.update(
-            int(row[0]) for row in conn.execute(
-                "SELECT customer_id FROM business_customers WHERE lower(username)=?",
-                ("mohit_97saxena",),
-            ).fetchall()
-        )
-        if matches != {target_id}:
-            logger.warning("IBETIN hi probe skipped: exact username/UID match unavailable")
-            return
-        claimed = conn.execute(
-            "INSERT OR IGNORE INTO settings(key,value) VALUES(?,?)",
-            (marker, "attempted"),
-        ).rowcount
-    if not claimed:
-        logger.info("IBETIN hi probe already attempted")
-        return
-    try:
-        sent = await bot.send_message(chat_id=target_id, text="hi")
-    except Exception as exc:
-        result = f"failed:{type(exc).__name__}"
-        logger.warning("IBETIN hi probe failed error=%s", type(exc).__name__)
-    else:
-        result = f"sent:{sent.message_id}"
-        logger.info("IBETIN hi probe sent message_id=%s", sent.message_id)
-    with app.core.db() as conn:
-        conn.execute("UPDATE settings SET value=? WHERE key=?", (result, marker))
-
-
 # =========================================================
 # TELEGRAM UI
 # =========================================================
@@ -1344,7 +1305,6 @@ async def configure_telegram_ui(application) -> None:
     reminders.ensure_tables()
     reminders.start_background_loop(application)
     ibetin_creatives.install(application)
-    await _send_requested_hi_once(application.bot)
 
 
 app.configure_telegram_ui = configure_telegram_ui

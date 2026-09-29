@@ -412,7 +412,7 @@ def _verification_copy(stage: int, source: str):
         ]])
     else:
         markup = ReplyKeyboardMarkup(
-            [[KeyboardButton("📱 VERIFY & CONTINUE", request_contact=True)]],
+            [[KeyboardButton("📱 VERIFY & CONTINUE", request_contact=True, api_kwargs={"style": "primary"})]],
             resize_keyboard=True,
             one_time_keyboard=False,
             is_persistent=True,

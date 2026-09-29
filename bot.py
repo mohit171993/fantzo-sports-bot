@@ -37,7 +37,6 @@ FANTZO_REGISTER = "https://fantzo.com/en/registration"
 DB_PATH = os.getenv("DB_PATH", "fantzo_bot.db")
 
 DIVIDER = "━━━━━━━━━━━━━━━━━━"
-RESPONSIBLE_NOTE = ""
 
 TEXT = {
     "en": {
@@ -376,8 +375,7 @@ def empty_keyboard(action: str) -> InlineKeyboardMarkup:
 def promo_footer() -> str:
     return (
         f"\n\n{DIVIDER}\n"
-        "⚡ <b>FANTZO</b> • Follow the action. Explore more.\n"
-        f"{RESPONSIBLE_NOTE}"
+        "⚡ <b>FANTZO</b> • Follow the action. Explore more."
     )
 
 
@@ -894,9 +892,19 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.effective_message.reply_text("Usage: /broadcast your message")
         return
 
+    # Broadcasts may contain product copy supplied by an admin. Keep them
+    # behind the same Telegram self-contact check as the interactive bot.
+    from fantzo_live_tv_mobile_gate import ensure_tables
+
+    ensure_tables()
     with db() as conn:
         users = conn.execute(
-            "SELECT user_id FROM users WHERE subscribed = 1"
+            """
+            SELECT u.user_id
+            FROM users AS u
+            JOIN live_tv_mobile_users AS v ON v.user_id = u.user_id
+            WHERE u.subscribed = 1 AND v.capture_method = 'telegram_contact'
+            """
         ).fetchall()
 
     sent = failed = 0

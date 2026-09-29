@@ -14,20 +14,17 @@ import fantzo_reminders as reminders
 
 logger = logging.getLogger(__name__)
 
-RESPONSIBLE_NOTE = ""
 FANTZO_CHANNEL_URL = "https://t.me/fantzoupdates"
 
 WELCOME_REPLY = (
     "👋 <b>Welcome to Fantzo</b>\n\n"
-    "Live sports, updates and more — choose what you want to do below.\n\n"
-    f"{RESPONSIBLE_NOTE}"
+    "Live sports, updates and more — choose what you want to do below."
 )
 
 VERIFY_REPLY = (
     "👋 <b>Welcome to Fantzo</b>\n\n"
     "Before continuing, please verify the mobile number linked to your Telegram account.\n\n"
-    "Tap <b>📱 VERIFY MOBILE</b> below. After verification, the normal Fantzo options will continue.\n\n"
-    f"{RESPONSIBLE_NOTE}"
+    "Tap <b>📱 VERIFY MOBILE</b> below. After verification, the normal Fantzo options will continue."
 )
 
 
@@ -219,7 +216,14 @@ def _funnel_buttons(source: str, destination: str = "home") -> InlineKeyboardMar
 
 
 def _welcome_buttons() -> InlineKeyboardMarkup:
-    return _funnel_buttons("business_welcome")
+    """Pre-verification Business replies expose only the Telegram contact gate."""
+    return InlineKeyboardMarkup([[
+        _styled_url_button(
+            "📱 VERIFY MOBILE",
+            "https://t.me/fantzoofficialbot?start=verify_business_dm",
+            "success",
+        )
+    ]])
 
 
 def classify_business_dm(text: str):
@@ -236,8 +240,7 @@ def classify_business_dm(text: str):
         return (
             "sports",
             "🏏 <b>Sports & live action</b>\n\n"
-            "You can play on Fantzo, open Live TV, or subscribe for updates below.\n\n"
-            f"{RESPONSIBLE_NOTE}",
+            "You can play on Fantzo, open Live TV, or subscribe for updates below.",
             _funnel_buttons("business_sports", "live"),
         )
 
@@ -245,8 +248,7 @@ def classify_business_dm(text: str):
         return (
             "join",
             "🚀 <b>Ready to get started?</b>\n\n"
-            "Tap <b>PLAY FANTZO</b> below to continue.\n\n"
-            f"{RESPONSIBLE_NOTE}",
+            "Tap <b>PLAY FANTZO</b> below to continue.",
             _funnel_buttons("business_join", "register"),
         )
 
@@ -264,8 +266,7 @@ def classify_business_dm(text: str):
             "deposit",
             "💳 <b>Payment / deposit</b>\n\n"
             "Payment options are shown inside Fantzo based on your account.\n\n"
-            "🔐 Never send OTPs, passwords or full card/bank details in chat.\n\n"
-            f"{RESPONSIBLE_NOTE}",
+            "🔐 Never send OTPs, passwords or full card/bank details in chat.",
             _funnel_buttons("business_deposit"),
         )
 
@@ -281,8 +282,7 @@ def classify_business_dm(text: str):
         return (
             "offers",
             "🎁 <b>Offers</b>\n\n"
-            "Check Fantzo directly for currently available offers, eligibility and terms.\n\n"
-            f"{RESPONSIBLE_NOTE}",
+            "Check Fantzo directly for currently available offers, eligibility and terms.",
             _funnel_buttons("business_offers"),
         )
 
@@ -304,8 +304,7 @@ def classify_business_dm(text: str):
     return (
         "general",
         "👋 <b>How can I help?</b>\n\n"
-        "You can message me about sports, getting started, account access or support.\n\n"
-        f"{RESPONSIBLE_NOTE}",
+        "You can message me about sports, getting started, account access or support.",
         _funnel_buttons("business_general"),
     )
 

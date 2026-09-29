@@ -353,14 +353,20 @@ def _verification_due_stage(row, now_utc: datetime):
 
 
 def _copy_for(interest: str, stage: int, source: str, user_id: int = 0):
+    if source == "business_dm" and not (user_id and phone_verify.is_verified(user_id)):
+        markup = business.verification_keyboard()
+        return (
+            business.VERIFY_REPLY if markup else business.VERIFY_LINK_UNAVAILABLE_REPLY,
+            markup,
+        )
     if interest == "cricket":
-        subject = "🏏 IBETIN Live Line"
+        subject = "🏏 DURASPORTS Live Line"
         detail = "Live scores, Match Pulse, scorecards, fixtures & results."
     elif interest == "football":
         subject = "⚽ Football updates"
         detail = "Live scores, fixtures & results."
     else:
-        subject = "🔥 IBETIN sports update"
+        subject = "🔥 DURASPORTS sports update"
         detail = "Live Line, fixtures & results are ready."
 
     if stage == 1:
@@ -387,7 +393,7 @@ def _copy_for(interest: str, stage: int, source: str, user_id: int = 0):
                 ],
                 [
                     TelegramInlineKeyboardButton(
-                        "🚀 JOIN IBETIN",
+                        "🚀 OPEN DURASPORTS",
                         url=business.telegram_mini_app_url("home", user_id),
                     )
                 ],
@@ -418,7 +424,7 @@ def _copy_for(interest: str, stage: int, source: str, user_id: int = 0):
                 [live_line_button],
                 [
                     TelegramInlineKeyboardButton(
-                        "🚀 JOIN IBETIN",
+                        "🚀 OPEN DURASPORTS",
                         web_app=WebAppInfo(url=hub.hub_url("home")),
                     )
                 ],

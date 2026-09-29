@@ -687,20 +687,7 @@ def _daily_channel_campaign_key(local_now: datetime) -> str:
 def _channel_daily_creative(local_now: datetime):
     try:
         import ibetin_creatives as creatives
-        creatives.ensure_tables()
-        with core.db() as conn:
-            rows = conn.execute(
-                """
-                SELECT *
-                FROM creative_assets
-                WHERE active = 1 AND pool = 'channel'
-                ORDER BY id ASC
-                """
-            ).fetchall()
-        if not rows:
-            return None, creatives
-        index = local_now.toordinal() % len(rows)
-        return rows[index], creatives
+        return creatives.pick_creative("channel", key=local_now.toordinal()), creatives
     except Exception as exc:
         logger.warning("IBETIN channel creative lookup failed: %s", str(exc)[:180])
         return None, None

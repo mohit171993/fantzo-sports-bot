@@ -68,6 +68,36 @@ def ensure_tables() -> None:
             conn.execute("ALTER TABLE creative_assets ADD COLUMN brand TEXT NOT NULL DEFAULT ''")
 
 
+def _seed_bundled_creatives() -> None:
+    """Register approved local variants without reactivating rejected rows."""
+    bundles = {
+        "channel": (FALLBACK_FILES["channel"], Path(__file__).resolve().parent / "assets" / "dura-channel-v2.jpg"),
+        "reminder": (FALLBACK_FILES["reminder"], Path(__file__).resolve().parent / "assets" / "dura-reminder-v2.jpg"),
+    }
+    with core.db() as conn:
+        for pool, files in bundles.items():
+            for variant, path in enumerate(files):
+                if not path.is_file():
+                    logger.warning("Missing DURA bundled creative: %s", path)
+                    continue
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO creative_assets(
+                        file_id, file_unique_id, media_type, filename,
+                        pool, created_at, active, brand
+                    ) VALUES (?, ?, 'bundled_photo', ?, ?, ?, 1, ?)
+                    """,
+                    (
+                        str(path),
+                        f"bundled:{APPROVED_BRAND}:{pool}:{variant}",
+                        path.name,
+                        pool,
+                        core.now_iso(),
+                        APPROVED_BRAND,
+                    ),
+                )
+
+
 def _creative_admin_id():
     try:
         with core.db() as conn:
@@ -1044,6 +1074,7 @@ def install(application) -> None:
         return
     application.bot_data["ibetin_creative_manager_installed"] = True
     ensure_tables()
+    _seed_bundled_creatives()
 
     # Negative group ensures uploads are captured before the legacy single-banner handler.
     application.add_handler(CommandHandler("creativeunlock", creativeunlock_command), group=-5)

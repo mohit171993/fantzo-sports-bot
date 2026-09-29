@@ -26,6 +26,8 @@ CHECK_INTERVAL_SECONDS = 300
 QUIET_START_HOUR = 22
 QUIET_END_HOUR = 8
 MAX_SENDS_PER_RUN = 20
+MAX_ATTEMPTS_PER_RUN = 40
+RETRY_BACKOFF_MINUTES = 30
 
 IBETIN_HOME_URL = os.getenv("IBETIN_HOME_URL", "https://ibetin.com").strip()
 IBETIN_MINI_APP_DEEP_LINK = os.getenv("IBETIN_MINI_APP_DEEP_LINK", IBETIN_HOME_URL).strip()
@@ -488,12 +490,38 @@ def _campaign_key(row, stage: int) -> str:
     return f"{row['source']}:{stage}:{activity}"
 
 
+def _can_attempt_campaign(source: str, user_id: int, campaign_key: str, now_utc: datetime) -> bool:
+    """Skip completed campaigns and give transient failures a retry interval."""
+    with core.db() as conn:
+        previous = conn.execute(
+            "SELECT status, sent_at FROM reminder_sends "
+            "WHERE source = ? AND user_id = ? AND campaign_key = ?",
+            (source, user_id, campaign_key),
+        ).fetchone()
+    if previous is None:
+        return True
+    status = str(previous["status"])
+    if status in {"sent", "bad_request", "blocked", "undeliverable"}:
+        return False
+    if status == "failed":
+        attempted_at = _parse_dt(str(previous["sent_at"]))
+        if attempted_at:
+            if attempted_at.tzinfo is None:
+                attempted_at = attempted_at.replace(tzinfo=timezone.utc)
+            if now_utc - attempted_at < timedelta(minutes=RETRY_BACKOFF_MINUTES):
+                return False
+    return True
+
+
 def _mark_send(source: str, user_id: int, stage: int, campaign_key: str, status: str) -> None:
     ensure_tables()
     now = _now_iso()
     with core.db() as conn:
         conn.execute(
-            "INSERT OR REPLACE INTO reminder_sends(source, user_id, stage, campaign_key, sent_at, status) VALUES(?, ?, ?, ?, ?, ?)",
+            "INSERT INTO reminder_sends(source, user_id, stage, campaign_key, sent_at, status) "
+            "VALUES(?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(source, user_id, campaign_key) DO UPDATE SET "
+            "stage=excluded.stage, sent_at=excluded.sent_at, status=excluded.status",
             (source, user_id, stage, campaign_key, now, status),
         )
         if status == "sent":
@@ -591,8 +619,9 @@ async def run_due_reminders(application) -> None:
         ).fetchall()
 
     sent_count = 0
+    attempt_count = 0
     for row in rows:
-        if sent_count >= MAX_SENDS_PER_RUN:
+        if sent_count >= MAX_SENDS_PER_RUN or attempt_count >= MAX_ATTEMPTS_PER_RUN:
             break
 
         # Unverified main-bot users receive verification-only reminders on
@@ -610,16 +639,12 @@ async def run_due_reminders(application) -> None:
                 f"verify:{row['source']}:{stage}:"
                 + str(row["last_activity"]).replace(":", "").replace("+", "_")
             )
-            with core.db() as conn:
-                exists = conn.execute(
-                    "SELECT 1 FROM reminder_sends "
-                    "WHERE source = ? AND user_id = ? AND campaign_key = ? "
-                    "AND status IN ('sent','bad_request','blocked')",
-                    (row["source"], row["user_id"], campaign_key),
-                ).fetchone()
-            if exists:
+            if not _can_attempt_campaign(
+                str(row["source"]), int(row["user_id"]), campaign_key, now
+            ):
                 continue
 
+            attempt_count += 1
             try:
                 ok = await _send_verification_with_retry(application.bot, row, stage)
                 _mark_send(
@@ -674,14 +699,12 @@ async def run_due_reminders(application) -> None:
         if not stage:
             continue
         campaign_key = _campaign_key(row, stage)
-        with core.db() as conn:
-            exists = conn.execute(
-                "SELECT 1 FROM reminder_sends WHERE source = ? AND user_id = ? AND campaign_key = ? AND status IN ('sent','bad_request','blocked')",
-                (row["source"], row["user_id"], campaign_key),
-            ).fetchone()
-        if exists:
+        if not _can_attempt_campaign(
+            str(row["source"]), int(row["user_id"]), campaign_key, now
+        ):
             continue
 
+        attempt_count += 1
         try:
             ok = await _send_with_retry(application.bot, row, stage)
             _mark_send(str(row["source"]), int(row["user_id"]), stage, campaign_key, "sent" if ok else "failed")

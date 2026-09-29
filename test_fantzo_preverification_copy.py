@@ -6,10 +6,13 @@ import unittest
 from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
+
+from telegram.ext import ApplicationHandlerStop
 
 import bot as core
 import bot_restore_test as launcher
+import fantzo_banner_preview as preview
 import fantzo_business as business
 import fantzo_live_tv_mobile_gate as gate
 import fantzo_reminders as reminders
@@ -138,6 +141,72 @@ class FantzoPreverificationCopyTests(unittest.TestCase):
         self.assertEqual([message["chat_id"] for message in sent], [101])
         self.assertEqual(len(replies), 1)
         self.assertIn("Sent: 1", replies[0])
+
+    def test_unverified_admin_cannot_use_command_text_media_or_callbacks(self):
+        context = SimpleNamespace(user_data={})
+        message = SimpleNamespace(text="/banners")
+        update = SimpleNamespace(
+            effective_user=SimpleNamespace(id=core.ADMIN_USER_ID),
+            effective_message=message,
+            callback_query=None,
+        )
+        with (
+            patch.object(gate, "is_registered", return_value=False),
+            patch.object(gate, "_prompt_mobile", new_callable=AsyncMock) as prompt,
+        ):
+            for command in ("/banners", "/reports", "/broadcast", "/admin"):
+                message.text = command
+                with self.assertRaises(ApplicationHandlerStop):
+                    asyncio.run(gate.pending_command_handler(update, context))
+
+            message.text = "SEARCH recent"
+            with self.assertRaises(ApplicationHandlerStop):
+                asyncio.run(gate.pending_text_handler(update, context))
+
+            message.text = None
+            with self.assertRaises(ApplicationHandlerStop):
+                asyncio.run(gate.pending_media_handler(update, context))
+
+            update.callback_query = SimpleNamespace(data="banner_approve_1")
+            with self.assertRaises(ApplicationHandlerStop):
+                asyncio.run(gate.pending_callback_handler(update, context))
+            self.assertEqual(prompt.await_count, 7)
+
+        with (
+            patch.object(gate, "is_registered", return_value=True),
+            patch.object(gate, "_prompt_mobile", new_callable=AsyncMock) as prompt,
+        ):
+            message.text = "/reports"
+            asyncio.run(gate.pending_command_handler(update, context))
+            asyncio.run(gate.pending_media_handler(update, context))
+            asyncio.run(gate.pending_callback_handler(update, context))
+            prompt.assert_not_awaited()
+
+    def test_private_banner_preview_waits_for_admin_verification(self):
+        with (
+            patch.object(preview.asyncio, "sleep", new_callable=AsyncMock),
+            patch.object(gate, "is_registered", return_value=False),
+            patch.object(preview.banners, "next_banner") as next_banner,
+        ):
+            asyncio.run(preview.send_once(SimpleNamespace()))
+            next_banner.assert_not_called()
+
+    def test_preverification_handlers_run_before_admin_handlers(self):
+        installed = []
+        application = SimpleNamespace(
+            add_handler=lambda handler, group=0: installed.append((group, handler.callback))
+        )
+        with patch.object(gate, "_handlers_registered", False):
+            gate.register_handlers(application)
+        early = {callback for group, callback in installed if group == -11}
+        self.assertEqual(
+            early,
+            {
+                gate.pending_command_handler,
+                gate.pending_media_handler,
+                gate.pending_callback_handler,
+            },
+        )
 
 
 if __name__ == "__main__":

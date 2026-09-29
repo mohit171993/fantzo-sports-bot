@@ -18,7 +18,7 @@ from telegram import (
     ReplyKeyboardRemove,
     Update,
 )
-from telegram.ext import ApplicationHandlerStop, MessageHandler, filters
+from telegram.ext import ApplicationHandlerStop, CallbackQueryHandler, MessageHandler, filters
 
 import bot_tracked as tracked
 import fantzo_lead_funnel as lead_funnel
@@ -437,10 +437,6 @@ async def pending_text_handler(update: Update, context) -> None:
     if not user or not message or not message.text:
         return
 
-    # Keep the owner/admin text path available for CRM search, notes and ops.
-    if int(user.id) == int(core.ADMIN_USER_ID):
-        return
-
     pending = bool(context.user_data.get(_PENDING_KEY))
     verified = is_registered(user.id)
     if not pending and verified:
@@ -470,6 +466,37 @@ async def pending_text_handler(update: Update, context) -> None:
         parse_mode="HTML",
         reply_markup=_verify_keyboard(),
     )
+    raise ApplicationHandlerStop
+
+
+async def pending_command_handler(update: Update, context) -> None:
+    """Protect admin and user commands while preserving start and opt-out."""
+    user = update.effective_user
+    message = update.effective_message
+    if not user or not message or is_registered(user.id):
+        return
+    command = str(message.text or "").split(maxsplit=1)[0].lower().split("@", 1)[0]
+    if command in {"/start", "/stop"}:
+        return
+    await _prompt_mobile(update, context, "bot_command")
+    raise ApplicationHandlerStop
+
+
+async def pending_media_handler(update: Update, context) -> None:
+    """Prevent private banner and other media handlers running before verification."""
+    user = update.effective_user
+    if not user or is_registered(user.id):
+        return
+    await _prompt_mobile(update, context, "bot_media")
+    raise ApplicationHandlerStop
+
+
+async def pending_callback_handler(update: Update, context) -> None:
+    """Catch admin review callbacks as well as ordinary bot callbacks."""
+    user = update.effective_user
+    if not user or not update.callback_query or is_registered(user.id):
+        return
+    await _prompt_mobile(update, context, "bot_callback")
     raise ApplicationHandlerStop
 
 
@@ -602,13 +629,8 @@ def install() -> None:
         action = str(query.data or "") if query else ""
 
         # Old inline sports/menu buttons must not bypass onboarding after a
-        # restart or verification reset. Owner/admin callbacks remain usable.
-        if (
-            user
-            and action
-            and int(user.id) != int(core.ADMIN_USER_ID)
-            and not is_registered(user.id)
-        ):
+        # restart or verification reset, including for an unverified admin.
+        if user and action and not is_registered(user.id):
             await _prompt_mobile(update, context, "bot_callback")
             return
 
@@ -623,11 +645,7 @@ def install() -> None:
     def _verified_command(original, source: str):
         async def wrapped(update, context):
             user = update.effective_user
-            if (
-                user
-                and int(user.id) != int(core.ADMIN_USER_ID)
-                and not is_registered(user.id)
-            ):
+            if user and not is_registered(user.id):
                 try:
                     core.touch_user(update)
                     core.track(user.id, f"mobile_verify:{source}")
@@ -661,7 +679,28 @@ def register_handlers(application) -> None:
         return
     _handlers_registered = True
 
-    # Negative group runs before the normal direct-message auto-reply handlers.
+    # Group -11 runs before admin command, banner upload/review and report
+    # handlers. Verification remains required even when a user is an admin.
+    application.add_handler(
+        MessageHandler(
+            filters.UpdateType.MESSAGE & filters.COMMAND,
+            pending_command_handler,
+        ),
+        group=-11,
+    )
+    application.add_handler(
+        MessageHandler(
+            filters.UpdateType.MESSAGE & ~filters.TEXT & ~filters.CONTACT,
+            pending_media_handler,
+        ),
+        group=-11,
+    )
+    application.add_handler(
+        CallbackQueryHandler(pending_callback_handler),
+        group=-11,
+    )
+
+    # Group -10 runs before the normal direct-message auto-reply handlers.
     application.add_handler(
         MessageHandler(
             filters.UpdateType.MESSAGE & filters.CONTACT,

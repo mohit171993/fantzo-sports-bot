@@ -8,6 +8,11 @@ logger = logging.getLogger(__name__)
 async def send_once(application):
     await asyncio.sleep(8)
     try:
+        import fantzo_live_tv_mobile_gate as verification
+
+        if not verification.is_registered(core.ADMIN_USER_ID):
+            logger.info("Banner preview skipped: admin Telegram contact not verified")
+            return
         row = banners.next_banner()
         if not row:
             logger.info("Banner preview skipped: queue empty")

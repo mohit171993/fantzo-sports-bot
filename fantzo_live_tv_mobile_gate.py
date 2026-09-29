@@ -342,10 +342,7 @@ async def _prompt_mobile(update: Update, context, source: str) -> None:
 
     # Keep campaign and product details behind Telegram self-contact verification.
     title = "👋 <b>Finish verification to continue</b>"
-    detail = (
-        "Verify the mobile number linked to your Telegram account. "
-        "You only need to do this once."
-    )
+    detail = "Verify the mobile number linked to your Telegram account to continue."
 
     await message.reply_text(
         f"{title}\n"

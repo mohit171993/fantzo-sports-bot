@@ -426,10 +426,9 @@ def _verification_reminder_copy(stage: int):
 
     text = (
         f"<b>{intro}</b>\n\n"
-        "Verify your Telegram-linked mobile once to open IBETIN Live Line.\n\n"
+        "Verify your Telegram-linked mobile once to continue with IBETIN.\n\n"
         "Tap <b>📱 VERIFY & CONTINUE</b>. By continuing, you agree that the "
-        "IBETIN team may contact you by phone or WhatsApp. You can opt out anytime.\n\n"
-        "🔞 <b>18+ • Play responsibly</b>"
+        "IBETIN team may contact you by phone or WhatsApp. You can opt out anytime."
     )
     markup = ReplyKeyboardMarkup(
         [[KeyboardButton("📱 VERIFY & CONTINUE", request_contact=True)]],

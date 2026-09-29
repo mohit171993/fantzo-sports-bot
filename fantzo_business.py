@@ -63,11 +63,10 @@ WELCOME_REPLY = (
 
 VERIFY_REPLY = (
     "📱 <b>VERIFY MOBILE TO CONTINUE</b>\n\n"
-    "Verify your Telegram-linked mobile once to continue with IBETIN Live Line.\n\n"
+    "Verify your Telegram-linked mobile once to continue with IBETIN.\n\n"
     "Tap <b>📱 VERIFY & CONTINUE</b> below. By continuing, you agree that the "
     "IBETIN team may contact you by <b>phone call or WhatsApp</b>. "
-    "You can opt out anytime.\n\n"
-    "🔞 <b>18+ • Play responsibly</b>"
+    "You can opt out anytime."
 )
 
 

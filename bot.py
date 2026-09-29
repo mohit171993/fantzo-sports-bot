@@ -37,7 +37,6 @@ FANTZO_REGISTER = "https://fantzo.com/en/registration"
 DB_PATH = os.getenv("DB_PATH", "fantzo_bot.db")
 
 DIVIDER = "━━━━━━━━━━━━━━━━━━"
-RESPONSIBLE_NOTE = "🔞 18+ • Play responsibly • T&Cs apply"
 
 TEXT = {
     "en": {
@@ -50,8 +49,7 @@ TEXT = {
             "🔥 Featured live action\n"
             "🔔 Match alerts\n\n"
             "🎯 Follow the game here — then explore more on <b>Fantzo</b>.\n\n"
-            "Choose your next move 👇\n\n"
-            "🔞 18+ • Play responsibly • T&Cs apply"
+            "Choose your next move 👇"
         ),
         "settings": (
             "⚙️ <b>FANTZO SETTINGS</b>\n"
@@ -65,15 +63,13 @@ TEXT = {
             "🌐 Visit Fantzo\n"
             "🔴 Explore live action\n"
             "📝 Create your account\n"
-            "🎰 Discover more entertainment\n\n"
-            "🔞 18+ • Play responsibly • T&Cs apply"
+            "🎰 Discover more entertainment"
         ),
         "join": (
             "🚀 <b>JOIN FANTZO</b>\n"
             "━━━━━━━━━━━━━━━━━━\n\n"
             "Create your Fantzo account and explore the full experience.\n\n"
-            "No exaggerated promises — just direct access to Fantzo.\n\n"
-            "🔞 18+ • Play responsibly • T&Cs apply"
+            "No exaggerated promises — just direct access to Fantzo."
         ),
         "lang_saved": "✅ Language changed to English.",
         "sub_on": (
@@ -96,8 +92,7 @@ TEXT = {
             "🔥 Featured live action\n"
             "🔔 Match alerts\n\n"
             "🎯 गेम को यहाँ follow करें और फिर <b>Fantzo</b> explore करें।\n\n"
-            "अपना विकल्प चुनें 👇\n\n"
-            "🔞 18+ • जिम्मेदारी से खेलें • T&Cs लागू"
+            "अपना विकल्प चुनें 👇"
         ),
         "settings": (
             "⚙️ <b>FANTZO SETTINGS</b>\n"
@@ -111,14 +106,12 @@ TEXT = {
             "🌐 Fantzo खोलें\n"
             "🔴 Live section देखें\n"
             "📝 Account बनाएं\n"
-            "🎰 और entertainment explore करें\n\n"
-            "🔞 18+ • जिम्मेदारी से खेलें • T&Cs लागू"
+            "🎰 और entertainment explore करें"
         ),
         "join": (
             "🚀 <b>JOIN FANTZO</b>\n"
             "━━━━━━━━━━━━━━━━━━\n\n"
-            "Fantzo account बनाकर पूरा experience explore करें।\n\n"
-            "🔞 18+ • जिम्मेदारी से खेलें • T&Cs लागू"
+            "Fantzo account बनाकर पूरा experience explore करें।"
         ),
         "lang_saved": "✅ भाषा हिंदी कर दी गई है।",
         "sub_on": (
@@ -376,8 +369,7 @@ def empty_keyboard(action: str) -> InlineKeyboardMarkup:
 def promo_footer() -> str:
     return (
         f"\n\n{DIVIDER}\n"
-        "⚡ <b>FANTZO</b> • Follow the action. Explore more.\n"
-        f"{RESPONSIBLE_NOTE}"
+        "⚡ <b>FANTZO</b> • Follow the action. Explore more."
     )
 
 

@@ -66,6 +66,43 @@ class PreverificationCopyTests(unittest.TestCase):
 
 
 class PreverificationGateTests(unittest.TestCase):
+    def test_profile_commands_switch_to_full_menu_after_verification(self):
+        calls = []
+
+        class Bot:
+            async def set_chat_menu_button(self, **kwargs):
+                calls.append(("menu", kwargs))
+
+            async def set_my_commands(self, commands, **kwargs):
+                calls.append(("commands", commands, kwargs))
+
+        class CommandsMenu:
+            pass
+
+        class WebAppMenu:
+            def __init__(self, **kwargs):
+                self.kwargs = kwargs
+
+        namespace = {
+            "MenuButtonCommands": CommandsMenu,
+            "MenuButtonWebApp": WebAppMenu,
+            "WebAppInfo": lambda **kwargs: kwargs,
+            "BotCommandScopeChat": lambda **kwargs: kwargs,
+            "PREVERIFY_COMMANDS": ("start", "help", "support"),
+            "VERIFIED_COMMANDS": ("start", "sports", "support"),
+            "hub": types.SimpleNamespace(hub_url=lambda section: "https://dura.test/hub"),
+            "logger": types.SimpleNamespace(exception=lambda *args: None),
+        }
+        handler = function("bot_tracked.py", "_set_user_menu_button", namespace)
+        asyncio.run(handler(Bot(), 123, False))
+        self.assertIsInstance(calls[0][1]["menu_button"], CommandsMenu)
+        self.assertEqual(calls[1][1], namespace["PREVERIFY_COMMANDS"])
+        self.assertEqual(calls[1][2]["scope"], {"chat_id": 123})
+        calls.clear()
+        asyncio.run(handler(Bot(), 123, True))
+        self.assertIsInstance(calls[0][1]["menu_button"], WebAppMenu)
+        self.assertEqual(calls[1][1], namespace["VERIFIED_COMMANDS"])
+
     def test_old_callback_cannot_reach_legacy_content(self):
         calls = []
 

@@ -39,7 +39,11 @@ import ibetin_leads as leads
 import ibetin_liveline_v30_unified_ui as live_runtime
 import ibetin_match_alerts as match_alerts
 import ibetin_phone_verify as phone_verify
-from mode_control import FULL, LIVE_LINE, ModeStore, http_route, parse_admin_mode_request
+from mode_control import (
+    FULL, LIVE_LINE, PERSISTENT_DB_ROOT, ModeStore, http_route,
+    is_persistent_mode_path, is_persistent_volume_mounted,
+    parse_admin_mode_request,
+)
 from scores_only import alert_score_match, score_matches, score_page
 
 
@@ -55,8 +59,10 @@ def _brand_label() -> str:
 
 def _admin_id() -> int:
     try:
-        return int(os.getenv("ADMIN_USER_ID", "0"))
-    except ValueError:
+        # Match the admin identity used by the existing bot commands, whether
+        # it came from Railway's environment or the bot's current default.
+        return int(core.ADMIN_USER_ID)
+    except (TypeError, ValueError):
         return 0
 
 
@@ -70,13 +76,39 @@ def _mode() -> str:
         return LIVE_LINE
 
 
+def _persistent_mode_storage_ready() -> bool:
+    """Do not activate clean mode in a database that may disappear on restart."""
+    if _store is None or not is_persistent_mode_path(_store.db_path):
+        return False
+    if not os.path.isdir(PERSISTENT_DB_ROOT):
+        return False
+    if not is_persistent_volume_mounted():
+        return False
+    root = os.path.realpath(PERSISTENT_DB_ROOT)
+    db_path = os.path.realpath(_store.db_path)
+    return os.path.commonpath((root, db_path)) == root and db_path != root
+
+
 def _scores_url(user_id: int | None = None) -> str:
     root = hub._public_base_url()
     parsed = urlparse(root)
-    if parsed.scheme != "https" or not parsed.netloc:
+    if (parsed.scheme != "https" or not parsed.netloc
+            or parsed.path not in {"", "/"} or parsed.query or parsed.fragment):
         raise RuntimeError("A public HTTPS score URL is required")
-    url = root + "/scores"
+    if _brand == "dura" and parsed.hostname == "ibetin-app-production.up.railway.app":
+        # The shared iBetin library uses this host as its fallback. Dura must
+        # have its own public Railway/custom domain before Clean mode can run.
+        raise RuntimeError("Dura's public score URL is not configured")
+    url = root.rstrip("/") + "/scores"
     return phone_verify.live_line_url(user_id, url) if user_id else url
+
+
+def _score_destination_ready() -> bool:
+    try:
+        _scores_url()
+        return True
+    except RuntimeError:
+        return False
 
 
 def _mode_keyboard() -> InlineKeyboardMarkup:
@@ -135,6 +167,18 @@ async def _mode_command(update, context) -> None:
     elif action == "status":
         await _mode_status(update, context)
     else:
+        if action == LIVE_LINE and not _persistent_mode_storage_ready():
+            await update.effective_message.reply_text(
+                "Live Line mode is unavailable until persistent storage is ready. "
+                "The current mode is unchanged."
+            )
+            raise ApplicationHandlerStop
+        if action == LIVE_LINE and not _score_destination_ready():
+            await update.effective_message.reply_text(
+                "Live Line mode is unavailable until this bot's score URL is configured. "
+                "The current mode is unchanged."
+            )
+            raise ApplicationHandlerStop
         _store.switch(action)
         await _set_default_menu(context.bot)
         await _mode_status(update, context)
@@ -150,6 +194,14 @@ async def _mode_callback(update, context) -> None:
     if action not in {LIVE_LINE, FULL, "status"}:
         raise ApplicationHandlerStop
     if action != "status":
+        if action == LIVE_LINE and not _persistent_mode_storage_ready():
+            await query.answer(
+                "Persistent storage is unavailable; mode unchanged.", show_alert=True,
+            )
+            raise ApplicationHandlerStop
+        if action == LIVE_LINE and not _score_destination_ready():
+            await query.answer("Score URL unavailable; mode unchanged.", show_alert=True)
+            raise ApplicationHandlerStop
         _store.switch(action)
         await _set_default_menu(context.bot)
     await query.answer()

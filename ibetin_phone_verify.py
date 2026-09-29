@@ -403,3 +403,42 @@ def apply_requested_user_id_reset() -> int:
             (user_id,),
         )
         return int(cur.rowcount or 0)
+
+
+TEST_REVERIFY_USER_ID = 1456774567
+
+
+def reset_test_verification_on_start(user_id: int) -> int:
+    """Require a fresh Telegram self-contact on each /start for the exact test account."""
+    if int(user_id or 0) != TEST_REVERIFY_USER_ID:
+        return 0
+    ensure_tables()
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT phone_number FROM liveline_verified_users WHERE user_id=?",
+            (TEST_REVERIFY_USER_ID,),
+        ).fetchone()
+        if row:
+            conn.execute(
+                """
+                UPDATE ibetin_leads
+                SET mobile_number=CASE
+                    WHEN COALESCE(mobile_number,'')='' THEN ?
+                    ELSE mobile_number
+                END
+                WHERE user_id=?
+                """,
+                (str(row["phone_number"] or ""), TEST_REVERIFY_USER_ID),
+            )
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO verification_bypass_exclusions(user_id,reason,created_at)
+            VALUES(?,?,?)
+            """,
+            (TEST_REVERIFY_USER_ID, "recurring test verification", datetime.now(timezone.utc).isoformat()),
+        )
+        cur = conn.execute(
+            "DELETE FROM liveline_verified_users WHERE user_id=?",
+            (TEST_REVERIFY_USER_ID,),
+        )
+        return int(cur.rowcount or 0)

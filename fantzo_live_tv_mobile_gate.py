@@ -288,7 +288,7 @@ def touch_live_tv_access(user_id: int) -> None:
 
 def _verify_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
-        [[KeyboardButton("📱 VERIFY & CONTINUE", request_contact=True)]],
+        [[KeyboardButton("📱 VERIFY & CONTINUE", request_contact=True, api_kwargs={"style": "primary"})]],
         resize_keyboard=True,
         one_time_keyboard=False,
         is_persistent=True,

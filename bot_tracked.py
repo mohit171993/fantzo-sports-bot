@@ -225,8 +225,8 @@ def sky_admin_url() -> str:
 # Persistent bottom keyboard: a visible START entry plus direct IBETIN access.
 app.QUICK_MENU = ReplyKeyboardMarkup(
     [[
-        KeyboardButton("▶️ START"),
-        KeyboardButton("⚡ OPEN IBETIN", web_app=WebAppInfo(url=hub.hub_url("home"))),
+        KeyboardButton("▶️ START", api_kwargs={"style": "primary"}),
+        KeyboardButton("⚡ OPEN IBETIN", web_app=WebAppInfo(url=hub.hub_url("home")), api_kwargs={"style": "success"}),
     ]],
     resize_keyboard=True,
     is_persistent=True,
@@ -548,7 +548,7 @@ app.show_home = smart_show_home
 def _verification_reply_keyboard() -> ReplyKeyboardMarkup:
     """Keep the contact-verification button visible until verification succeeds."""
     return ReplyKeyboardMarkup(
-        [[KeyboardButton("📱 VERIFY & CONTINUE", request_contact=True)]],
+        [[KeyboardButton("📱 VERIFY & CONTINUE", request_contact=True, api_kwargs={"style": "primary"})]],
         resize_keyboard=True,
         one_time_keyboard=False,
         is_persistent=True,
@@ -567,6 +567,8 @@ async def _prompt_mobile_verification(update, context, source: str = "bot_start"
     # Verification is account-level and one-time. If already verified, never
     # ask again; continue directly to the requested destination.
     if phone_verify.is_verified(user.id):
+        await _set_user_menu_button(context.bot, user.id, True)
+        await message.reply_text("✅ Your quick access buttons are ready below.", reply_markup=app.QUICK_MENU)
         if source == "liveline":
             await message.reply_text(
                 "🏏 <b>IBETIN LIVE LINE</b>\n\nOpen Live Line below.",
@@ -698,6 +700,7 @@ async def mobile_contact_handler(update, context) -> None:
 
     context.user_data.pop("ibetin_mobile_verify_pending", None)
     await _set_user_menu_button(context.bot, user.id, True)
+    await message.reply_text("✅ Verification complete. Use START or OPEN IBETIN below.", reply_markup=app.QUICK_MENU)
 
     phone = phone_verify.normalize_phone(contact.phone_number)
     masked = phone
@@ -911,6 +914,7 @@ async def smart_start(update, context) -> None:
         return
 
     await _set_user_menu_button(context.bot, user.id, True)
+    await message.reply_text("✅ Your quick access buttons are ready below.", reply_markup=app.QUICK_MENU)
     await message.reply_text(
         "👋 <b>Welcome back to IBETIN</b>\n\nChoose what you want to do next.",
         parse_mode="HTML",

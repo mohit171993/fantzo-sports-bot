@@ -1,12 +1,15 @@
 """Synthetic-data tests only: no production database, bot imports or messages."""
+import gc
 import json
 import sqlite3
 import tempfile
 import unittest
+from contextlib import contextmanager
 from pathlib import Path
+from types import SimpleNamespace
 
 from ibetin_crm_audit import snapshot
-from ibetin_crm_queue_start import queue_sql
+from ibetin_crm_queue_start import queue_sql, revoke_requested_verification_once
 
 
 class AuditTests(unittest.TestCase):
@@ -20,6 +23,7 @@ CREATE TABLE liveline_verified_users(user_id INTEGER PRIMARY KEY, phone_number T
 CREATE TABLE ibetin_leads(user_id INTEGER PRIMARY KEY, mobile_number TEXT, lead_status TEXT, assigned_to INTEGER);''')
 
     def tearDown(self):
+        gc.collect()
         self.tmp.cleanup()
 
     def seed(self, n=112, phones=9):
@@ -153,6 +157,64 @@ CREATE TABLE liveline_verified_users(user_id INTEGER PRIMARY KEY, phone_number T
 
     def test_unknown_queue_rejected(self):
         self.assertIsNone(queue_sql("new' OR 1=1"))
+
+
+class RevocationTests(unittest.TestCase):
+    TARGET_ID = 1456774567
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.path = Path(self.tmp.name) / 'verification.db'
+        with sqlite3.connect(self.path) as conn:
+            conn.executescript('''
+                CREATE TABLE users(user_id INTEGER PRIMARY KEY, username TEXT);
+                CREATE TABLE business_customers(customer_id INTEGER, username TEXT);
+                CREATE TABLE ibetin_leads(user_id INTEGER PRIMARY KEY, mobile_number TEXT);
+                CREATE TABLE liveline_verified_users(user_id INTEGER PRIMARY KEY, phone_number TEXT);
+            ''')
+            conn.execute('INSERT INTO users VALUES (?,?)', (self.TARGET_ID, 'Mohit_97saxena'))
+            conn.execute('INSERT INTO business_customers VALUES (?,?)', (self.TARGET_ID, 'mohit_97saxena'))
+            conn.execute('INSERT INTO ibetin_leads VALUES (?,?)', (self.TARGET_ID, ''))
+            conn.execute('INSERT INTO liveline_verified_users VALUES (?,?)', (self.TARGET_ID, '+999000000001'))
+            conn.execute('INSERT INTO users VALUES (?,?)', (42, 'another_user'))
+            conn.execute('INSERT INTO ibetin_leads VALUES (?,?)', (42, '+999000000042'))
+            conn.execute('INSERT INTO liveline_verified_users VALUES (?,?)', (42, '+999000000042'))
+
+    def tearDown(self):
+        gc.collect()
+        self.tmp.cleanup()
+
+    @contextmanager
+    def db(self):
+        conn = sqlite3.connect(self.path)
+        conn.row_factory = sqlite3.Row
+        try:
+            yield conn
+            conn.commit()
+        finally:
+            conn.close()
+
+    def reports(self):
+        return SimpleNamespace(core=SimpleNamespace(db=self.db))
+
+    def test_only_exact_account_is_revoked_once_and_phone_is_preserved(self):
+        self.assertEqual(revoke_requested_verification_once(self.reports()), 1)
+        with self.db() as conn:
+            self.assertIsNone(conn.execute('SELECT 1 FROM liveline_verified_users WHERE user_id=?', (self.TARGET_ID,)).fetchone())
+            self.assertIsNotNone(conn.execute('SELECT 1 FROM liveline_verified_users WHERE user_id=42').fetchone())
+            self.assertEqual(conn.execute('SELECT mobile_number FROM ibetin_leads WHERE user_id=?', (self.TARGET_ID,)).fetchone()[0], '+999000000001')
+            conn.execute('INSERT INTO liveline_verified_users VALUES (?,?)', (self.TARGET_ID, '+999000000001'))
+        self.assertEqual(revoke_requested_verification_once(self.reports()), 0)
+        with self.db() as conn:
+            self.assertIsNotNone(conn.execute('SELECT 1 FROM liveline_verified_users WHERE user_id=?', (self.TARGET_ID,)).fetchone())
+
+    def test_ambiguous_username_does_not_revoke_anyone(self):
+        with self.db() as conn:
+            conn.execute('UPDATE users SET username=? WHERE user_id=42', ('MOHIT_97SAXENA',))
+        self.assertEqual(revoke_requested_verification_once(self.reports()), 0)
+        with self.db() as conn:
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM liveline_verified_users').fetchone()[0], 2)
+            self.assertIsNone(conn.execute('SELECT 1 FROM settings WHERE key LIKE ?', ('ibetin_revoke_%',)).fetchone())
 
 
 if __name__ == '__main__':

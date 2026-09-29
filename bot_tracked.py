@@ -811,6 +811,9 @@ async def verified_fixed_reply_handler(update, context) -> None:
         )
         return
 
+    if not app.fantzo_autoreply.is_enabled():
+        return
+
     category, reply, markup = fantzo_business.classify_business_dm(text, user.id)
     try:
         app.core.touch_user(update)

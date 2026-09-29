@@ -1271,8 +1271,6 @@ async def configure_telegram_ui(application) -> None:
     reminders.ensure_tables()
     reminders.start_background_loop(application)
     ibetin_creatives.install(application)
-    from dura_one_time_hi import send_once
-    await send_once(application, app.core.db)
 
 
 app.configure_telegram_ui = configure_telegram_ui

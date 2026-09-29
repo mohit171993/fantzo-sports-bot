@@ -14,7 +14,7 @@ from telegram.error import BadRequest, Forbidden, RetryAfter
 import bot as core
 
 logger = logging.getLogger(__name__)
-APP_TZ = ZoneInfo("Asia/Dubai")
+APP_TZ = ZoneInfo("Asia/Kolkata")
 CHECK_INTERVAL_SECONDS = 300
 QUIET_START_HOUR = 22
 QUIET_END_HOUR = 8
@@ -398,23 +398,25 @@ def _verification_copy(stage: int, source: str):
     text = (
         f"{intro}\n\n"
         f"{detail}\n\n"
-        "Telegram will only accept the mobile number linked to your own account."
+        "Telegram will only accept the mobile number linked to your own account.\n\n"
+        "Tap <b>📱 VERIFY & CONTINUE</b> below."
     )
 
     if source == "business_dm":
         markup = InlineKeyboardMarkup([[
             InlineKeyboardButton(
-                "📱 VERIFY MOBILE",
+                "📱 VERIFY & CONTINUE",
                 url="https://t.me/fantzoofficialbot?start=verify_business_dm",
                 api_kwargs={"style": "success"},
             )
         ]])
     else:
         markup = ReplyKeyboardMarkup(
-            [[KeyboardButton("📱 VERIFY NOW", request_contact=True)]],
+            [[KeyboardButton("📱 VERIFY & CONTINUE", request_contact=True)]],
             resize_keyboard=True,
-            one_time_keyboard=True,
-            input_field_placeholder="Tap VERIFY NOW",
+            one_time_keyboard=False,
+            is_persistent=True,
+            input_field_placeholder="Tap VERIFY & CONTINUE",
         )
 
     return text, markup
@@ -616,6 +618,61 @@ async def run_due_reminders(application) -> None:
             _mark_send(str(row["source"]), int(row["user_id"]), stage, campaign_key, "failed")
 
 
+async def alert_new_delivery_failures(application) -> None:
+    """Notify the owner about new reminder failures, at most once per send row."""
+    ensure_tables()
+    with core.db() as conn:
+        conn.execute("CREATE TABLE IF NOT EXISTS reminder_settings (key TEXT PRIMARY KEY, value TEXT)")
+        marker = conn.execute(
+            "SELECT value FROM reminder_settings WHERE key='admin_failure_last_id'"
+        ).fetchone()
+        if marker is None:
+            latest = conn.execute(
+                "SELECT COALESCE(MAX(id),0) FROM reminder_sends"
+            ).fetchone()[0]
+            conn.execute(
+                "INSERT INTO reminder_settings(key,value) VALUES('admin_failure_last_id',?)",
+                (str(latest),),
+            )
+            return
+        last_id = int(marker[0] or 0)
+        failures = conn.execute(
+            "SELECT id,source,user_id,status FROM reminder_sends "
+            "WHERE id>? AND status IN ('failed','bad_request') ORDER BY id",
+            (last_id,),
+        ).fetchall()
+        latest = conn.execute(
+            "SELECT COALESCE(MAX(id),0) FROM reminder_sends"
+        ).fetchone()[0]
+    if not failures:
+        if int(latest) > last_id:
+            with core.db() as conn:
+                conn.execute(
+                    "UPDATE reminder_settings SET value=? WHERE key='admin_failure_last_id'",
+                    (str(latest),),
+                )
+        return
+    sample = ", ".join(
+        f"{row['source']}:{int(row['user_id'])} ({row['status']})"
+        for row in failures[:5]
+    )
+    await application.bot.send_message(
+        chat_id=int(core.ADMIN_USER_ID),
+        text=(
+            "⚠️ <b>FANTZO REMINDER DELIVERY FAILED</b>\n"
+            f"New failures: <b>{len(failures)}</b>\n"
+            f"Examples: <code>{sample}</code>\n"
+            "Check the admin delivery dashboard."
+        ),
+        parse_mode="HTML",
+    )
+    with core.db() as conn:
+        conn.execute(
+            "UPDATE reminder_settings SET value=? WHERE key='admin_failure_last_id'",
+            (str(latest),),
+        )
+
+
 async def reminder_loop(application) -> None:
     ensure_tables()
     await asyncio.sleep(20)
@@ -627,7 +684,9 @@ async def reminder_loop(application) -> None:
                     "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                     (_now_iso(),),
                 )
+            await alert_new_delivery_failures(application)
             await run_due_reminders(application)
+            await alert_new_delivery_failures(application)
         except Exception:
             logger.exception("Fantzo reminder loop error")
         await asyncio.sleep(CHECK_INTERVAL_SECONDS)

@@ -1,6 +1,7 @@
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import bot as core
 import fantzo_growth as growth
@@ -8,7 +9,8 @@ import fantzo_crm_ops as crm_ops
 import fantzo_reminders as reminders
 
 logger = logging.getLogger(__name__)
-REPORT_INTERVAL_SECONDS = 2 * 60 * 60
+REPORT_TZ = ZoneInfo("Asia/Kolkata")
+REPORT_HOUR_IST = 9
 
 
 def _report_stats():
@@ -120,7 +122,7 @@ async def send_report(application):
         f"⭐ Favourite-team alerts: <b>{g['favourites']}</b>\n\n"
         "ℹ️ Signup completion is not shown because Fantzo currently has no "
         "verified completion event from the website.\n"
-        "🔄 Automatic report: every 2 hours"
+        "🔄 Daily summary: 09:00 IST"
     )
     await application.bot.send_message(
         chat_id=core.ADMIN_USER_ID,
@@ -130,18 +132,18 @@ async def send_report(application):
 
 
 async def report_loop(application):
-    # Log a baseline shortly after startup without sending an extra admin message.
-    await asyncio.sleep(20)
-    _log_acquisition_snapshot()
-    remaining = max(1, REPORT_INTERVAL_SECONDS - 20)
-    await asyncio.sleep(remaining)
+    # One summary per day at 09:00 India time. Startup remains quiet.
     while True:
+        now = datetime.now(REPORT_TZ)
+        target = now.replace(hour=REPORT_HOUR_IST, minute=0, second=0, microsecond=0)
+        if target <= now:
+            target += timedelta(days=1)
+        await asyncio.sleep(max(1, (target - now).total_seconds()))
         _log_acquisition_snapshot()
         try:
             await send_report(application)
         except Exception:
-            logger.exception("Fantzo automation/growth report failed")
-        await asyncio.sleep(REPORT_INTERVAL_SECONDS)
+            logger.exception("Fantzo daily automation/growth report failed")
 
 
 async def _start_report_when_running(application):

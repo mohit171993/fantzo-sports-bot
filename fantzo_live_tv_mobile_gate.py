@@ -245,7 +245,7 @@ def touch_live_tv_access(user_id: int) -> None:
 
 def _verify_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
-        [[KeyboardButton("✅ VERIFY & CONTINUE", request_contact=True)]],
+        [[KeyboardButton("📱 VERIFY & CONTINUE", request_contact=True)]],
         resize_keyboard=True,
         one_time_keyboard=False,
         is_persistent=True,
@@ -276,40 +276,18 @@ async def _prompt_mobile(update: Update, context, source: str) -> None:
     if not message:
         return
 
-    campaign = lead_funnel.campaign_for_user(user.id)
-    if "cricket" in campaign:
-        hook = "🏏 Cricket scores, fixtures and live updates are ready."
-    elif "football" in campaign or "soccer" in campaign:
-        hook = "⚽ Football scores, fixtures and live updates are ready."
-    elif "live" in campaign or "score" in campaign:
-        hook = "🔴 Live sports updates are ready."
-    else:
-        hook = "🔥 Live scores, fixtures, Live TV and Fantzo are ready."
-
-    title = "🏟 <b>FANTZO SPORTS · ONE QUICK STEP</b>"
-    if source == "business_dm":
-        detail = (
-            f"{hook}\n\n"
-            "Verify the mobile number linked to your Telegram account to continue "
-            "from Fantzo Business DM."
-        )
-    elif source == "bot_start":
-        detail = (
-            f"{hook}\n\n"
-            "Verify the mobile number linked to your Telegram account. "
-            "You only need to do this once."
-        )
-    else:
-        detail = (
-            f"{hook}\n\n"
-            "Verify once and the same verification will be used across Fantzo and Live TV."
-        )
+    # Keep campaign and product details behind Telegram self-contact verification.
+    title = "👋 <b>Finish verification to continue</b>"
+    detail = (
+        "Verify the mobile number linked to your Telegram account. "
+        "You only need to do this once."
+    )
 
     await message.reply_text(
         f"{title}\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
         f"{detail}\n\n"
-        "Tap <b>✅ VERIFY & CONTINUE</b> below. Telegram will share the "
+        "Tap <b>📱 VERIFY & CONTINUE</b> below. Telegram will share the "
         "mobile number linked to your own Telegram account.\n\n"
         "Numbers from <b>any country</b> are accepted. "
         "Typed numbers are not accepted.\n\n"
@@ -337,7 +315,7 @@ async def contact_handler(update: Update, context) -> None:
     if contact.user_id is None or int(contact.user_id) != int(user.id):
         await message.reply_text(
             "⚠️ <b>Verification failed.</b>\n\n"
-            "Please use the <b>✅ VERIFY & CONTINUE</b> button and share "
+            "Please use the <b>📱 VERIFY & CONTINUE</b> button and share "
             "the mobile number linked to your own Telegram account.",
             parse_mode="HTML",
             reply_markup=_verify_keyboard(),
@@ -462,7 +440,7 @@ async def pending_text_handler(update: Update, context) -> None:
     await message.reply_text(
         "🔐 <b>Telegram verification is required.</b>\n\n"
         "Typed mobile numbers cannot verify your account. "
-        "Please tap <b>✅ VERIFY & CONTINUE</b> below.",
+        "Please tap <b>📱 VERIFY & CONTINUE</b> below.",
         parse_mode="HTML",
         reply_markup=_verify_keyboard(),
     )

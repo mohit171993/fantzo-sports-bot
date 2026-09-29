@@ -33,7 +33,7 @@ _installed = False
 
 REPORT_PREFIX = "rpt:"
 DOWNLOAD_PREFIX = "rptdl:"
-DUBAI_TZ = ZoneInfo("Asia/Dubai")
+INDIA_TZ = ZoneInfo("Asia/Kolkata")
 CRM_BATCH_SIZE = 10
 
 
@@ -229,12 +229,12 @@ def _actor(update) -> tuple[int, str]:
     return int(user.id), name[:128]
 
 
-def _fmt_dubai(value) -> str:
+def _fmt_ist(value) -> str:
     if not value:
         return "—"
     try:
         dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-        return dt.astimezone(DUBAI_TZ).strftime("%d %b %Y, %H:%M")
+        return dt.astimezone(INDIA_TZ).strftime("%d %b %Y, %H:%M")
     except Exception:
         return str(value)[:18].replace("T", " ")
 
@@ -266,7 +266,7 @@ def _ops_lead_card(user_id: int) -> str:
     assigned = escape(str(lead.get("assigned_agent") or "UNASSIGNED"))
     note = escape(str(lead.get("last_note") or lead.get("notes") or "")[:180])
     followup = str(lead.get("next_followup_at") or "")
-    first_seen = escape(_fmt_dubai(str(lead.get("first_seen_at") or "")))
+    first_seen = escape(_fmt_ist(str(lead.get("first_seen_at") or "")))
     verified = bool(lead.get("is_currently_verified"))
     verified_at = str(lead.get("verified_at") or "")
     consent = bool(lead.get("contact_permission_at"))
@@ -274,7 +274,7 @@ def _ops_lead_card(user_id: int) -> str:
     if verified:
         verification_text = (
             "✅ <b>VERIFIED</b>"
-            + (f" · {escape(_fmt_dubai(verified_at))}" if verified_at else "")
+            + (f" · {escape(_fmt_ist(verified_at))}" if verified_at else "")
         )
         consent_text = (
             "✅ Call + WhatsApp permission recorded"
@@ -303,7 +303,7 @@ def _ops_lead_card(user_id: int) -> str:
         consent_text,
     ]
     if followup:
-        lines.append(f"⏰ Next follow-up: <b>{escape(_fmt_dubai(followup))}</b>")
+        lines.append(f"⏰ Next follow-up: <b>{escape(_fmt_ist(followup))}</b>")
     if note:
         lines.append(f"📝 Note: {note}")
     return "\n".join(lines)
@@ -474,7 +474,7 @@ def _automation_text() -> str:
         "━━━━━━━━━━━━━━━━━━\n\n"
         f"🔔 Lead reminders: <b>{'ON' if not reminders.is_paused() else 'OFF'}</b>\n"
         f"📨 Reminders sent 24h: <b>{_fmt_int(sent_24)}</b>\n"
-        f"🌙 Quiet hours: <b>22:00–08:00 Dubai</b>\n\n"
+        f"🌙 Quiet hours: <b>22:00–08:00 IST</b>\n\n"
         f"📣 Channel automation: <b>{'ON' if not banner_queue.is_paused() else 'OFF'}</b>\n"
         f"🖼 Queued channel banners: <b>{_fmt_int(queued)}</b>\n"
         + (
@@ -632,11 +632,11 @@ def _followup_iso(option: str) -> str:
     if option == "3d":
         return (now + timedelta(days=3)).isoformat()
     if option == "tom10":
-        local = datetime.now(DUBAI_TZ)
+        local = datetime.now(INDIA_TZ)
         tomorrow = (local + timedelta(days=1)).date()
         target = datetime(
             tomorrow.year, tomorrow.month, tomorrow.day, 10, 0,
-            tzinfo=DUBAI_TZ,
+            tzinfo=INDIA_TZ,
         )
         return target.astimezone(timezone.utc).isoformat()
     return ""
@@ -651,7 +651,7 @@ def _history_text(user_id: int) -> str:
         actor = escape(str(row.get("actor_name") or "system"))
         action = escape(str(row.get("action") or ""))
         value = escape(str(row.get("value") or ""))
-        when = escape(_fmt_dubai(row.get("created_at")))
+        when = escape(_fmt_ist(row.get("created_at")))
         lines.append(f"• <b>{action}</b>: {value}\n  {actor} · {when}")
     return "\n".join(lines)
 

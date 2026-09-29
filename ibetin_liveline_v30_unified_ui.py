@@ -367,11 +367,13 @@ def _relay_restored_dura_state() -> None:
 
 def _allowed_dura_roanuz_proxy_path(value: str) -> bool:
     path = str(value or "").strip().lstrip("/")
+    if path.rstrip("/") in {"fixtures", "featured-matches-2"}:
+        return True
     parts = [x for x in path.split("/") if x]
     if len(parts) < 2 or parts[0] != "match":
         return False
     key = parts[1]
-    if not key or len(key) > 180:
+    if not key or key in {".", ".."} or len(key) > 180:
         return False
     if not all(ch.isalnum() or ch in "._:-" for ch in key):
         return False

@@ -578,14 +578,11 @@ app.banner_upload = blocked_legacy_banner_upload
 def _verification_reply_keyboard() -> ReplyKeyboardMarkup:
     """Keep START and contact verification visible until verification succeeds."""
     return ReplyKeyboardMarkup(
-        [
-            [KeyboardButton("▶️ START")],
-            [KeyboardButton("📱 VERIFY & CONTINUE", request_contact=True)],
-        ],
+        [[KeyboardButton("📱 VERIFY & CONTINUE", request_contact=True)]],
         resize_keyboard=True,
         one_time_keyboard=False,
         is_persistent=True,
-        input_field_placeholder="Tap START or VERIFY & CONTINUE",
+        input_field_placeholder="Tap VERIFY & CONTINUE",
     )
 
 

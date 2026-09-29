@@ -37,8 +37,30 @@ class PreverificationCopyTests(unittest.TestCase):
         for copy in (business_copy, reminder_copy):
             self.assertIn("VERIFY & CONTINUE", copy)
             self.assertNotIn("Live Line", copy)
+            self.assertNotIn("IBETIN", copy)
+            self.assertNotIn("ibetin.com", copy.lower())
             self.assertNotIn("18+", copy)
             self.assertNotIn("responsibly", copy.lower())
+
+    def test_contact_button_stays_until_verified(self):
+        class Button:
+            def __init__(self, text, **kwargs):
+                self.text, self.kwargs = text, kwargs
+
+        class Markup:
+            def __init__(self, rows, **kwargs):
+                self.rows, self.kwargs = rows, kwargs
+
+        keyboard = function("bot_tracked.py", "_verification_reply_keyboard", {
+            "KeyboardButton": Button,
+            "ReplyKeyboardMarkup": Markup,
+        })()
+        self.assertEqual(len(keyboard.rows), 1)
+        self.assertEqual(len(keyboard.rows[0]), 1)
+        self.assertEqual(keyboard.rows[0][0].text, "📱 VERIFY & CONTINUE")
+        self.assertTrue(keyboard.rows[0][0].kwargs["request_contact"])
+        self.assertTrue(keyboard.kwargs["is_persistent"])
+        self.assertFalse(keyboard.kwargs["one_time_keyboard"])
 
     def test_global_description_and_commands_are_neutral(self):
         source = (ROOT / "bot_tracked.py").read_text(encoding="utf-8")

@@ -64,7 +64,7 @@ class AutomationStatusTests(unittest.TestCase):
                 "datetime": datetime,
                 "timedelta": timedelta,
                 "timezone": timezone,
-                "APP_TZ": ZoneInfo("Asia/Dubai"),
+                "APP_TZ": ZoneInfo("Asia/Kolkata"),
                 "CHANNEL_AUTOPOST_HOUR": 10,
                 "CHANNEL_AUTOPOST_MINUTE": 0,
                 "CHANNEL_CATCHUP_HOURS": 6,

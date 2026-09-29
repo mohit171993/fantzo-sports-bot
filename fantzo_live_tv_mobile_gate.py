@@ -13,10 +13,15 @@ import re
 from datetime import datetime, timezone
 
 from telegram import (
+    BotCommand,
+    BotCommandScopeChat,
     KeyboardButton,
+    MenuButtonCommands,
+    MenuButtonWebApp,
     ReplyKeyboardMarkup,
     ReplyKeyboardRemove,
     Update,
+    WebAppInfo,
 )
 from telegram.ext import ApplicationHandlerStop, CallbackQueryHandler, MessageHandler, filters
 
@@ -33,6 +38,44 @@ _PENDING_KEY = "fantzo_mobile_verification_pending"
 _PENDING_SOURCE_KEY = "fantzo_mobile_verification_source"
 LIVE_TV_START_ARGS = {"livetv_business", "livetv_banner"}
 BUSINESS_VERIFY_START_ARG = "verify_business_dm"
+PREVERIFY_COMMANDS = [
+    BotCommand("start", "Verify your Telegram account"),
+    BotCommand("help", "Verification help"),
+]
+VERIFIED_COMMANDS = [
+    BotCommand("start", "Open Fantzo Sports"),
+    BotCommand("team", "Find a cricket or football team"),
+    BotCommand("sports", "View Fantzo sports coverage"),
+    BotCommand("help", "Fantzo quick guide"),
+]
+
+
+async def configure_public_ui(application) -> None:
+    """Keep the global command list and chat menu neutral before verification."""
+    await application.bot.set_my_commands(PREVERIFY_COMMANDS)
+    await application.bot.set_chat_menu_button(menu_button=MenuButtonCommands())
+
+
+async def configure_chat_ui(context, user_id: int, verified: bool) -> None:
+    """Restore existing Fantzo shortcuts only for a verified private chat."""
+    try:
+        await context.bot.set_my_commands(
+            VERIFIED_COMMANDS if verified else PREVERIFY_COMMANDS,
+            scope=BotCommandScopeChat(chat_id=user_id),
+        )
+        await context.bot.set_chat_menu_button(
+            chat_id=user_id,
+            menu_button=(
+                MenuButtonWebApp(
+                    text="Open Fantzo",
+                    web_app=WebAppInfo(url=tracked.tracked_url("telegram_native_menu")),
+                )
+                if verified
+                else MenuButtonCommands()
+            ),
+        )
+    except Exception:
+        logger.exception("Could not update Fantzo chat menu for user %s", user_id)
 
 
 def ensure_tables() -> None:
@@ -258,6 +301,8 @@ async def _prompt_mobile(update: Update, context, source: str) -> None:
     if not user:
         return
 
+    await configure_chat_ui(context, user.id, False)
+
     source = str(source or "live_tv")[:64]
     context.user_data[_PENDING_KEY] = True
     context.user_data[_PENDING_SOURCE_KEY] = source
@@ -342,6 +387,7 @@ async def contact_handler(update: Update, context) -> None:
         contact.phone_number or "",
         source,
     )
+    await configure_chat_ui(context, user.id, True)
     track_verification_event(user.id, source, "verified")
     is_new_lead = lead_funnel.on_verified(user.id, e164, source)
     await lead_funnel.notify_admin_verified(
@@ -502,6 +548,8 @@ def install() -> None:
 
         if user:
             lead_funnel.record_start(user.id, arg)
+            if is_registered(user.id):
+                await configure_chat_ui(context, user.id, True)
 
         # User opt-out must work even before verification and must take
         # precedence over Business verification handoff state.

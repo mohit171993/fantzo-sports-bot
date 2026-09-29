@@ -546,6 +546,12 @@ def _self_test() -> None:
             if key:
                 detail, _ = v25._match_detail_cached(key)
                 detail_ok = isinstance(detail, dict) and isinstance(detail.get('match'), dict)
+                if key.isascii() and key.isdecimal():
+                    odds_probe = v23.v21._highlightly_live_bhav(key)
+                    logger.info(
+                        'DURA V30 live BHAV provider probe match_id=%s entries=%s',
+                        key, len(odds_probe.get('entries') or []),
+                    )
     except Exception as exc:
         logger.warning('IBETIN V30 runtime self-test provider probe skipped: %s', str(exc)[:160])
     ok = all(checks.values()) and (detail_ok or live_matches == 0)

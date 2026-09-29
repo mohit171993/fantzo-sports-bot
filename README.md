@@ -25,6 +25,13 @@ This branch is dedicated to IBETIN and was created from the Fantzo code snapshot
 - `IBETIN_CHANNEL_URL` (optional)
 - `IBETIN_MINI_APP_DEEP_LINK` (optional)
 - `IBETIN_LIVE_TV_URL` (optional)
+- `IBETIN_MATCH_CAMPAIGNS` (optional JSON object): approved Telegram `/start`
+  campaign ID to current provider match key, for example
+  `{"matchday_oct_01":"international_match_123"}`. This adds an exact-match
+  first button after contact verification. The Live Line checks the current
+  feed before opening that match and falls back to the normal list if absent.
+  Do not set destination URLs or create a campaign mapping without confirming
+  the match key from the IBETIN feed. No extra reminders are sent.
 
 ## Railway
 

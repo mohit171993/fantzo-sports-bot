@@ -13,11 +13,9 @@ Before deployment, inspect the existing public BotFather display name,
 username, avatar, about text, and any manually configured menu or web app.
 This source change cannot confirm or rename those live public fields.
 
-Channel posting is default off for this hotfix. Set
-`DURA_CHANNEL_POSTS_APPROVED=true` only after the DURA destination and post
-copy are reviewed; the launch task is otherwise skipped even though the
-background scheduler starts. Check the existing
-`IBETIN_CHANNEL_AUTOPOST_ENABLED` deployment value before enabling it.
+This hotfix does not change the existing channel schedule, destination, or
+posting behavior. Review channel routing separately before the larger DURA
+engagement feature is deployed.
 
 Telegram sports bot deployment for **IBETIN**.
 

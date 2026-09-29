@@ -89,7 +89,10 @@ def _business_url(section: str = "home", customer_id: int = 0) -> str:
 
 
 def _button(label: str, section: str, customer_id: int = 0) -> TelegramInlineKeyboardButton:
-    return TelegramInlineKeyboardButton(label, url=_business_url(section, customer_id))
+    url = _business_url(section, customer_id)
+    if not url:
+        return TelegramInlineKeyboardButton(label, callback_data="dura_link_unavailable")
+    return TelegramInlineKeyboardButton(label, url=url)
 
 
 def business_reply_text() -> str:

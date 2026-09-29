@@ -1116,6 +1116,9 @@ async def smart_callback_router(update, context) -> None:
                 pass
         await _open_private_chat_prompt(update, context)
         return
+    if query and query.data == "dura_link_unavailable":
+        await query.answer("This option is temporarily unavailable. Please try again later.", show_alert=True)
+        return
     if user and not phone_verify.is_verified(user.id):
         if query:
             try:

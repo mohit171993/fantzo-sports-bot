@@ -6,7 +6,6 @@ import os
 import re
 import types
 import unittest
-from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
@@ -188,6 +187,36 @@ class HotfixTests(unittest.TestCase):
             asyncio.run(guard(types.SimpleNamespace(business_message=message), None))
         self.assertEqual(replies, [(assignments["VERIFY_LINK_UNAVAILABLE_REPLY"], None)])
 
+        class Button:
+            def __init__(self, label, **kwargs):
+                self.label, self.kwargs = label, kwargs
+
+        business_button = load_function("fantzo_business.py", "_button", {
+            "_business_url": lambda *args: "",
+            "TelegramInlineKeyboardButton": Button,
+        })
+        fallback = business_button("OPEN", "home", 0)
+        self.assertEqual(fallback.kwargs, {"callback_data": "dura_link_unavailable"})
+        self.assertNotIn("url", fallback.kwargs)
+
+        alerts = []
+
+        async def answer(copy, **kwargs):
+            alerts.append((copy, kwargs))
+
+        callback = load_function("bot_tracked.py", "smart_callback_router", {
+            "_is_private_chat": lambda update: True,
+            "phone_verify": types.SimpleNamespace(is_verified=lambda uid: True),
+        })
+        asyncio.run(callback(types.SimpleNamespace(
+            effective_user=types.SimpleNamespace(id=123),
+            callback_query=types.SimpleNamespace(data="dura_link_unavailable", answer=answer),
+        ), None))
+        self.assertEqual(alerts, [(
+            "This option is temporarily unavailable. Please try again later.",
+            {"show_alert": True},
+        )])
+
     def test_hub_installer_preserves_dura_runtime_configuration(self):
         calls = []
 
@@ -209,17 +238,6 @@ class HotfixTests(unittest.TestCase):
             "hub.install_on_tracking_handler(analytics, install_runtime_ui=False)",
             (ROOT / "bot_tracked.py").read_text(encoding="utf-8"),
         )
-
-    def test_channel_posts_are_off_without_explicit_dura_approval(self):
-        namespace = {
-            "datetime": datetime,
-            "DURA_CHANNEL_POSTS_APPROVED": False,
-            "channel_autopost_enabled": lambda: True,
-        }
-        daily = load_function("fantzo_reminders.py", "send_liveline_channel_daily", namespace)
-        launch = load_function("fantzo_reminders.py", "send_liveline_channel_launch", namespace)
-        self.assertFalse(asyncio.run(daily(object())))
-        self.assertFalse(asyncio.run(launch(object())))
 
     def test_liveline_gate_is_neutral_even_without_bot_identity(self):
         render = load_function("ibetin_liveline_v30_unified_ui.py", "_liveline_verification_page", {

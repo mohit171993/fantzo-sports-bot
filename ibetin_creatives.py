@@ -682,6 +682,8 @@ async def _send_creative_as_photo(bot, creative, kwargs):
 async def _send_test_to_business_target(bot, target, creative) -> bool:
     if not target or not target["business_connection_id"]:
         return False
+    if not phone_verify.is_verified(int(target["user_id"])):
+        return False
     markup = InlineKeyboardMarkup(
         [[InlineKeyboardButton(
             "🏏 OPEN IBETIN LIVE LINE",
@@ -711,6 +713,8 @@ async def _send_test_to_bot_target(bot, target, creative) -> bool:
     if not target:
         return False
     target_user_id = int(target["user_id"])
+    if not phone_verify.is_verified(target_user_id):
+        return False
     if phone_verify.is_verified(target_user_id):
         live_line_button = InlineKeyboardButton(
             "🏏 OPEN IBETIN LIVE LINE",
@@ -763,6 +767,15 @@ async def senddmtest_command(update, context) -> None:
             f"⚠️ I can't find {username} in either the Business-DM contacts "
             "or the bot-user database yet. Ask the user to send one new DM to "
             "the connected Business account or press Start on @Ibtnofficialbot."
+        )
+        return
+
+    if not any(
+        phone_verify.is_verified(int(target["user_id"]))
+        for target in (business_target, bot_target) if target
+    ):
+        await message.reply_text(
+            "The target must complete Telegram verification before a creative test."
         )
         return
 

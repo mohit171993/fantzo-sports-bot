@@ -98,6 +98,7 @@ class DirectReplyToggleTests(unittest.TestCase):
         enabled = {"value": False}
         namespace = {
             "phone_verify": types.SimpleNamespace(is_verified=lambda _: True),
+            "_is_private_chat": lambda update: True,
             "app": types.SimpleNamespace(
                 fantzo_autoreply=types.SimpleNamespace(is_enabled=lambda: enabled["value"]),
                 core=types.SimpleNamespace(touch_user=lambda _: None, track=lambda *_: None),
@@ -128,6 +129,7 @@ class DirectReplyToggleTests(unittest.TestCase):
 
         namespace = {
             "phone_verify": types.SimpleNamespace(is_verified=lambda _: True),
+            "_is_private_chat": lambda update: True,
             "app": types.SimpleNamespace(
                 fantzo_autoreply=types.SimpleNamespace(is_enabled=lambda: False),
             ),

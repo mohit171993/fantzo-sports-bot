@@ -445,7 +445,7 @@ def _verification_reminder_copy(stage: int):
         f"<b>{intro}</b>\n\n"
         "Verify your Telegram-linked mobile once to continue.\n\n"
         "Tap <b>📱 VERIFY & CONTINUE</b>. By continuing, you agree that the "
-        "DURASPORTS team may contact you by phone or WhatsApp. You can opt out anytime."
+        "DURA team may contact you by phone or WhatsApp. You can opt out anytime."
     )
     markup = ReplyKeyboardMarkup(
         [[KeyboardButton("📱 VERIFY & CONTINUE", request_contact=True, api_kwargs={"style": "primary"})]],

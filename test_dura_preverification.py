@@ -2,12 +2,14 @@
 
 import ast
 import asyncio
+import re
 import types
 import unittest
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent
+PUBLIC_TERMS = re.compile(r"sports|bett|gambl|casino|odds|cricket|match|live line", re.I)
 
 
 def function(path, name, namespace):
@@ -36,7 +38,8 @@ class PreverificationCopyTests(unittest.TestCase):
         )(1)[0]
         for copy in (business_copy, reminder_copy):
             self.assertIn("VERIFY & CONTINUE", copy)
-            self.assertNotIn("Live Line", copy)
+            self.assertIsNone(PUBLIC_TERMS.search(copy))
+            self.assertIn("the DURA team may contact you", copy)
             self.assertNotIn("IBETIN", copy)
             self.assertNotIn("ibetin.com", copy.lower())
             self.assertNotIn("18+", copy)
@@ -81,10 +84,9 @@ class PreverificationCopyTests(unittest.TestCase):
         descriptions = ["".join(ast.literal_eval(arg) for arg in call.args)
                         for call in desc_calls]
         for copy in descriptions:
-            self.assertNotIn("Live Line", copy)
-            self.assertNotIn("sports hub", copy.lower())
-            self.assertNotIn("sports news", copy.lower())
-            self.assertNotIn("casino", copy.lower())
+            self.assertIsNone(PUBLIC_TERMS.search(copy))
+        for _, copy in commands:
+            self.assertIsNone(PUBLIC_TERMS.search(copy))
 
 
 class PreverificationGateTests(unittest.TestCase):
@@ -133,6 +135,7 @@ class PreverificationGateTests(unittest.TestCase):
 
         namespace = {
             "phone_verify": types.SimpleNamespace(is_verified=lambda uid: False),
+            "_is_private_chat": lambda update: True,
             "_set_user_menu_button": lambda *args: mark("menu"),
             "_prompt_mobile_verification": lambda *args: mark("verify"),
             "ibetin_reports": types.SimpleNamespace(handle_callback=lambda *args: mark("reports")),

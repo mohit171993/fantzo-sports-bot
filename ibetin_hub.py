@@ -683,7 +683,7 @@ def _install_clean_runtime_ui() -> None:
     app.configure_telegram_ui = clean_configure_telegram_ui
 
 
-def install_on_tracking_handler(analytics_module) -> None:
+def install_on_tracking_handler(analytics_module, *, install_runtime_ui: bool = True) -> None:
     handler_cls = analytics_module.TrackingHandler
     if getattr(handler_cls, "_ibetin_hub_installed", False):
         return
@@ -719,5 +719,6 @@ def install_on_tracking_handler(analytics_module) -> None:
     handler_cls.do_POST = patched_post
     handler_cls._ibetin_hub_installed = True
 
-    _install_clean_runtime_ui()
+    if install_runtime_ui:
+        _install_clean_runtime_ui()
     logger.info("IBETIN premium Mini App installed at %s", HUB_PATH)

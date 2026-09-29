@@ -509,12 +509,23 @@ async def _send_with_retry(bot, row, stage: int) -> bool:
             creative = None
             creatives = None
 
-    for attempt in range(3):
+    use_fallback_banner = source == "bot" and creative is None and creatives is not None
+    for attempt in range(4):
         try:
             if creative is not None and creatives is not None:
                 await creatives._send_creative_as_photo(
                     bot,
                     creative,
+                    {
+                        "chat_id": user_id,
+                        "caption": text,
+                        "parse_mode": "HTML",
+                        "reply_markup": markup,
+                    },
+                )
+            elif use_fallback_banner:
+                await creatives.send_fallback_banner(
+                    bot,
                     {
                         "chat_id": user_id,
                         "caption": text,
@@ -536,18 +547,18 @@ async def _send_with_retry(bot, row, stage: int) -> bool:
             return True
         except RetryAfter as exc:
             delay = exc.retry_after.total_seconds() if hasattr(exc.retry_after, "total_seconds") else float(exc.retry_after)
-            if attempt >= 2:
+            if attempt >= 3:
                 raise
             await asyncio.sleep(max(1.0, delay) + 1.0)
-        except BadRequest:
-            if creative is not None:
+        except (BadRequest, OSError):
+            if creative is not None or use_fallback_banner:
                 logger.warning(
                     "IBETIN reminder creative rejected; falling back to text user_id=%s stage=%s",
                     user_id,
                     stage,
                 )
                 creative = None
-                creatives = None
+                use_fallback_banner = False
                 continue
             raise
         except Forbidden:
@@ -687,20 +698,7 @@ def _daily_channel_campaign_key(local_now: datetime) -> str:
 def _channel_daily_creative(local_now: datetime):
     try:
         import ibetin_creatives as creatives
-        creatives.ensure_tables()
-        with core.db() as conn:
-            rows = conn.execute(
-                """
-                SELECT *
-                FROM creative_assets
-                WHERE active = 1 AND pool = 'channel'
-                ORDER BY id ASC
-                """
-            ).fetchall()
-        if not rows:
-            return None, creatives
-        index = local_now.toordinal() % len(rows)
-        return rows[index], creatives
+        return creatives.pick_creative("channel", key=local_now.toordinal()), creatives
     except Exception as exc:
         logger.warning("IBETIN channel creative lookup failed: %s", str(exc)[:180])
         return None, None
@@ -750,6 +748,27 @@ async def send_liveline_channel_daily(application, local_now: datetime | None = 
                 },
             )
             creative_id = int(creative["id"])
+        elif creatives is not None:
+            try:
+                msg = await creatives.send_fallback_banner(
+                    application.bot,
+                    {
+                        "chat_id": IBETIN_CHANNEL_CHAT_ID,
+                        "caption": caption,
+                        "parse_mode": "HTML",
+                        "reply_markup": markup,
+                    },
+                )
+            except (BadRequest, OSError) as exc:
+                logger.warning("IBETIN fallback channel banner unavailable: %s", exc)
+                msg = await application.bot.send_message(
+                    chat_id=IBETIN_CHANNEL_CHAT_ID,
+                    text=caption,
+                    parse_mode="HTML",
+                    reply_markup=markup,
+                    disable_web_page_preview=True,
+                )
+            creative_id = None
         else:
             msg = await application.bot.send_message(
                 chat_id=IBETIN_CHANNEL_CHAT_ID,

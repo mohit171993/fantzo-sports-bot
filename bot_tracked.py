@@ -425,7 +425,6 @@ app.core.explore_keyboard = premium_explore_keyboard
 _original_track = app.core.track
 _original_touch_user = app.core.touch_user
 _original_admin = app.core.admin
-_original_callback_router = app.core.callback_router
 
 
 def _business_connection_id() -> str:
@@ -982,7 +981,9 @@ async def smart_callback_router(update, context) -> None:
         return
 
     query = update.callback_query
-    if query and query.data == "liveline_access":
+    if not query:
+        return
+    if query.data == "liveline_access":
         try:
             await query.answer()
         except Exception:
@@ -990,8 +991,22 @@ async def smart_callback_router(update, context) -> None:
         await _prompt_mobile_verification(update, context, "liveline")
         return
 
-    # Legacy callbacks can still arrive from old messages; keep them compatible.
-    await _original_callback_router(update, context)
+    # Old Telegram messages retain callback_data forever. Never hand those
+    # callbacks to bot.py, which still contains Fantzo text and links.
+    try:
+        await query.answer("This button has been updated. Open the IBETIN menu.")
+    except Exception:
+        pass
+    if not phone_verify.is_verified(update.effective_user.id):
+        await _prompt_mobile_verification(update, context, "legacy_button")
+        return
+    message = update.effective_message
+    if message:
+        await message.reply_text(
+            "⚡ <b>IBETIN</b>\n\nChoose an option from the current menu.",
+            parse_mode="HTML",
+            reply_markup=premium_main_keyboard(update.effective_user.id),
+        )
 
 
 app.core.callback_router = smart_callback_router

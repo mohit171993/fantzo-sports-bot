@@ -1,6 +1,8 @@
 import logging
 import os
+import re
 from io import BytesIO
+from pathlib import Path
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo, InputFile
 from telegram.ext import CommandHandler, MessageHandler, filters
@@ -22,6 +24,9 @@ LIVE_LINE_MINI_APP_URL = os.getenv(
 ).strip()
 TEST_CAMPAIGN_KEY = "liveline-direct-v40-test-mohit-97saxena-20260918-v3"
 CREATIVE_UNLOCK_CODE = os.getenv("IBETIN_CREATIVE_UNLOCK_CODE", "").strip()
+BRAND = "ibetin"
+FALLBACK_BANNER = Path(__file__).with_name("ibetin_live_casino_sports.jpg")
+OTHER_BRAND = re.compile(r"fantzo|dura(?:bet|sports)?|betroxy", re.I)
 
 
 def ensure_tables() -> None:
@@ -50,9 +55,21 @@ def ensure_tables() -> None:
                 filename TEXT DEFAULT '',
                 pool TEXT NOT NULL,
                 created_at TEXT NOT NULL,
-                active INTEGER NOT NULL DEFAULT 1
+                active INTEGER NOT NULL DEFAULT 0,
+                brand TEXT NOT NULL DEFAULT 'unverified'
             )
             """
+        )
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(creative_assets)")}
+        if "brand" not in columns:
+            conn.execute(
+                "ALTER TABLE creative_assets ADD COLUMN brand TEXT NOT NULL DEFAULT 'unverified'"
+            )
+        # Existing uploads have no trustworthy brand marker. Keep their rows
+        # for admin review, but remove them from every automatic send pool.
+        conn.execute(
+            "UPDATE creative_assets SET active = 0 WHERE brand != ? AND active != 0",
+            (BRAND,),
         )
 
 
@@ -129,16 +146,15 @@ def _pool_from(message, width: int = 0, height: int = 0, filename: str = "") -> 
 
 
 def _save(file_id: str, file_unique_id: str, media_type: str, pool: str,
-          width: int = 0, height: int = 0, filename: str = "") -> bool:
+          width: int = 0, height: int = 0, filename: str = "") -> int:
     ensure_tables()
     with core.db() as conn:
-        before = conn.total_changes
         conn.execute(
             """
             INSERT INTO creative_assets(
                 file_id, file_unique_id, media_type, width, height,
-                filename, pool, created_at, active
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+                filename, pool, created_at, active, brand
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'unverified')
             ON CONFLICT(file_unique_id) DO UPDATE SET
                 file_id = excluded.file_id,
                 media_type = excluded.media_type,
@@ -146,7 +162,8 @@ def _save(file_id: str, file_unique_id: str, media_type: str, pool: str,
                 height = excluded.height,
                 filename = excluded.filename,
                 pool = excluded.pool,
-                active = 1
+                active = 0,
+                brand = 'unverified'
             """,
             (
                 file_id, file_unique_id, media_type,
@@ -154,7 +171,11 @@ def _save(file_id: str, file_unique_id: str, media_type: str, pool: str,
                 pool, core.now_iso(),
             ),
         )
-        return conn.total_changes > before
+        row = conn.execute(
+            "SELECT id FROM creative_assets WHERE file_unique_id = ?",
+            (file_unique_id,),
+        ).fetchone()
+        return int(row["id"])
 
 
 def pick_creative(pool: str, key: int = 0):
@@ -168,10 +189,10 @@ def pick_creative(pool: str, key: int = 0):
             """
             SELECT *
             FROM creative_assets
-            WHERE active = 1 AND pool = ?
+            WHERE active = 1 AND brand = ? AND pool = ?
             ORDER BY id ASC
             """,
-            (pool,),
+            (BRAND, pool),
         ).fetchall()
     if not rows:
         return None
@@ -189,9 +210,10 @@ def counts() -> dict:
             """
             SELECT pool, COUNT(*) AS c
             FROM creative_assets
-            WHERE active = 1
+            WHERE active = 1 AND brand = ?
             GROUP BY pool
-            """
+            """,
+            (BRAND,),
         ).fetchall()
     out = {"channel": 0, "dm": 0, "reminder": 0}
     for row in rows:
@@ -219,7 +241,9 @@ async def bulkcreatives_command(update, context) -> None:
         "• Square / 1:1 → <b>Bot Reminder</b>\n\n"
         "Optional caption tags override sorting: <code>#channel</code>, "
         "<code>#dm</code>, <code>#reminder</code>.\n\n"
-        "When finished, send <b>/done</b>.",
+        "Every upload stays pending until you visually review and approve it. "
+        "Images marked with another brand are rejected.\n\n"
+        "When finished, send <b>/done</b>, then <b>/reviewcreatives</b>.",
         parse_mode="HTML",
     )
 
@@ -258,15 +282,22 @@ async def creative_upload(update, context) -> None:
     else:
         return
 
+    if OTHER_BRAND.search(" ".join((message.caption or "", filename))):
+        await message.reply_text(
+            "⛔ This image is marked with another brand and cannot enter the IBETIN library."
+        )
+        return
+
     pool = _pool_from(message, width, height, filename)
-    _save(file_id, unique_id, media_type, pool, width, height, filename)
+    creative_id = _save(file_id, unique_id, media_type, pool, width, height, filename)
     added = context.user_data.setdefault(
         "creative_bulk_added", {"channel": 0, "dm": 0, "reminder": 0}
     )
     added[pool] = int(added.get(pool, 0)) + 1
 
     await message.reply_text(
-        f"✅ Saved → <b>{pool.upper()}</b>",
+        f"🕓 Saved pending review: <b>#{creative_id}</b> → <b>{pool.upper()}</b>. "
+        "Use /reviewcreatives to inspect, then /approvecreative ID IBETIN.",
         parse_mode="HTML",
     )
 
@@ -291,7 +322,8 @@ async def done_command(update, context) -> None:
         f"Reminder <b>{batch.get('reminder', 0)}</b>\n\n"
         f"Creative library: Channel <b>{total['channel']}</b> · "
         f"DM <b>{total['dm']}</b> · Reminder <b>{total['reminder']}</b>\n\n"
-        "Use /creativepool anytime to check the library.",
+        "Use /reviewcreatives to inspect pending images and /creativepool "
+        "to check approved pools.",
         parse_mode="HTML",
     )
 
@@ -301,12 +333,99 @@ async def creativepool_command(update, context) -> None:
     if not message or not _is_admin(update):
         return
     c = counts()
+    with core.db() as conn:
+        pending = conn.execute(
+            "SELECT COUNT(*) AS c FROM creative_assets WHERE brand = 'unverified'"
+        ).fetchone()
     await message.reply_text(
         "🗂 <b>IBETIN CREATIVE LIBRARY</b>\n\n"
         f"📢 Channel: <b>{c['channel']}</b>\n"
         f"💬 DM: <b>{c['dm']}</b>\n"
-        f"🔔 Bot Reminder: <b>{c['reminder']}</b>",
+        f"🔔 Bot Reminder: <b>{c['reminder']}</b>\n"
+        f"🕓 Pending visual review: <b>{int(pending['c'])}</b>",
         parse_mode="HTML",
+    )
+
+
+async def reviewcreatives_command(update, context) -> None:
+    message = update.effective_message
+    if not message or not _is_admin(update):
+        return
+    ensure_tables()
+    with core.db() as conn:
+        rows = conn.execute(
+            """
+            SELECT * FROM creative_assets
+            WHERE brand = 'unverified'
+            ORDER BY id ASC LIMIT 20
+            """
+        ).fetchall()
+    if not rows:
+        await message.reply_text("No IBETIN creatives are pending review.")
+        return
+    for row in rows:
+        creative_id = int(row["id"])
+        caption = (
+            f"IBETIN review #{creative_id} · {row['pool']}\n"
+            f"Filename: {row['filename'] or '(Telegram photo)'}\n"
+            f"Approve: /approvecreative {creative_id} IBETIN\n"
+            f"Reject: /rejectcreative {creative_id}"
+        )
+        try:
+            await _send_creative_as_photo(
+                context.bot, row, {"chat_id": message.chat_id, "caption": caption}
+            )
+        except Exception as exc:
+            logger.warning("IBETIN creative review image failed id=%s: %s", creative_id, exc)
+            await message.reply_text(caption + "\n⚠️ Image could not be displayed.")
+
+
+async def approvecreative_command(update, context) -> None:
+    message = update.effective_message
+    if not message or not _is_admin(update):
+        return
+    args = context.args or []
+    if len(args) != 2 or not args[0].isdigit() or args[1].upper() != "IBETIN":
+        await message.reply_text("Usage: /approvecreative ID IBETIN (after visual review)")
+        return
+    ensure_tables()
+    creative_id = int(args[0])
+    with core.db() as conn:
+        row = conn.execute(
+            "SELECT filename, brand FROM creative_assets WHERE id = ?",
+            (creative_id,),
+        ).fetchone()
+        if not row or row["brand"] != "unverified":
+            response = "Pending creative not found."
+        elif OTHER_BRAND.search(str(row["filename"] or "")):
+            response = "Rejected: filename identifies another brand."
+        else:
+            conn.execute(
+                "UPDATE creative_assets SET brand = ?, active = 1 WHERE id = ?",
+                (BRAND, creative_id),
+            )
+            response = f"✅ IBETIN creative #{creative_id} approved and active."
+    await message.reply_text(response)
+
+
+async def rejectcreative_command(update, context) -> None:
+    message = update.effective_message
+    if not message or not _is_admin(update):
+        return
+    args = context.args or []
+    if len(args) != 1 or not args[0].isdigit():
+        await message.reply_text("Usage: /rejectcreative ID")
+        return
+    creative_id = int(args[0])
+    ensure_tables()
+    with core.db() as conn:
+        result = conn.execute(
+            "UPDATE creative_assets SET brand = 'rejected', active = 0 "
+            "WHERE id = ? AND brand = 'unverified'",
+            (creative_id,),
+        )
+    await message.reply_text(
+        f"Creative #{creative_id} rejected." if result.rowcount else "Pending creative not found."
     )
 
 
@@ -385,7 +504,7 @@ def _latest_channel_creative():
             """
             SELECT *
             FROM creative_assets
-            WHERE active = 1 AND pool = 'channel'
+            WHERE active = 1 AND brand = 'ibetin' AND pool = 'channel'
             ORDER BY id DESC
             LIMIT 1
             """
@@ -399,7 +518,7 @@ def _latest_test_creative():
             """
             SELECT *
             FROM creative_assets
-            WHERE active = 1 AND pool = 'dm'
+            WHERE active = 1 AND brand = 'ibetin' AND pool = 'dm'
             ORDER BY id DESC
             LIMIT 1
             """
@@ -410,7 +529,7 @@ def _latest_test_creative():
             """
             SELECT *
             FROM creative_assets
-            WHERE active = 1
+            WHERE active = 1 AND brand = 'ibetin'
             ORDER BY CASE pool WHEN 'reminder' THEN 0 WHEN 'channel' THEN 1 ELSE 2 END, id DESC
             LIMIT 1
             """
@@ -449,7 +568,6 @@ async def _send_creative_as_photo(bot, creative, kwargs):
                     """
                     UPDATE creative_assets
                     SET file_id = ?,
-                        file_unique_id = ?,
                         media_type = 'photo',
                         width = ?,
                         height = ?
@@ -457,7 +575,6 @@ async def _send_creative_as_photo(bot, creative, kwargs):
                     """,
                     (
                         normalized.file_id,
-                        normalized.file_unique_id,
                         int(normalized.width or 0),
                         int(normalized.height or 0),
                         creative_id,
@@ -475,6 +592,15 @@ async def _send_creative_as_photo(bot, creative, kwargs):
         )
 
     return message
+
+
+async def send_fallback_banner(bot, kwargs):
+    """Send the bundled, visually checked IBETIN banner when no asset is approved."""
+    with FALLBACK_BANNER.open("rb") as stream:
+        return await bot.send_photo(
+            photo=InputFile(stream, filename=FALLBACK_BANNER.name),
+            **kwargs,
+        )
 
 
 async def _send_test_to_business_target(bot, target, creative) -> bool:
@@ -845,6 +971,9 @@ def install(application) -> None:
     application.add_handler(CommandHandler("bulkcreatives", bulkcreatives_command), group=-5)
     application.add_handler(CommandHandler("done", done_command), group=-5)
     application.add_handler(CommandHandler("creativepool", creativepool_command), group=-5)
+    application.add_handler(CommandHandler("reviewcreatives", reviewcreatives_command), group=-5)
+    application.add_handler(CommandHandler("approvecreative", approvecreative_command), group=-5)
+    application.add_handler(CommandHandler("rejectcreative", rejectcreative_command), group=-5)
     application.add_handler(CommandHandler("senddmtest", senddmtest_command), group=-5)
     application.add_handler(
         MessageHandler(

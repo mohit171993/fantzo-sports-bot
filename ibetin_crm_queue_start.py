@@ -204,7 +204,7 @@ def install(reports):
             f"⭐ Interested: <b>{counts.get('interested',0)}</b> · ✅ Converted: <b>{counts.get('converted',0)}</b>\n\n"
             "<b>AUTOMATION</b>\n"
             f"🔔 Reminders: <b>{reminder_state}</b> · sent 24h: <b>{sent_24h}</b>\n"
-            f"📢 Channel: <b>{channel_state}</b> · daily <b>{channel_time}</b> Dubai\n\n"
+            f"📢 Channel: <b>{channel_state}</b> · daily <b>{channel_time}</b> IST\n\n"
             f"⚠️ Not verified: <b>{data['total']-data['verified']}</b> · 👨‍💼 New already assigned: <b>{data['new_owned']}</b>"
         )
 
@@ -241,7 +241,7 @@ def install(reports):
             f"   Business DM: sent <b>{business_delivery['sent']}</b> · failed <b>{business_delivery['failed']}</b> · "
             f"rejected <b>{business_delivery['bad_request']}</b> · blocked <b>{business_delivery['blocked']}</b>\n\n"
             f"📢 Channel posts: <b>{channel_state}</b>\n"
-            f"   Schedule: <b>{auto['channel_time']} Dubai</b> every day\n"
+            f"   Schedule: <b>{auto['channel_time']} IST</b> every day\n"
             f"   Last: <b>{last_status}</b> · {last_at}\n\n"
             "Changes apply immediately. No redeploy is required."
         )

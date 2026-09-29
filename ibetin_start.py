@@ -305,7 +305,7 @@ def run_navigation_self_test() -> None:
     else:
         labels = {str(button.text or "") for button in business_buttons}
         expected_labels = {
-            "🚀 JOIN IBETIN",
+            "🚀 OPEN IBETIN",
             "🏏 OPEN IBETIN LIVE LINE",
             "📢 JOIN CHANNEL",
         }

@@ -10,9 +10,10 @@ import threading
 import time
 from datetime import datetime, timezone
 
-VERSION = "2026-09-22-final-flow-v4-meta-landing"
+VERSION = "2026-09-29-fb-dailydose-report-v1"
 TEST_USERNAME = "mohit_97saxena"
 TEST_USER_ID = 1456774567
+FB_DAILYDOSE_CAMPAIGN = "fb_dailydose"
 log = logging.getLogger(__name__)
 NEW_SQL = "COALESCE(NULLIF(TRIM(l.lead_status),''),'new')='new'"
 PHONE_SQL = "COALESCE(NULLIF(TRIM(l.mobile_number),''),NULLIF(TRIM(v.phone_number),''),'')!=''"
@@ -31,6 +32,11 @@ def queue_sql(queue):
                 "AND COALESCE(l.lead_status,'new') NOT IN ('converted','dnc')", (now,)),
         "interested": ("l.lead_status='interested'", ()),
         "converted": ("l.lead_status='converted'", ()),
+        "fb_dailydose": (
+            "EXISTS (SELECT 1 FROM clicks c "
+            "WHERE c.user_id=l.user_id AND c.action=?)",
+            (f"campaign_start:{FB_DAILYDOSE_CAMPAIGN}",),
+        ),
     }
     if queue not in clauses:
         return None
@@ -62,6 +68,54 @@ def snapshot(reports):
             "SELECT COUNT(*) FROM users u LEFT JOIN ibetin_leads l ON l.user_id=u.user_id WHERE l.user_id IS NULL"
         ).fetchone()[0]
         return result
+
+
+def fb_dailydose_report(reports):
+    """Separate report for /start=fb_dailydose, including repeat/existing users."""
+    reports.ensure_tables()
+    action = f"campaign_start:{FB_DAILYDOSE_CAMPAIGN}"
+    with reports.core.db() as conn:
+        total_starts = int(conn.execute(
+            "SELECT COUNT(*) FROM clicks WHERE action=?",
+            (action,),
+        ).fetchone()[0] or 0)
+        unique_users = int(conn.execute(
+            "SELECT COUNT(DISTINCT user_id) FROM clicks WHERE action=?",
+            (action,),
+        ).fetchone()[0] or 0)
+        row = conn.execute(
+            f"""
+            SELECT
+                COUNT(DISTINCT l.user_id) AS crm_users,
+                COALESCE(SUM(CASE WHEN l.campaign=? THEN 1 ELSE 0 END),0) AS first_touch,
+                COALESCE(SUM(CASE WHEN l.verified_at IS NOT NULL THEN 1 ELSE 0 END),0) AS ever_verified,
+                COALESCE(SUM(CASE WHEN v.user_id IS NOT NULL THEN 1 ELSE 0 END),0) AS currently_verified,
+                COALESCE(SUM(CASE WHEN {PHONE_SQL} THEN 1 ELSE 0 END),0) AS with_mobile,
+                COALESCE(SUM(CASE WHEN l.lead_status='contacted' THEN 1 ELSE 0 END),0) AS contacted,
+                COALESCE(SUM(CASE WHEN l.lead_status='interested' THEN 1 ELSE 0 END),0) AS interested,
+                COALESCE(SUM(CASE WHEN l.lead_status='converted' THEN 1 ELSE 0 END),0) AS converted,
+                COALESCE(SUM(CASE WHEN l.lead_status='dnc' THEN 1 ELSE 0 END),0) AS dnc
+            FROM {JOIN_SQL}
+            WHERE EXISTS (
+                SELECT 1 FROM clicks c
+                WHERE c.user_id=l.user_id AND c.action=?
+            )
+            """,
+            (FB_DAILYDOSE_CAMPAIGN, action),
+        ).fetchone()
+        last_row = conn.execute(
+            "SELECT MAX(created_at) FROM clicks WHERE action=?",
+            (action,),
+        ).fetchone()
+    data = dict(row or {})
+    data.update({
+        "total_starts": total_starts,
+        "unique_users": unique_users,
+        "last_start": str(last_row[0] or "") if last_row else "",
+    })
+    return data
+
+
 
 
 def reset_test_once(reports):
@@ -172,7 +226,8 @@ def install(reports):
     def title(queue):
         return {"new": "🆕 NEW / UNWORKED · ALL TIME",
                 "all": "👥 ALL LEADS · ALL TIME",
-                "mobile": "📱 LEADS WITH SAVED MOBILE · ALL TIME"}.get(queue) or old_title(queue)
+                "mobile": "📱 LEADS WITH SAVED MOBILE · ALL TIME",
+                "fb_dailydose": "📘 FB DAILY DOSE · LINK USERS"}.get(queue) or old_title(queue)
 
     def crm_text():
         reports.ensure_tables()
@@ -210,6 +265,34 @@ def install(reports):
             f"⚠️ Not verified: <b>{data['total']-data['verified']}</b> · 👨‍💼 New already assigned: <b>{data['new_owned']}</b>"
         )
 
+    def fb_dailydose_text():
+        data = fb_dailydose_report(reports)
+        last_start = reports._fmt_admin_time(str(data.get("last_start") or ""))
+        return (
+            "📘 <b>FB DAILY DOSE REPORT</b>\n━━━━━━━━━━━━━━━━━━\n\n"
+            "<code>t.me/Ibtnofficialbot?start=fb_dailydose</code>\n\n"
+            f"🔗 Bot starts: <b>{data.get('total_starts',0)}</b>\n"
+            f"👥 Unique users: <b>{data.get('unique_users',0)}</b>\n"
+            f"🆕 First-touch leads: <b>{data.get('first_touch',0)}</b>\n"
+            f"📱 Saved mobiles: <b>{data.get('with_mobile',0)}</b>\n"
+            f"✅ Ever verified: <b>{data.get('ever_verified',0)}</b> · "
+            f"Current: <b>{data.get('currently_verified',0)}</b>\n\n"
+            f"📞 Contacted: <b>{data.get('contacted',0)}</b> · "
+            f"⭐ Interested: <b>{data.get('interested',0)}</b> · "
+            f"✅ Converted: <b>{data.get('converted',0)}</b>\n"
+            f"⛔ DNC: <b>{data.get('dnc',0)}</b>\n\n"
+            f"🕒 Last start: <b>{last_start or 'No starts yet'}</b>\n\n"
+            "This report includes every user who actually sends "
+            "<code>/start fb_dailydose</code>, including existing IBETIN users."
+        )
+
+    def fb_dailydose_menu():
+        return Markup([
+            [b("👥 VIEW DAILY DOSE USERS", "queue:fb_dailydose")],
+            [b("🔄 REFRESH", "fb_dailydose")],
+            [b("⬅️ DASHBOARD", "crm")],
+        ])
+
     def menu():
         def b(text, action):
             return Button(text, callback_data="reports:" + action)
@@ -219,7 +302,8 @@ def install(reports):
             [b("📞 FOLLOW-UP", "queue:followup"), b("⭐ INTERESTED", "queue:interested")],
             [b("🔎 SEARCH", "search"), b("📥 CSV EXPORT", "exportleads")],
             [b("✅ CONVERTED", "queue:converted"), b("🎯 AD PERFORMANCE", "adperformance")],
-            [b("🤖 AUTOMATION", "automation"), b("📚 TEAM GUIDE", "guide")],
+            [b("📘 FB DAILY DOSE", "fb_dailydose"), b("🤖 AUTOMATION", "automation")],
+            [b("📚 TEAM GUIDE", "guide")],
             [b("⚙️ ADVANCED REPORTS", "advanced")],
         ])
 
@@ -303,6 +387,19 @@ def install(reports):
         message = query.message
         key = f"{message.chat_id}:{message.message_id}" if message else ""
         state = states.get(key)
+
+        if data == "reports:fb_dailydose":
+            try:
+                await query.answer()
+            except Exception:
+                pass
+            await message.reply_text(
+                fb_dailydose_text(),
+                parse_mode="HTML",
+                reply_markup=fb_dailydose_menu(),
+                disable_web_page_preview=True,
+            )
+            return True
 
         if data == "reports:automation":
             try:

@@ -191,39 +191,6 @@ class FantzoPreverificationCopyTests(unittest.TestCase):
             asyncio.run(preview.send_once(SimpleNamespace()))
             next_banner.assert_not_called()
 
-    def test_unverified_start_and_hi_enter_contact_gate(self):
-        message = SimpleNamespace(text="/start", reply_text=AsyncMock())
-        update = SimpleNamespace(
-            effective_user=SimpleNamespace(id=1456774567),
-            effective_message=message,
-            callback_query=None,
-        )
-        context = SimpleNamespace(args=[], user_data={})
-        with (
-            patch.object(gate, "is_registered", return_value=False),
-            patch.object(gate, "business_verification_pending", return_value=False),
-            patch.object(gate.lead_funnel, "record_start"),
-            patch.object(gate.core, "touch_user"),
-            patch.object(gate.core, "track"),
-            patch.object(gate, "track_verification_event"),
-            patch.object(gate, "_prompt_mobile", new_callable=AsyncMock) as prompt,
-        ):
-            with self.assertRaises(ApplicationHandlerStop):
-                asyncio.run(gate.preverification_start_handler(update, context))
-            prompt.assert_awaited_once_with(update, context, "bot_start")
-
-            message.text = "hi"
-            with self.assertRaises(ApplicationHandlerStop):
-                asyncio.run(gate.pending_text_handler(update, context))
-            self.assertEqual(prompt.await_args.args[-1], "bot_text")
-
-        with (
-            patch.object(gate, "is_registered", return_value=True),
-            patch.object(gate.tracked.app, "start", new_callable=AsyncMock) as start,
-        ):
-            asyncio.run(gate.preverification_start_handler(update, context))
-            start.assert_not_awaited()
-
     def test_preverification_handlers_run_before_admin_handlers(self):
         installed = []
         application = SimpleNamespace(
@@ -231,7 +198,6 @@ class FantzoPreverificationCopyTests(unittest.TestCase):
         )
         with patch.object(gate, "_handlers_registered", False):
             gate.register_handlers(application)
-        self.assertIn((-12, gate.preverification_start_handler), installed)
         early = {callback for group, callback in installed if group == -11}
         self.assertEqual(
             early,

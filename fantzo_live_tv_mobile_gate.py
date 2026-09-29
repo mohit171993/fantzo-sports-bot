@@ -18,7 +18,7 @@ from telegram import (
     ReplyKeyboardRemove,
     Update,
 )
-from telegram.ext import ApplicationHandlerStop, CallbackQueryHandler, CommandHandler, MessageHandler, filters
+from telegram.ext import ApplicationHandlerStop, CallbackQueryHandler, MessageHandler, filters
 
 import bot_tracked as tracked
 import fantzo_lead_funnel as lead_funnel
@@ -482,15 +482,6 @@ async def pending_command_handler(update: Update, context) -> None:
     raise ApplicationHandlerStop
 
 
-async def preverification_start_handler(update: Update, context) -> None:
-    """Route unverified /start through the gate before the production home handler."""
-    user = update.effective_user
-    if not user or is_registered(user.id):
-        return
-    await tracked.app.start(update, context)
-    raise ApplicationHandlerStop
-
-
 async def pending_media_handler(update: Update, context) -> None:
     """Prevent private banner and other media handlers running before verification."""
     user = update.effective_user
@@ -687,13 +678,6 @@ def register_handlers(application) -> None:
     if _handlers_registered:
         return
     _handlers_registered = True
-
-    # bot_persistent registers its own /start callback, so a separate early
-    # CommandHandler is required to reach the gated start flow in production.
-    application.add_handler(
-        CommandHandler("start", preverification_start_handler),
-        group=-12,
-    )
 
     # Group -11 runs before admin command, banner upload/review and report
     # handlers. Verification remains required even when a user is an admin.

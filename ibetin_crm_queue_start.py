@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 
 VERSION = "2026-09-22-final-flow-v4-meta-landing"
 TEST_USERNAME = "mohit_97saxena"
+TEST_USER_ID = 1456774567
 log = logging.getLogger(__name__)
 NEW_SQL = "COALESCE(NULLIF(TRIM(l.lead_status),''),'new')='new'"
 PHONE_SQL = "COALESCE(NULLIF(TRIM(l.mobile_number),''),NULLIF(TRIM(v.phone_number),''),'')!=''"
@@ -70,26 +71,40 @@ def reset_test_once(reports):
 
 
 def force_test_unverified_once(reports):
-    """Explicit operator request: keep only mohit_97saxena unverified for testing."""
-    marker = "ibetin_test_unverified:2026-09-22"
+    """Require this one account to verify again, without clearing CRM history."""
+    marker = "dura_reverify_mohit_97saxena:2026-09-29"
     with reports.core.db() as conn:
         conn.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY,value TEXT)")
         if conn.execute("SELECT 1 FROM settings WHERE key=?", (marker,)).fetchone():
             return
 
         ids = {int(r[0]) for r in conn.execute(
-            "SELECT user_id FROM users WHERE lower(username)=?", (TEST_USERNAME,)
+            "SELECT user_id FROM users WHERE lower(ltrim(trim(username),'@'))=?",
+            (TEST_USERNAME,),
         ).fetchall()}
         if reports._table_exists(conn, "business_customers"):
             ids.update(int(r[0]) for r in conn.execute(
-                "SELECT DISTINCT customer_id FROM business_customers WHERE lower(username)=?",
+                "SELECT DISTINCT customer_id FROM business_customers "
+                "WHERE lower(ltrim(trim(username),'@'))=?",
                 (TEST_USERNAME,),
             ).fetchall())
-        if len(ids) != 1:
-            log.warning("IBETIN test unverify skipped: username match count=%s", len(ids))
+        if ids != {TEST_USER_ID}:
+            log.warning(
+                "DURA account reverify skipped: username match count=%s expected_id_match=%s",
+                len(ids), TEST_USER_ID in ids,
+            )
             return
 
-        uid = next(iter(ids))
+        uid = TEST_USER_ID
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS verification_bypass_exclusions (
+                user_id INTEGER PRIMARY KEY,
+                reason TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
         row = conn.execute(
             "SELECT phone_number FROM liveline_verified_users WHERE user_id=?",
             (uid,),
@@ -112,6 +127,11 @@ def force_test_unverified_once(reports):
             (uid,),
         )
         conn.execute(
+            "INSERT OR IGNORE INTO verification_bypass_exclusions(user_id,reason,created_at) "
+            "VALUES(?,?,?)",
+            (uid, marker, datetime.now(timezone.utc).isoformat()),
+        )
+        conn.execute(
             "INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)",
             (marker, "applied"),
         )
@@ -124,9 +144,14 @@ def force_test_unverified_once(reports):
             "SELECT 1 FROM ibetin_leads WHERE user_id=? AND COALESCE(TRIM(mobile_number),'')!=''",
             (uid,),
         ).fetchone())
+        bypass_excluded = bool(conn.execute(
+            "SELECT 1 FROM verification_bypass_exclusions WHERE user_id=?",
+            (uid,),
+        ).fetchone())
     log.info(
-        "IBETIN test account forced unverified verified=%s saved_mobile=%s",
+        "DURA target account reverify applied verified=%s bypass_excluded=%s saved_mobile=%s",
         verified,
+        bypass_excluded,
         saved_mobile,
     )
 
@@ -199,8 +224,11 @@ def install(reports):
     def automation_text():
         import fantzo_reminders as reminders
         auto = reminders.automation_status()
-        reminder_state = "🟢 RUNNING" if auto["reminders_enabled"] else "🔴 PAUSED"
-        channel_state = "🟢 RUNNING" if auto["channel_enabled"] else "🔴 PAUSED"
+        reminder_state = "🟢 ON" if auto["reminders_enabled"] else "🔴 PAUSED"
+        channel_state = "🟢 ON" if auto["channel_enabled"] else "🔴 PAUSED"
+        delivery = auto["reminder_delivery_24h"]
+        bot_delivery = delivery["bot"]
+        business_delivery = delivery["business_dm"]
         last = auto.get("last_channel") or {}
         last_status = str(last.get("status") or "No post yet").upper()
         last_at = reports._fmt_admin_time(str(last.get("sent_at") or ""))
@@ -208,6 +236,10 @@ def install(reports):
             "🤖 <b>AUTOMATION CONTROL</b>\n━━━━━━━━━━━━━━━━━━\n\n"
             f"🔔 Reminders: <b>{reminder_state}</b>\n"
             f"   Sent in last 24h: <b>{auto['reminder_sent_24h']}</b>\n\n"
+            f"   Bot chat: sent <b>{bot_delivery['sent']}</b> · failed <b>{bot_delivery['failed']}</b> · "
+            f"rejected <b>{bot_delivery['bad_request']}</b> · blocked <b>{bot_delivery['blocked']}</b>\n"
+            f"   Business DM: sent <b>{business_delivery['sent']}</b> · failed <b>{business_delivery['failed']}</b> · "
+            f"rejected <b>{business_delivery['bad_request']}</b> · blocked <b>{business_delivery['blocked']}</b>\n\n"
             f"📢 Channel posts: <b>{channel_state}</b>\n"
             f"   Schedule: <b>{auto['channel_time']} Dubai</b> every day\n"
             f"   Last: <b>{last_status}</b> · {last_at}\n\n"

@@ -678,6 +678,11 @@ def install() -> None:
                 parse_mode="HTML",
                 reply_markup=native_ui.verified_quick_menu(),
             )
+            # Preserve the established /start and deep-link handling above.
+            # A feature campaign adds a focused card after the normal home and
+            # quick-access messages; it never replaces their existing actions.
+            if lead_funnel.has_feature_intent(arg):
+                await lead_funnel.send_post_verify(update.effective_message, user.id)
 
     async def gated_router(update, context):
         query = update.callback_query

@@ -4,6 +4,7 @@ from urllib.parse import urlencode
 
 from telegram import (
     BotCommand,
+    BotCommandScopeChat,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     KeyboardButton,
@@ -277,6 +278,25 @@ STOP_PHRASES = {
     "no whatsapp",
 }
 
+PREVERIFY_COMMANDS = (
+    BotCommand("start", "Verify account and continue"),
+    BotCommand("help", "Account help"),
+    BotCommand("support", "Contact support"),
+)
+
+VERIFIED_COMMANDS = (
+    BotCommand("start", "Open DURASPORTS Mini App Hub"),
+    BotCommand("news", "Open Sports News Mini App"),
+    BotCommand("website", "Open DURASPORTS Mini App"),
+    BotCommand("live", "Open Live Mini App"),
+    BotCommand("liveline", "Open DURASPORTS Live Line"),
+    BotCommand("sports", "Open Sports Mini App"),
+    BotCommand("team", "Open team search"),
+    BotCommand("support", "Open Support Mini App"),
+    BotCommand("help", "DURASPORTS Mini App menu"),
+    BotCommand("reports", "Admin report center"),
+)
+
 
 def _is_stop_text(value: str) -> bool:
     return " ".join(str(value or "").casefold().split()) in STOP_PHRASES
@@ -297,6 +317,10 @@ async def _set_user_menu_button(bot, user_id: int, verified: bool) -> None:
                 chat_id=int(user_id),
                 menu_button=MenuButtonCommands(),
             )
+        await bot.set_my_commands(
+            VERIFIED_COMMANDS if verified else PREVERIFY_COMMANDS,
+            scope=BotCommandScopeChat(chat_id=int(user_id)),
+        )
     except Exception:
         logger.exception("Could not update DURASPORTS per-user menu button")
 
@@ -613,12 +637,7 @@ async def _prompt_mobile_verification(update, context, source: str = "bot_start"
     except Exception:
         logger.exception("Could not register DURASPORTS verification reminder")
 
-    if source == "liveline":
-        detail = "Verify your Telegram-linked mobile once to open DURASPORTS Live Line."
-    elif source == "business_dm":
-        detail = "Verify your Telegram-linked mobile once to continue with DURASPORTS."
-    else:
-        detail = "Verify your Telegram-linked mobile once to continue with DURASPORTS."
+    detail = "Verify your Telegram-linked mobile once to continue."
 
     await message.reply_text(
         "📱 <b>VERIFY MOBILE TO CONTINUE</b>\n\n"
@@ -779,6 +798,7 @@ async def pending_verification_text_handler(update, context) -> None:
         return
     if phone_verify.is_verified(user.id):
         return
+    await _set_user_menu_button(context.bot, user.id, False)
 
     if _is_stop_text(message.text):
         ibetin_leads.set_status(user.id, "dnc")
@@ -804,6 +824,29 @@ async def pending_verification_text_handler(update, context) -> None:
         parse_mode="HTML",
         reply_markup=_verification_reply_keyboard(),
     )
+    raise ApplicationHandlerStop
+
+
+async def pending_verification_command_handler(update, context) -> None:
+    user = update.effective_user
+    message = update.effective_message
+    if not user or not message or phone_verify.is_verified(user.id):
+        return
+    # /start owns the verification handoff and the stopreminders opt-out link.
+    if (message.text or "").split(maxsplit=1)[0].split("@", 1)[0].lower() == "/start":
+        return
+    await _set_user_menu_button(context.bot, user.id, False)
+    await _prompt_mobile_verification(update, context, "bot_start")
+    raise ApplicationHandlerStop
+
+
+async def pending_verification_media_handler(update, context) -> None:
+    user = update.effective_user
+    message = update.effective_message
+    if not user or not message or phone_verify.is_verified(user.id):
+        return
+    await _set_user_menu_button(context.bot, user.id, False)
+    await _prompt_mobile_verification(update, context, "bot_start")
     raise ApplicationHandlerStop
 
 
@@ -1009,10 +1052,21 @@ app.core.help_command = help_command
 
 
 async def smart_callback_router(update, context) -> None:
+    query = update.callback_query
+    user = update.effective_user
+    if user and not phone_verify.is_verified(user.id):
+        if query:
+            try:
+                await query.answer()
+            except Exception:
+                pass
+        await _set_user_menu_button(context.bot, user.id, False)
+        await _prompt_mobile_verification(update, context, "bot_start")
+        return
+
     if await ibetin_reports.handle_callback(update, context):
         return
 
-    query = update.callback_query
     if query and query.data == "liveline_access":
         try:
             await query.answer()
@@ -1116,40 +1170,19 @@ async def admin_crm_text_handler(update, context) -> None:
 # =========================================================
 
 async def configure_telegram_ui(application) -> None:
-    # Telegram shows these before a new user presses START. Keep the copy
-    # factual, sports-focused and useful for paid-traffic landing clarity.
+    # Telegram shows these before a new user verifies their account.
     await application.bot.set_my_short_description(
-        "DURASPORTS Sports Hub • Live Line • Match updates • News • Alerts"
+        "DURASPORTS • Secure account access and support"
     )
     await application.bot.set_my_description(
-        "Welcome to DURASPORTS Sports Hub. Follow cricket and football updates, "
-        "open DURASPORTS Live Line, view match results and sports news, manage "
-        "match alerts, and access official support. Verify your Telegram-linked "
-        "mobile once to continue."
+        "Welcome to DURASPORTS. Verify the mobile number linked to your "
+        "Telegram account to continue. For assistance, use official support."
     )
+    await application.bot.set_my_commands(PREVERIFY_COMMANDS)
 
-    await application.bot.set_my_commands(
-        [
-            BotCommand("start", "Open DURASPORTS Mini App Hub"),
-            BotCommand("news", "Open Sports News Mini App"),
-            BotCommand("website", "Open DURASPORTS Mini App"),
-            BotCommand("live", "Open Live Mini App"),
-            BotCommand("liveline", "Open DURASPORTS Live Line"),
-            BotCommand("sports", "Open Sports Mini App"),
-            BotCommand("team", "Open team search"),
-            BotCommand("support", "Open Support Mini App"),
-            BotCommand("help", "DURASPORTS Mini App menu"),
-            BotCommand("reports", "Admin report center"),
-        ]
-    )
-
-    # Keep the native Telegram menu button on the DURA Mini App itself.
-    # Live Line remains separately verification-gated inside its own flow.
+    # The global bot profile stays neutral; verified chats get the Mini App menu.
     await application.bot.set_chat_menu_button(
-        menu_button=MenuButtonWebApp(
-            text="Open DURA",
-            web_app=WebAppInfo(url=hub.hub_url("home")),
-        )
+        menu_button=MenuButtonCommands()
     )
 
     application.add_handler(CommandHandler("news", news_command))
@@ -1158,6 +1191,20 @@ async def configure_telegram_ui(application) -> None:
     application.add_handler(CommandHandler("support", support_command))
     application.add_handler(CommandHandler("liveline", liveline_command))
     application.add_handler(CommandHandler("reports", ibetin_reports.reports_command))
+    application.add_handler(
+        MessageHandler(
+            filters.UpdateType.MESSAGE & filters.COMMAND,
+            pending_verification_command_handler,
+        ),
+        group=-15,
+    )
+    application.add_handler(
+        MessageHandler(
+            filters.UpdateType.MESSAGE & ~(filters.TEXT | filters.CONTACT),
+            pending_verification_media_handler,
+        ),
+        group=-15,
+    )
     application.add_handler(
         MessageHandler(
             filters.UpdateType.MESSAGE & filters.CONTACT,

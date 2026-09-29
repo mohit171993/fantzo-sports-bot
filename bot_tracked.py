@@ -15,6 +15,7 @@ from telegram import (
     ReplyKeyboardRemove,
     WebAppInfo,
 )
+from telegram.error import BadRequest, Forbidden
 from telegram.ext import ApplicationHandlerStop, CommandHandler, MessageHandler, filters
 
 import bot_persistent as app
@@ -607,11 +608,16 @@ async def _open_private_chat_prompt(update, context) -> None:
         markup = InlineKeyboardMarkup([[
             InlineKeyboardButton("OPEN PRIVATE CHAT", url=f"https://t.me/{username}?start=verify")
         ]])
-    await message.reply_text(
-        "Open this bot in a private chat and send /start to continue.",
-        reply_markup=markup,
-        disable_web_page_preview=True,
-    )
+    try:
+        await message.reply_text(
+            "Open this bot in a private chat and send /start to continue.",
+            reply_markup=markup,
+            disable_web_page_preview=True,
+        )
+    except (BadRequest, Forbidden):
+        # Some groups and channels do not allow the bot to send messages.
+        # Verification continues only when the user opens the private chat.
+        logger.info("DURA private-chat prompt could not be posted in this chat")
 
 
 async def _prompt_mobile_verification(update, context, source: str = "bot_start") -> None:

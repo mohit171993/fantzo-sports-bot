@@ -155,14 +155,17 @@ def automation_status() -> dict:
             LIMIT 1
             """
         ).fetchone()
-        reminder_sent_24h = conn.execute(
+        reminder_outcomes_24h = conn.execute(
             """
-            SELECT COUNT(*) AS c
+            SELECT
+                COALESCE(SUM(CASE WHEN status='sent' THEN 1 ELSE 0 END),0) AS sent,
+                COALESCE(SUM(CASE WHEN status IN ('failed','bad_request') THEN 1 ELSE 0 END),0) AS failed,
+                COALESCE(SUM(CASE WHEN status='blocked' THEN 1 ELSE 0 END),0) AS blocked
             FROM reminder_sends
-            WHERE status='sent' AND sent_at >= ?
+            WHERE sent_at >= ?
             """,
             ((datetime.now(timezone.utc) - timedelta(hours=24)).isoformat(),),
-        ).fetchone()["c"]
+        ).fetchone()
     now = datetime.now(APP_TZ)
     target = now.replace(
         hour=CHANNEL_AUTOPOST_HOUR,
@@ -203,7 +206,9 @@ def automation_status() -> dict:
         "channel_enabled": channel_autopost_enabled(),
         "channel_time": f"{CHANNEL_AUTOPOST_HOUR:02d}:{CHANNEL_AUTOPOST_MINUTE:02d}",
         "next_channel_at": target.isoformat(),
-        "reminder_sent_24h": int(reminder_sent_24h or 0),
+        "reminder_sent_24h": int(reminder_outcomes_24h["sent"] or 0),
+        "reminder_failed_24h": int(reminder_outcomes_24h["failed"] or 0),
+        "reminder_blocked_24h": int(reminder_outcomes_24h["blocked"] or 0),
         "last_channel": dict(last_channel) if last_channel else None,
     }
 
@@ -532,6 +537,7 @@ async def _send_with_retry(bot, row, stage: int) -> bool:
                         "parse_mode": "HTML",
                         "reply_markup": markup,
                     },
+                    purpose="reminder",
                 )
             else:
                 kwargs = {

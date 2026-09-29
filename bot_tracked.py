@@ -17,7 +17,6 @@ from telegram.ext import ApplicationHandlerStop, CommandHandler, MessageHandler,
 
 import bot_persistent as app
 import fantzo_analytics as analytics
-import fantzo_business
 import fantzo_live_tv
 import fantzo_reminders as reminders
 import ibetin_hub as hub
@@ -784,6 +783,8 @@ async def verified_fixed_reply_handler(update, context) -> None:
     if not user or not message or not message.text:
         return
     if not phone_verify.is_verified(user.id):
+        return
+    if not app.fantzo_autoreply.is_enabled():
         return
 
     text = message.text.strip()

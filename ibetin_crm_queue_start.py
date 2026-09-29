@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 
 VERSION = "2026-09-22-final-flow-v4-meta-landing"
 TEST_USERNAME = "mohit_97saxena"
+TEST_USER_ID = 1456774567
 log = logging.getLogger(__name__)
 NEW_SQL = "COALESCE(NULLIF(TRIM(l.lead_status),''),'new')='new'"
 PHONE_SQL = "COALESCE(NULLIF(TRIM(l.mobile_number),''),NULLIF(TRIM(v.phone_number),''),'')!=''"
@@ -69,127 +70,86 @@ def reset_test_once(reports):
     return
 
 
-def force_test_unverified_once(reports):
-    """Explicit operator request: keep only mohit_97saxena unverified for testing."""
-    marker = "ibetin_test_unverified:2026-09-23-manual"
+def revoke_requested_verification_once(reports):
+    """Revoke only the uniquely identified operator account, once.
+
+    The saved CRM phone and history remain intact. A future normal Telegram
+    contact verification can verify the account again.
+    """
+    marker = "ibetin_revoke_mohit_97saxena:2026-09-29"
     with reports.core.db() as conn:
         conn.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY,value TEXT)")
         if conn.execute("SELECT 1 FROM settings WHERE key=?", (marker,)).fetchone():
-            return
+            log.info("IBETIN requested verification revocation already applied")
+            return 0
 
-        ids = {int(r[0]) for r in conn.execute(
-            "SELECT user_id FROM users WHERE lower(username)=?", (TEST_USERNAME,)
-        ).fetchall()}
-        if reports._table_exists(conn, "business_customers"):
-            ids.update(int(r[0]) for r in conn.execute(
-                "SELECT DISTINCT customer_id FROM business_customers WHERE lower(username)=?",
+        tables = {
+            str(row[0]) for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+        ids = set()
+        if "users" in tables:
+            ids.update(int(row[0]) for row in conn.execute(
+                "SELECT user_id FROM users WHERE lower(username)=?",
                 (TEST_USERNAME,),
             ).fetchall())
-        if len(ids) != 1:
-            log.warning("IBETIN test unverify skipped: username match count=%s", len(ids))
-            return
+        if "business_customers" in tables:
+            ids.update(int(row[0]) for row in conn.execute(
+                "SELECT customer_id FROM business_customers WHERE lower(username)=?",
+                (TEST_USERNAME,),
+            ).fetchall())
+        if ids != {TEST_USER_ID}:
+            log.warning(
+                "IBETIN requested verification revocation skipped: "
+                "username_match_count=%s pinned_id_match=%s",
+                len(ids), TEST_USER_ID in ids,
+            )
+            return 0
 
-        uid = next(iter(ids))
         row = conn.execute(
             "SELECT phone_number FROM liveline_verified_users WHERE user_id=?",
-            (uid,),
+            (TEST_USER_ID,),
         ).fetchone()
-        if row and str(row["phone_number"] or "").strip():
+        phone = str(row[0] or "").strip() if row else ""
+        if phone:
+            lead = conn.execute(
+                "SELECT 1 FROM ibetin_leads WHERE user_id=?", (TEST_USER_ID,)
+            ).fetchone()
+            if not lead:
+                log.warning(
+                    "IBETIN requested verification revocation skipped: "
+                    "saved CRM lead missing"
+                )
+                return 0
             conn.execute(
-                """
-                UPDATE ibetin_leads
-                SET mobile_number=CASE
-                    WHEN COALESCE(NULLIF(TRIM(mobile_number),''),'')='' THEN ?
-                    ELSE mobile_number
-                END
-                WHERE user_id=?
-                """,
-                (str(row["phone_number"]), uid),
+                """UPDATE ibetin_leads
+                   SET mobile_number=CASE
+                       WHEN COALESCE(NULLIF(TRIM(mobile_number),''),'')='' THEN ?
+                       ELSE mobile_number
+                   END
+                   WHERE user_id=?""",
+                (phone, TEST_USER_ID),
             )
 
-        conn.execute(
+        removed = conn.execute(
             "DELETE FROM liveline_verified_users WHERE user_id=?",
-            (uid,),
-        )
+            (TEST_USER_ID,),
+        ).rowcount
         conn.execute(
-            "INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)",
+            "INSERT INTO settings(key,value) VALUES(?,?)",
             (marker, "applied"),
         )
-
-        verified = bool(conn.execute(
+        still_verified = bool(conn.execute(
             "SELECT 1 FROM liveline_verified_users WHERE user_id=?",
-            (uid,),
-        ).fetchone())
-        saved_mobile = bool(conn.execute(
-            "SELECT 1 FROM ibetin_leads WHERE user_id=? AND COALESCE(TRIM(mobile_number),'')!=''",
-            (uid,),
+            (TEST_USER_ID,),
         ).fetchone())
     log.info(
-        "IBETIN test account forced unverified verified=%s saved_mobile=%s",
-        verified,
-        saved_mobile,
+        "IBETIN requested verification revocation applied removed=%s "
+        "currently_verified=%s saved_mobile=%s",
+        int(removed or 0), still_verified, bool(phone),
     )
-
-
-def restore_test_verified_once(reports):
-    """Correct the prior wrong-project test reset by restoring this IBETIN user."""
-    marker = "ibetin_test_restore_verified:2026-09-23-correction"
-    with reports.core.db() as conn:
-        conn.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY,value TEXT)")
-        if conn.execute("SELECT 1 FROM settings WHERE key=?", (marker,)).fetchone():
-            return
-
-        ids = {int(r[0]) for r in conn.execute(
-            "SELECT user_id FROM users WHERE lower(username)=?", (TEST_USERNAME,)
-        ).fetchall()}
-        if reports._table_exists(conn, "business_customers"):
-            ids.update(int(r[0]) for r in conn.execute(
-                "SELECT DISTINCT customer_id FROM business_customers WHERE lower(username)=?",
-                (TEST_USERNAME,),
-            ).fetchall())
-        if len(ids) != 1:
-            log.warning("IBETIN test restore skipped: username match count=%s", len(ids))
-            return
-
-        uid = next(iter(ids))
-        lead = conn.execute(
-            """
-            SELECT mobile_number,campaign,source,contact_consent
-            FROM ibetin_leads WHERE user_id=?
-            """,
-            (uid,),
-        ).fetchone()
-        phone = str(lead["mobile_number"] or "").strip() if lead else ""
-        if not phone:
-            log.warning("IBETIN test restore skipped: saved mobile unavailable")
-            return
-
-    import ibetin_phone_verify as phone_verify
-    restored = phone_verify.verify_user(
-        uid,
-        phone,
-        source=str(lead["source"] or "bot"),
-        campaign=str(lead["campaign"] or "direct"),
-        contact_consent=bool(int(lead["contact_consent"] or 0)),
-    )
-    with reports.core.db() as conn:
-        conn.execute(
-            "INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)",
-            (marker, "applied" if restored else "failed"),
-        )
-        verified = bool(conn.execute(
-            "SELECT 1 FROM liveline_verified_users WHERE user_id=?",
-            (uid,),
-        ).fetchone())
-        saved_mobile = bool(conn.execute(
-            "SELECT 1 FROM ibetin_leads WHERE user_id=? AND COALESCE(TRIM(mobile_number),'')!=''",
-            (uid,),
-        ).fetchone())
-    log.info(
-        "IBETIN correction restored test account verified=%s saved_mobile=%s",
-        verified,
-        saved_mobile,
-    )
+    return int(removed or 0)
 
 
 def install(reports):
@@ -222,16 +182,21 @@ def install(reports):
         due = len(queue_ids("due"))
         try:
             import fantzo_reminders as reminders
+            import fantzo_autoreply as autoreply
             auto = reminders.automation_status()
             reminder_state = "🟢 ON" if auto["reminders_enabled"] else "🔴 PAUSED"
             channel_state = "🟢 ON" if auto["channel_enabled"] else "🔴 PAUSED"
+            reply_state = "🟢 ON" if autoreply.is_enabled() else "🔴 PAUSED"
             channel_time = auto["channel_time"]
             sent_24h = auto["reminder_sent_24h"]
+            failed_24h = auto["reminder_failed_24h"]
         except Exception:
             reminder_state = "⚪ UNKNOWN"
             channel_state = "⚪ UNKNOWN"
+            reply_state = "⚪ UNKNOWN"
             channel_time = "10:00"
             sent_24h = 0
+            failed_24h = 0
         return (
             "📊 <b>IBETIN ADMIN DASHBOARD</b>\n━━━━━━━━━━━━━━━━━━\n\n"
             "<b>LEADS</b>\n"
@@ -239,7 +204,8 @@ def install(reports):
             f"🆕 New/Unworked: <b>{data['new']}</b> · ⏰ Due: <b>{due}</b> · 📞 Follow-up: <b>{followup}</b>\n"
             f"⭐ Interested: <b>{counts.get('interested',0)}</b> · ✅ Converted: <b>{counts.get('converted',0)}</b>\n\n"
             "<b>AUTOMATION</b>\n"
-            f"🔔 Reminders: <b>{reminder_state}</b> · sent 24h: <b>{sent_24h}</b>\n"
+            f"🔔 Reminders: <b>{reminder_state}</b> · sent 24h: <b>{sent_24h}</b> · failed: <b>{failed_24h}</b>\n"
+            f"🤖 DM auto replies: <b>{reply_state}</b>\n"
             f"📢 Channel: <b>{channel_state}</b> · daily <b>{channel_time}</b> Dubai\n\n"
             f"⚠️ Not verified: <b>{data['total']-data['verified']}</b> · 👨‍💼 New already assigned: <b>{data['new_owned']}</b>"
         )
@@ -259,16 +225,21 @@ def install(reports):
 
     def automation_text():
         import fantzo_reminders as reminders
+        import fantzo_autoreply as autoreply
         auto = reminders.automation_status()
         reminder_state = "🟢 RUNNING" if auto["reminders_enabled"] else "🔴 PAUSED"
         channel_state = "🟢 RUNNING" if auto["channel_enabled"] else "🔴 PAUSED"
+        reply_state = "🟢 RUNNING" if autoreply.is_enabled() else "🔴 PAUSED"
         last = auto.get("last_channel") or {}
         last_status = str(last.get("status") or "No post yet").upper()
         last_at = reports._fmt_admin_time(str(last.get("sent_at") or ""))
         return (
             "🤖 <b>AUTOMATION CONTROL</b>\n━━━━━━━━━━━━━━━━━━\n\n"
             f"🔔 Reminders: <b>{reminder_state}</b>\n"
-            f"   Sent in last 24h: <b>{auto['reminder_sent_24h']}</b>\n\n"
+            f"   Last 24h: <b>{auto['reminder_sent_24h']}</b> sent · "
+            f"<b>{auto['reminder_failed_24h']}</b> failed · "
+            f"<b>{auto['reminder_blocked_24h']}</b> blocked\n\n"
+            f"🤖 DM auto replies: <b>{reply_state}</b>\n\n"
             f"📢 Channel posts: <b>{channel_state}</b>\n"
             f"   Schedule: <b>{auto['channel_time']} Dubai</b> every day\n"
             f"   Last: <b>{last_status}</b> · {last_at}\n\n"
@@ -472,9 +443,7 @@ def main():
     import ibetin_reports as reports
     install(reports)
     reports.ensure_tables()
-    reset_test_once(reports)
-    force_test_unverified_once(reports)
-    restore_test_verified_once(reports)
+    revoke_requested_verification_once(reports)
     log.info("IBETIN CRM QUEUE AUDIT release=%s counts=%s", VERSION, json.dumps(snapshot(reports), sort_keys=True))
     log.info("IBETIN CRM queue repair installed; all-time queues, phones and navigation enabled")
     _start_acquisition_snapshot_logger(reports)

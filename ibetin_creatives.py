@@ -26,6 +26,7 @@ TEST_CAMPAIGN_KEY = "liveline-direct-v40-test-mohit-97saxena-20260918-v3"
 CREATIVE_UNLOCK_CODE = os.getenv("IBETIN_CREATIVE_UNLOCK_CODE", "").strip()
 BRAND = "ibetin"
 FALLBACK_BANNER = Path(__file__).with_name("ibetin_live_casino_sports.jpg")
+REMINDER_BANNER = Path(__file__).with_name("ibetin_reminder_live_line.jpg")
 OTHER_BRAND = re.compile(r"fantzo|dura(?:bet|sports)?|betroxy", re.I)
 
 
@@ -594,11 +595,12 @@ async def _send_creative_as_photo(bot, creative, kwargs):
     return message
 
 
-async def send_fallback_banner(bot, kwargs):
-    """Send the bundled, visually checked IBETIN banner when no asset is approved."""
-    with FALLBACK_BANNER.open("rb") as stream:
+async def send_fallback_banner(bot, kwargs, *, purpose="general"):
+    """Send a bundled IBETIN banner when no uploaded asset is approved."""
+    banner = REMINDER_BANNER if purpose == "reminder" else FALLBACK_BANNER
+    with banner.open("rb") as stream:
         return await bot.send_photo(
-            photo=InputFile(stream, filename=FALLBACK_BANNER.name),
+            photo=InputFile(stream, filename=banner.name),
             **kwargs,
         )
 

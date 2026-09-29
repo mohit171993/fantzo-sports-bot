@@ -10,7 +10,7 @@ from urllib.parse import urlencode
 import ibetin_leads
 
 DEFAULT_LIVE_LINE_URL = "https://ibetin-app-production.up.railway.app/liveline"
-DEFAULT_BOT_USERNAME = "Ibtnofficialbot"
+DEFAULT_BOT_USERNAME = ""
 TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60
 
 
@@ -247,10 +247,9 @@ def live_line_url(user_id: int, base_url: str = "") -> str:
 
 
 def verification_bot_url(start_arg: str = "verifyliveline") -> str:
-    username = (
-        os.getenv("IBETIN_BOT_USERNAME", DEFAULT_BOT_USERNAME).strip().lstrip("@")
-        or DEFAULT_BOT_USERNAME
-    )
+    username = os.getenv("IBETIN_BOT_USERNAME", DEFAULT_BOT_USERNAME).strip().lstrip("@")
+    if not re.fullmatch(r"[A-Za-z0-9_]{5,32}", username):
+        return ""
     arg = re.sub(r"[^A-Za-z0-9_-]", "", str(start_arg or "verifyliveline"))[:64]
     if not arg:
         arg = "verifyliveline"

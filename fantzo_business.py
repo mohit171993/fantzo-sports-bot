@@ -17,11 +17,6 @@ import ibetin_leads
 
 logger = logging.getLogger(__name__)
 
-BOT_USERNAME = os.getenv("IBETIN_BOT_USERNAME", "Ibtnofficialbot").strip().lstrip("@") or "Ibtnofficialbot"
-LIVELINE_MINI_APP_URL = os.getenv(
-    "IBETIN_LIVELINE_MINI_APP_DEEP_LINK",
-    f"https://t.me/{BOT_USERNAME}/liveline?startapp=liveline",
-).strip()
 LIVE_LINE_DIRECT_URL = os.getenv(
     "IBETIN_LIVE_LINE_URL",
     "https://ibetin-app-production.up.railway.app/liveline",
@@ -57,7 +52,7 @@ def _is_stop_text(value: str) -> bool:
 
 
 WELCOME_REPLY = (
-    "👋 <b>Welcome to IBETIN</b>\n\n"
+    "👋 <b>Welcome to DURASPORTS</b>\n\n"
     "Choose an option below or type what you need."
 )
 
@@ -65,8 +60,13 @@ VERIFY_REPLY = (
     "📱 <b>VERIFY MOBILE TO CONTINUE</b>\n\n"
     "Verify your Telegram-linked mobile once to continue.\n\n"
     "Tap <b>📱 VERIFY & CONTINUE</b> below. By continuing, you agree that the "
-    "DURASPORTS team may contact you by <b>phone call or WhatsApp</b>. "
+    "DURA team may contact you by <b>phone call or WhatsApp</b>. "
     "You can opt out anytime."
+)
+
+VERIFY_LINK_UNAVAILABLE_REPLY = (
+    "📱 <b>VERIFY MOBILE TO CONTINUE</b>\n\n"
+    "Open this bot in a private chat and send /start to verify your Telegram-linked mobile."
 )
 
 
@@ -96,12 +96,15 @@ def business_reply_text() -> str:
     return WELCOME_REPLY
 
 
-def verification_keyboard() -> InlineKeyboardMarkup:
+def verification_keyboard() -> InlineKeyboardMarkup | None:
+    url = phone_verify.verification_bot_url("verify_business_dm")
+    if not url:
+        return None
     return InlineKeyboardMarkup(
         [[
             TelegramInlineKeyboardButton(
                 "📱 VERIFY & CONTINUE",
-                url=phone_verify.verification_bot_url("verify_business_dm"),
+                url=url,
                 api_kwargs={"style": "primary"},
             )
         ]]
@@ -111,12 +114,12 @@ def verification_keyboard() -> InlineKeyboardMarkup:
 def business_keyboard(customer_id: int = 0) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
-            [_button("🚀 JOIN IBETIN", "home", customer_id)],
-            [_button("🏏 OPEN IBETIN LIVE LINE", "liveline", customer_id)],
+            [_button("🚀 OPEN DURASPORTS", "home", customer_id)],
+            [_button("🏏 OPEN DURASPORTS LIVE LINE", "liveline", customer_id)],
             [
                 TelegramInlineKeyboardButton(
                     "📢 JOIN CHANNEL",
-                    url="https://t.me/ibetinoffcial",
+                    url="https://t.me/durasportsofficial",
                 )
             ],
         ]
@@ -136,14 +139,14 @@ def _payments_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
             [_button("💳 PAYMENTS", "payments")],
-            [_button("🛟 SUPPORT", "support"), _button("⚡ IBETIN HOME", "home")],
+            [_button("🛟 SUPPORT", "support"), _button("⚡ DURASPORTS HOME", "home")],
         ]
     )
 
 
 def _support_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
-        [[_button("🛟 OPEN SUPPORT", "support")], [_button("⚡ IBETIN HOME", "home")]]
+        [[_button("🛟 OPEN SUPPORT", "support")], [_button("⚡ DURASPORTS HOME", "home")]]
     )
 
 
@@ -396,9 +399,9 @@ def classify_business_dm(text: str, customer_id: int = 0):
     ):
         return (
             "liveline",
-            "🏏 <b>IBETIN Live Line</b>\n\nOpen IBETIN Live Line below.",
+            "🏏 <b>DURASPORTS Live Line</b>\n\nOpen DURASPORTS Live Line below.",
             InlineKeyboardMarkup(
-                [[_button("🏏 OPEN IBETIN LIVE LINE", "liveline", customer_id)]]
+                [[_button("🏏 OPEN DURASPORTS LIVE LINE", "liveline", customer_id)]]
             ),
         )
 
@@ -423,9 +426,9 @@ def classify_business_dm(text: str, customer_id: int = 0):
     ):
         return (
             "join",
-            "🚀 <b>Join IBETIN</b>\n\nOpen IBETIN below to continue.",
+            "🚀 <b>Open DURASPORTS</b>\n\nOpen DURASPORTS below to continue.",
             InlineKeyboardMarkup(
-                [[_button("🚀 JOIN IBETIN", "home", customer_id)]]
+                [[_button("🚀 OPEN DURASPORTS", "home", customer_id)]]
             ),
         )
 
@@ -439,56 +442,56 @@ def classify_business_dm(text: str, customer_id: int = 0):
     if "live tv" in t or "watch live" in t or "live stream" in t or _contains(t, ["live"]):
         return (
             "live",
-            "🔴 <b>Live now</b>\n\nOpen the IBETIN live section inside Telegram.",
+            "🔴 <b>Live now</b>\n\nOpen the DURASPORTS live section inside Telegram.",
             _single_keyboard("🔴 OPEN LIVE", "live"),
         )
 
     if _contains(t, ["news", "update", "updates", "headline", "headlines"]):
         return (
             "news",
-            "📰 <b>Sports News</b>\n\nOpen the latest IBETIN sports updates below.",
+            "📰 <b>Sports News</b>\n\nOpen the latest DURASPORTS sports updates below.",
             _single_keyboard("📰 OPEN SPORTS NEWS", "news"),
         )
 
     if _contains(t, ["alert", "alerts", "notification", "notifications", "notify", "reminder", "reminders"]):
         return (
             "alerts",
-            "🔔 <b>Match Alerts</b>\n\nManage your Telegram sports notifications inside IBETIN.",
+            "🔔 <b>Match Alerts</b>\n\nManage your Telegram sports notifications inside DURASPORTS.",
             _single_keyboard("🔔 MANAGE ALERTS", "alerts"),
         )
 
     if _contains(t, ["deposit", "add money", "payment", "pay", "upi", "recharge", "withdraw", "withdrawal", "payout", "cashout", "cash out"]):
         return (
             "payments",
-            "💳 <b>Payments</b>\n\nOpen IBETIN payment information or official support. Never share passwords or OTPs in chat.",
+            "💳 <b>Payments</b>\n\nOpen DURASPORTS payment information or official support. Never share passwords or OTPs in chat.",
             _payments_keyboard(),
         )
 
     if _contains(t, ["login", "password", "otp", "account", "bonus", "offer", "promo", "promotion"]):
         return (
             "account",
-            "👤 <b>Account Help</b>\n\nOpen IBETIN to continue. For account problems, use official support and never send passwords or OTPs here.",
+            "👤 <b>Account Help</b>\n\nOpen DURASPORTS to continue. For account problems, use official support and never send passwords or OTPs here.",
             _payments_keyboard(),
         )
 
     if _contains(t, ["support", "help", "problem", "issue", "complaint", "failed", "pending", "stuck"]):
         return (
             "support",
-            "🛟 <b>IBETIN Support</b>\n\nOpen official support below. If the issue involves a transaction, keep the reference ID ready but do not send passwords, OTPs or full banking credentials.",
+            "🛟 <b>DURASPORTS Support</b>\n\nOpen official support below. If the issue involves a transaction, keep the reference ID ready but do not send passwords, OTPs or full banking credentials.",
             _support_keyboard(),
         )
 
     if _contains(t, ["thanks", "thank", "thx", "ok", "okay"]):
         return (
             "thanks",
-            "🙏 You're welcome. Open IBETIN anytime below.",
-            _single_keyboard("⚡ OPEN IBETIN", "home"),
+            "🙏 You're welcome. Open DURASPORTS anytime below.",
+            _single_keyboard("⚡ OPEN DURASPORTS", "home"),
         )
 
     return (
         "general",
-        "🤖 <b>IBETIN Assistant</b>\n\n"
-        "I can help you open IBETIN, Live Line or the official channel. "
+        "🤖 <b>DURASPORTS Assistant</b>\n\n"
+        "I can help you open DURASPORTS, Live Line or the official channel. "
         "Choose an option below.",
         business_keyboard(customer_id),
     )
@@ -590,7 +593,10 @@ async def business_verification_guard(
     if phone_verify.is_verified(customer_id):
         return
 
-    await _reply_with_retry(message, VERIFY_REPLY, verification_keyboard())
+    verify_markup = verification_keyboard()
+    await _reply_with_retry(
+        message, VERIFY_REPLY if verify_markup else VERIFY_LINK_UNAVAILABLE_REPLY, verify_markup
+    )
     _mark_business_reply(
         connection_id,
         customer_id,
@@ -631,7 +637,10 @@ async def business_auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     if customer_id and not phone_verify.is_verified(customer_id):
         verify_text = message.text or ""
-        await _reply_with_retry(message, VERIFY_REPLY, verification_keyboard())
+        verify_markup = verification_keyboard()
+        await _reply_with_retry(
+            message, VERIFY_REPLY if verify_markup else VERIFY_LINK_UNAVAILABLE_REPLY, verify_markup
+        )
         _mark_business_reply(
             connection_id,
             customer_id,
@@ -685,7 +694,7 @@ async def business_auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE
             message,
             "✅ <b>Contact preference updated.</b>\n\n"
             "We will stop promotional follow-up to this Telegram lead. "
-            "You can still use IBETIN and official support anytime.",
+            "You can still use DURASPORTS and official support anytime.",
             None,
         )
         return
@@ -697,7 +706,7 @@ async def business_auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE
         followup_text, followup_markup = reminders._copy_for("general", 1, "business_dm")
         await _reply_with_retry(
             message,
-            "🧪 <b>IBETIN FOLLOW-UP TEST</b>\n\n" + followup_text,
+            "🧪 <b>DURASPORTS FOLLOW-UP TEST</b>\n\n" + followup_text,
             followup_markup,
         )
         logger.info(

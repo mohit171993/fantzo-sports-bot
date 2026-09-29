@@ -31,17 +31,13 @@ RETRY_BACKOFF_MINUTES = 30
 
 IBETIN_HOME_URL = os.getenv("IBETIN_HOME_URL", "https://ibetin.com").strip()
 IBETIN_MINI_APP_DEEP_LINK = os.getenv("IBETIN_MINI_APP_DEEP_LINK", IBETIN_HOME_URL).strip()
-IBETIN_CHANNEL_URL = "https://t.me/ibetinoffcial"
+IBETIN_CHANNEL_URL = "https://t.me/durasportsofficial"
 _IBETIN_APP_BASE_URL = (
     os.getenv("TRACKING_BASE_URL", "").strip().rstrip("/")
     or "https://ibetin-app-production.up.railway.app"
 )
 IBETIN_LIVE_LINE_URL = os.getenv(
     "IBETIN_LIVE_LINE_URL", f"{_IBETIN_APP_BASE_URL}/liveline"
-).strip()
-IBETIN_LIVE_LINE_MINI_APP_URL = os.getenv(
-    "IBETIN_LIVELINE_MINI_APP_DEEP_LINK",
-    "https://t.me/Ibtnofficialbot/liveline?startapp=liveline",
 ).strip()
 LIVELINE_CHANNEL_CAMPAIGN_KEY = "liveline-v40-launch-20260918"
 SPORTS_BOT_URL = os.getenv("IBETIN_SPORTS_BOT_URL", IBETIN_HOME_URL).strip()
@@ -50,7 +46,16 @@ CHANNEL_AUTOPOST_HOUR = max(0, min(23, int(os.getenv("IBETIN_CHANNEL_AUTOPOST_HO
 CHANNEL_AUTOPOST_MINUTE = max(0, min(59, int(os.getenv("IBETIN_CHANNEL_AUTOPOST_MINUTE", "0"))))
 CHANNEL_RETRY_MINUTES = max(5, int(os.getenv("IBETIN_CHANNEL_RETRY_MINUTES", "15")))
 CHANNEL_CATCHUP_HOURS = max(1, int(os.getenv("IBETIN_CHANNEL_CATCHUP_HOURS", "6")))
-IBETIN_CHANNEL_CHAT_ID = "@ibetinoffcial"
+IBETIN_CHANNEL_CHAT_ID = "@durasportsofficial"
+DURA_CHANNEL_POSTS_APPROVED = os.getenv("DURA_CHANNEL_POSTS_APPROVED", "false").strip().lower() in {
+    "1", "true", "yes", "on"
+}
+
+
+def _channel_liveline_url() -> str:
+    # Use only the identity resolved from this running bot. An old deployment
+    # variable must not direct DURA users to a different brand's bot.
+    return phone_verify.verification_bot_url("verifyliveline")
 
 
 def ensure_tables() -> None:
@@ -353,14 +358,20 @@ def _verification_due_stage(row, now_utc: datetime):
 
 
 def _copy_for(interest: str, stage: int, source: str, user_id: int = 0):
+    if source == "business_dm" and not (user_id and phone_verify.is_verified(user_id)):
+        markup = business.verification_keyboard()
+        return (
+            business.VERIFY_REPLY if markup else business.VERIFY_LINK_UNAVAILABLE_REPLY,
+            markup,
+        )
     if interest == "cricket":
-        subject = "🏏 IBETIN Live Line"
+        subject = "🏏 DURASPORTS Live Line"
         detail = "Live scores, Match Pulse, scorecards, fixtures & results."
     elif interest == "football":
         subject = "⚽ Football updates"
         detail = "Live scores, fixtures & results."
     else:
-        subject = "🔥 IBETIN sports update"
+        subject = "🔥 DURASPORTS sports update"
         detail = "Live Line, fixtures & results are ready."
 
     if stage == 1:
@@ -387,7 +398,7 @@ def _copy_for(interest: str, stage: int, source: str, user_id: int = 0):
                 ],
                 [
                     TelegramInlineKeyboardButton(
-                        "🚀 JOIN IBETIN",
+                        "🚀 OPEN DURASPORTS",
                         url=business.telegram_mini_app_url("home", user_id),
                     )
                 ],
@@ -418,7 +429,7 @@ def _copy_for(interest: str, stage: int, source: str, user_id: int = 0):
                 [live_line_button],
                 [
                     TelegramInlineKeyboardButton(
-                        "🚀 JOIN IBETIN",
+                        "🚀 OPEN DURASPORTS",
                         web_app=WebAppInfo(url=hub.hub_url("home")),
                     )
                 ],
@@ -445,7 +456,7 @@ def _verification_reminder_copy(stage: int):
         f"<b>{intro}</b>\n\n"
         "Verify your Telegram-linked mobile once to continue.\n\n"
         "Tap <b>📱 VERIFY & CONTINUE</b>. By continuing, you agree that the "
-        "DURASPORTS team may contact you by phone or WhatsApp. You can opt out anytime."
+        "DURA team may contact you by phone or WhatsApp. You can opt out anytime."
     )
     markup = ReplyKeyboardMarkup(
         [[KeyboardButton("📱 VERIFY & CONTINUE", request_contact=True, api_kwargs={"style": "primary"})]],
@@ -737,7 +748,11 @@ def _channel_daily_creative(local_now: datetime):
 
 async def send_liveline_channel_daily(application, local_now: datetime | None = None) -> bool:
     """Send one scheduled Live Line channel post per India calendar day."""
-    if not channel_autopost_enabled():
+    if not DURA_CHANNEL_POSTS_APPROVED or not channel_autopost_enabled():
+        return False
+    liveline_url = _channel_liveline_url()
+    if not liveline_url:
+        logger.warning("DURA channel post skipped: bot username unavailable")
         return False
 
     ensure_tables()
@@ -754,14 +769,14 @@ async def send_liveline_channel_daily(application, local_now: datetime | None = 
         return True
 
     caption = (
-        "🏏 <b>IBETIN LIVE LINE</b>\n\n"
+        "🏏 <b>DURASPORTS LIVE LINE</b>\n\n"
         "Live scores • Match Pulse • Scorecards • Fixtures & results\n\n"
         "Tap below to open Live Line."
     )
     markup = InlineKeyboardMarkup(
         [[TelegramInlineKeyboardButton(
-            "🏏 OPEN IBETIN LIVE LINE",
-            url=IBETIN_LIVE_LINE_MINI_APP_URL,
+            "🏏 OPEN DURASPORTS LIVE LINE",
+            url=liveline_url,
         )]]
     )
 
@@ -914,7 +929,13 @@ async def channel_autopost_loop(application) -> None:
 
 
 async def send_liveline_channel_launch(application) -> bool:
-    """Send the V40 Live Line launch post once to the IBETIN channel."""
+    """Send the DURA Live Line launch post once to the DURA channel."""
+    if not DURA_CHANNEL_POSTS_APPROVED:
+        return False
+    liveline_url = _channel_liveline_url()
+    if not liveline_url:
+        logger.warning("DURA channel launch skipped: bot username unavailable")
+        return False
     ensure_tables()
     with core.db() as conn:
         existing = conn.execute(
@@ -926,9 +947,9 @@ async def send_liveline_channel_launch(application) -> bool:
         return True
 
     text = (
-        "🏏 <b>IBETIN LIVE LINE IS LIVE</b>\n"
+        "🏏 <b>DURASPORTS LIVE LINE IS LIVE</b>\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
-        "Follow cricket live inside Telegram with IBETIN Live Line.\n\n"
+        "Follow cricket live inside Telegram with DURASPORTS Live Line.\n\n"
         "⚡ Fast live score updates\n"
         "📊 Match Pulse & scorecards\n"
         "⭐ Save your favourite matches\n"
@@ -938,15 +959,15 @@ async def send_liveline_channel_launch(application) -> bool:
     markup = InlineKeyboardMarkup(
         [[
             TelegramInlineKeyboardButton(
-                "🏏 OPEN IBETIN LIVE LINE",
-                url=IBETIN_LIVE_LINE_MINI_APP_URL,
+                "🏏 OPEN DURASPORTS LIVE LINE",
+                url=liveline_url,
             )
         ]]
     )
 
     try:
         msg = await application.bot.send_message(
-            chat_id="@ibetinoffcial",
+            chat_id=IBETIN_CHANNEL_CHAT_ID,
             text=text,
             parse_mode="HTML",
             reply_markup=markup,

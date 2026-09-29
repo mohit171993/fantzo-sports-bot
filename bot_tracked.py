@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 from urllib.parse import urlencode
 
 from telegram import (
@@ -326,6 +327,9 @@ async def _set_user_menu_button(bot, user_id: int, verified: bool) -> None:
 
 
 async def _require_verified(update, context, source: str = "bot_start") -> bool:
+    if not _is_private_chat(update):
+        await _open_private_chat_prompt(update, context)
+        return False
     user = update.effective_user
     if not user:
         return False
@@ -586,10 +590,37 @@ def _verification_reply_keyboard() -> ReplyKeyboardMarkup:
     )
 
 
+def _is_private_chat(update) -> bool:
+    chat = getattr(update, "effective_chat", None) or getattr(
+        getattr(update, "effective_message", None), "chat", None
+    )
+    return getattr(chat, "type", None) == "private"
+
+
+async def _open_private_chat_prompt(update, context) -> None:
+    message = update.effective_message
+    if not message:
+        return
+    username = str(getattr(context.bot, "username", "") or "").lstrip("@")
+    markup = None
+    if re.fullmatch(r"[A-Za-z0-9_]{5,32}", username):
+        markup = InlineKeyboardMarkup([[
+            InlineKeyboardButton("OPEN PRIVATE CHAT", url=f"https://t.me/{username}?start=verify")
+        ]])
+    await message.reply_text(
+        "Open this bot in a private chat and send /start to continue.",
+        reply_markup=markup,
+        disable_web_page_preview=True,
+    )
+
+
 async def _prompt_mobile_verification(update, context, source: str = "bot_start") -> None:
     user = update.effective_user
     message = update.effective_message
     if not user or not message:
+        return
+    if not _is_private_chat(update):
+        await _open_private_chat_prompt(update, context)
         return
 
     source = str(source or "bot_start")[:64]
@@ -642,7 +673,7 @@ async def _prompt_mobile_verification(update, context, source: str = "bot_start"
         "📱 <b>VERIFY MOBILE TO CONTINUE</b>\n\n"
         f"{detail}\n\n"
         "Tap <b>📱 VERIFY & CONTINUE</b> below. Telegram will share your linked mobile number.\n\n"
-        "By continuing, you agree that the DURASPORTS team may contact you by "
+        "By continuing, you agree that the DURA team may contact you by "
         "<b>phone call or WhatsApp</b>. You can opt out anytime.",
         parse_mode="HTML",
         reply_markup=_verification_reply_keyboard(),
@@ -679,6 +710,9 @@ async def mobile_contact_handler(update, context) -> None:
     message = update.effective_message
     contact = message.contact if message else None
     if not user or not message or not contact:
+        return
+    if not _is_private_chat(update):
+        await _open_private_chat_prompt(update, context)
         return
 
     was_verified = phone_verify.is_verified(user.id)
@@ -798,6 +832,9 @@ async def pending_verification_text_handler(update, context) -> None:
         return
     if phone_verify.is_verified(user.id):
         return
+    if not _is_private_chat(update):
+        await _open_private_chat_prompt(update, context)
+        raise ApplicationHandlerStop
     await _set_user_menu_button(context.bot, user.id, False)
 
     if _is_stop_text(message.text):
@@ -854,6 +891,8 @@ async def verified_fixed_reply_handler(update, context) -> None:
     user = update.effective_user
     message = update.effective_message
     if not user or not message or not message.text:
+        return
+    if not _is_private_chat(update):
         return
     if not phone_verify.is_verified(user.id):
         return
@@ -919,6 +958,9 @@ async def smart_start(update, context) -> None:
 
     if not user or not message:
         return
+    if not _is_private_chat(update):
+        await _open_private_chat_prompt(update, context)
+        return
 
     # Telegram does not report chat deletion. A new /start is the tester's
     # explicit entry point; the in-chat START button keeps the current visit.
@@ -935,7 +977,7 @@ async def smart_start(update, context) -> None:
         reminders.set_opt_out("bot", user.id, True)
         reminders.set_opt_out("business_dm", user.id, True)
         await message.reply_text(
-            "🔕 <b>DURASPORTS reminders are OFF.</b>", parse_mode="HTML"
+            "🔕 <b>Reminders are off.</b>", parse_mode="HTML"
         )
         return
 
@@ -1066,6 +1108,14 @@ app.core.help_command = help_command
 async def smart_callback_router(update, context) -> None:
     query = update.callback_query
     user = update.effective_user
+    if not _is_private_chat(update):
+        if query:
+            try:
+                await query.answer()
+            except Exception:
+                pass
+        await _open_private_chat_prompt(update, context)
+        return
     if user and not phone_verify.is_verified(user.id):
         if query:
             try:
@@ -1181,14 +1231,35 @@ async def admin_crm_text_handler(update, context) -> None:
 # TELEGRAM UI
 # =========================================================
 
+async def _set_active_bot_username(bot) -> str:
+    # Resolve the running bot before building verification links. If Telegram
+    # cannot provide an identity, continue with neutral copy and no deep link.
+    username = str(getattr(bot, "username", "") or "").lstrip("@")
+    if not re.fullmatch(r"[A-Za-z0-9_]{5,32}", username):
+        try:
+            me = await bot.get_me()
+            username = str(getattr(me, "username", "") or "").lstrip("@")
+        except Exception:
+            logger.warning("Could not resolve DURA bot username for verification links")
+    if re.fullmatch(r"[A-Za-z0-9_]{5,32}", username):
+        os.environ["IBETIN_BOT_USERNAME"] = username
+        logger.info("DURA active Telegram bot username: @%s", username)
+        return username
+    else:
+        os.environ.pop("IBETIN_BOT_USERNAME", None)
+        logger.warning("DURA verification deep links disabled until bot identity is available")
+        return ""
+
+
 async def configure_telegram_ui(application) -> None:
+    await _set_active_bot_username(application.bot)
     # Telegram shows these before a new user verifies their account.
     await application.bot.set_my_short_description(
-        "DURA LIVE LINE • Live cricket scores and updates"
+        "Verify your Telegram-linked mobile to continue."
     )
     await application.bot.set_my_description(
-        "DURA LIVE LINE shows live cricket scores, fixtures and results. "
-        "Verify your Telegram-linked mobile in chat to continue to account support."
+        "Share your Telegram-linked contact in chat to verify your account "
+        "and continue to supported services."
     )
     await application.bot.set_my_commands(PREVERIFY_COMMANDS)
 
@@ -1293,7 +1364,7 @@ app.configure_telegram_ui = configure_telegram_ui
 # =========================================================
 
 if __name__ == "__main__":
-    hub.install_on_tracking_handler(analytics)
+    hub.install_on_tracking_handler(analytics, install_runtime_ui=False)
     private_apk_upload.install_on_tracking_handler(analytics)
     trial_live_tv.install_on_tracking_handler(analytics)
     fantzo_live_tv.install_on_tracking_handler(analytics)

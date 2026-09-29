@@ -1,5 +1,24 @@
 # IBETIN Sports Updates Bot
 
+## DURA production branch verification hotfix
+
+The `durasports-production-2026-09-22` branch uses this code with a separate
+Telegram bot. Its public short description, long description, and default
+commands are set to neutral verification text at startup. A contact-request
+button is sent only in a private chat. The active Telegram username is read
+from `get_me()` when the bot library has not populated it; if unavailable,
+verification deep links are omitted rather than pointing to the old IBETIN bot.
+
+Before deployment, inspect the existing public BotFather display name,
+username, avatar, about text, and any manually configured menu or web app.
+This source change cannot confirm or rename those live public fields.
+
+Channel posting is default off for this hotfix. Set
+`DURA_CHANNEL_POSTS_APPROVED=true` only after the DURA destination and post
+copy are reviewed; the launch task is otherwise skipped even though the
+background scheduler starts. Check the existing
+`IBETIN_CHANNEL_AUTOPOST_ENABLED` deployment value before enabling it.
+
 Telegram sports bot deployment for **IBETIN**.
 
 This branch is dedicated to IBETIN and was created from the Fantzo code snapshot locked on 14 September 2026. It is intentionally isolated from the live Fantzo project and is not merged back into Fantzo.

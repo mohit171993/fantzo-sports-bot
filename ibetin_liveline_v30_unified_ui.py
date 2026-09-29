@@ -104,6 +104,10 @@ def _send_liveline_redirect_with_cookie(handler, token: str) -> None:
 
 def _liveline_verification_page(token: str = "") -> str:
     verify_url = phone_verify.verification_bot_url()
+    verification_action = (
+        f'<a class="btn" href="{verify_url}">▶ OPEN BOT TO VERIFY</a>'
+        if verify_url else '<p>Open the bot in a private chat and send /start to verify.</p>'
+    )
     if token:
         status_url = (
             IBETIN_PUBLIC_VERIFY_STATUS_PATH
@@ -128,10 +132,10 @@ def _liveline_verification_page(token: str = "") -> str:
   check();
 }})();
 </script>"""
-        sub = "After sharing your number in the bot, this page unlocks automatically."
+        sub = "After sharing your linked contact in the bot, this page unlocks automatically."
     else:
         poll_js = ""
-        sub = "After verification, use the Open Live Line button sent by the bot."
+        sub = "After verification, continue using the button sent by the bot."
 
     return f"""<!doctype html>
 <html lang="en">
@@ -139,7 +143,7 @@ def _liveline_verification_page(token: str = "") -> str:
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta http-equiv="Cache-Control" content="no-store">
-<title>Verify Mobile · IBETIN Live Line</title>
+<title>Verify account</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
 *{{box-sizing:border-box}}html,body{{margin:0;min-height:100%;font-family:Inter,Arial,sans-serif;background:#eef3f8;color:#102c4b}}
@@ -156,9 +160,8 @@ h1{{margin:0;font-size:24px}}p{{color:#6d8297;line-height:1.55;font-size:14px}}
 <body><div class="wrap"><div class="card">
 <div class="mark">📱</div>
 <h1>Mobile verification required</h1>
-<p>IBETIN Live Line is available only after you verify the mobile number linked to your Telegram account.</p>
-<div class="benefits"><span>⚡ Live scores</span><span>📊 Match Pulse</span><span>🗓 Fixtures & results</span></div>
-<a class="btn" href="{verify_url}">▶ START VERIFICATION IN BOT</a>
+<p>Verify the mobile number linked to your Telegram account to continue.</p>
+{verification_action}
 <div class="note">{sub}</div>
 </div></div>{poll_js}</body></html>"""
 

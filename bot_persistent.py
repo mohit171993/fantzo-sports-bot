@@ -1,5 +1,6 @@
 import logging
 import os
+from pathlib import Path
 
 from telegram import (
     BotCommand,
@@ -66,6 +67,9 @@ QUICK_MENU = ReplyKeyboardMarkup(
 )
 
 BANNER_ENV = "IBETIN_BANNER_FILE_ID"
+BANNER_KEY = "ibetin_home_banner_file_id"
+PENDING_BANNER_KEY = "ibetin_pending_home_banner_file_id"
+DEFAULT_BANNER = Path(__file__).with_name("ibetin_live_casino_sports.jpg")
 MINI_APP_URL = os.getenv(
     "IBETIN_MINI_APP_URL",
     os.getenv("FANTZO_MINI_APP_URL", "https://ibetin.com"),
@@ -139,21 +143,23 @@ def get_banner_file_id() -> str:
         ensure_settings_table()
         with core.db() as conn:
             row = conn.execute(
-                "SELECT value FROM settings WHERE key = 'home_banner_file_id'"
+                "SELECT value FROM settings WHERE key = ?",
+                (BANNER_KEY,),
             ).fetchone()
-        return str(row["value"]).strip() if row and row["value"] else ""
+        if row and row["value"]:
+            return str(row["value"]).strip()
     except Exception as exc:
         logger.warning("Could not read IBETIN banner setting: %s", exc)
-        return ""
+    return str(DEFAULT_BANNER) if DEFAULT_BANNER.is_file() else ""
 
 
-def save_banner_file_id(file_id: str) -> None:
+def save_banner_file_id(file_id: str, pending: bool = False) -> None:
     ensure_settings_table()
     with core.db() as conn:
         conn.execute(
-            "INSERT INTO settings(key, value) VALUES('home_banner_file_id', ?) "
+            "INSERT INTO settings(key, value) VALUES(?, ?) "
             "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-            (file_id,),
+            (PENDING_BANNER_KEY if pending else BANNER_KEY, file_id),
         )
 
 
@@ -231,8 +237,8 @@ async def setbanner_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     context.user_data["awaiting_ibetin_banner"] = True
     await message.reply_text(
         "🖼 <b>Send the IBETIN banner now.</b>\n\n"
-        "Send it as a normal Telegram <b>photo</b>. No caption is required.\n"
-        "I will save Telegram's own image reference and confirm when it is ready.",
+        "Send it as a normal Telegram <b>photo</b>. I will stage it for "
+        "visual review; it will not go live until /approvebanner IBETIN.",
         parse_mode="HTML",
     )
 
@@ -249,19 +255,59 @@ async def banner_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     if not waiting and not caption_trigger:
         return
+    if any(name in caption for name in ("fantzo", "dura", "betroxy")):
+        await message.reply_text("⛔ Another brand is mentioned; IBETIN banner rejected.")
+        return
 
     file_id = message.photo[-1].file_id
-    save_banner_file_id(file_id)
+    save_banner_file_id(file_id, pending=True)
     context.user_data["awaiting_ibetin_banner"] = False
-    logger.info("IBETIN home banner captured successfully")
+    logger.info("IBETIN home banner staged for admin review")
 
     await message.reply_text(
-        "✅ <b>IBETIN banner saved.</b>\n\n"
-        "It will now appear above the premium home menu.\n"
-        "Tap <b>⚡ IBETIN Menu</b> to test it.",
+        "🕓 <b>IBETIN banner staged.</b>\n\n"
+        "Check the photo above. If it is IBETIN artwork, send "
+        "<code>/approvebanner IBETIN</code>. Otherwise send /rejectbanner.",
         parse_mode="HTML",
         reply_markup=QUICK_MENU,
     )
+
+
+async def approvebanner_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user = update.effective_user
+    message = update.effective_message
+    if not user or user.id != core.ADMIN_USER_ID or not message:
+        return
+    if context.args != ["IBETIN"]:
+        await message.reply_text("Usage: /approvebanner IBETIN after visual review")
+        return
+    with core.db() as conn:
+        row = conn.execute(
+            "SELECT value FROM settings WHERE key = ?", (PENDING_BANNER_KEY,)
+        ).fetchone()
+        if not row or not row["value"]:
+            pending_file_id = ""
+        else:
+            pending_file_id = str(row["value"])
+            conn.execute(
+                "INSERT INTO settings(key, value) VALUES(?, ?) "
+                "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                (BANNER_KEY, pending_file_id),
+            )
+            conn.execute("DELETE FROM settings WHERE key = ?", (PENDING_BANNER_KEY,))
+    await message.reply_text(
+        "✅ IBETIN home banner approved." if pending_file_id else "No banner is pending."
+    )
+
+
+async def rejectbanner_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user = update.effective_user
+    message = update.effective_message
+    if not user or user.id != core.ADMIN_USER_ID or not message:
+        return
+    with core.db() as conn:
+        conn.execute("DELETE FROM settings WHERE key = ?", (PENDING_BANNER_KEY,))
+    await message.reply_text("Pending IBETIN home banner discarded.")
 
 
 async def runtime_admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -328,6 +374,8 @@ def run() -> None:
     app.add_handler(CommandHandler("autoreply", fantzo_autoreply.autoreply_command))
     app.add_handler(CommandHandler("broadcast", core.broadcast))
     app.add_handler(CommandHandler("setbanner", setbanner_command))
+    app.add_handler(CommandHandler("approvebanner", approvebanner_command))
+    app.add_handler(CommandHandler("rejectbanner", rejectbanner_command))
     app.add_handler(
         MessageHandler(
             filters.UpdateType.MESSAGE

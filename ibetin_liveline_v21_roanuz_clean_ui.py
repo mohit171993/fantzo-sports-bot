@@ -109,7 +109,11 @@ def _merge_detail_score(card, detail):
 
 
 def _display_ok(match):
-    if not isinstance(match, dict) or not _valid_key(str(match.get("roanuzMatchKey") or match.get("id") or "")):
+    if not isinstance(match, dict):
+        return False
+    key = str(match.get("roanuzMatchKey") or match.get("id") or "")
+    numeric_fallback = key.isascii() and key.isdecimal() and 1 <= len(key) <= 20
+    if not (numeric_fallback or _valid_key(key)):
         return False
     home = match.get("home") if isinstance(match.get("home"), dict) else {}
     away = match.get("away") if isinstance(match.get("away"), dict) else {}

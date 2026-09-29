@@ -650,12 +650,6 @@ def install() -> None:
             await original_start(update, context)
             return
 
-        # A returning verified user who follows a feature campaign link should
-        # see that feature first, rather than a generic welcome screen.
-        if user and is_registered(user.id) and lead_funnel.has_feature_intent(arg):
-            await lead_funnel.send_post_verify(update.effective_message, user.id)
-            return
-
         # Global Fantzo onboarding gate: every normal /start from an unverified
         # account must complete Telegram self-contact verification first.
         if user and not is_registered(user.id):
@@ -684,6 +678,11 @@ def install() -> None:
                 parse_mode="HTML",
                 reply_markup=native_ui.verified_quick_menu(),
             )
+            # Preserve the established /start and deep-link handling above.
+            # A feature campaign adds a focused card after the normal home and
+            # quick-access messages; it never replaces their existing actions.
+            if lead_funnel.has_feature_intent(arg):
+                await lead_funnel.send_post_verify(update.effective_message, user.id)
 
     async def gated_router(update, context):
         query = update.callback_query

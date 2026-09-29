@@ -920,6 +920,17 @@ async def smart_start(update, context) -> None:
     if not user or not message:
         return
 
+    # Telegram does not report chat deletion. A new /start is the tester's
+    # explicit entry point; the in-chat START button keeps the current visit.
+    start_words = str(message.text or "").split(None, 1)
+    if (
+        int(user.id) == phone_verify.TEST_REVERIFY_USER_ID
+        and start_words
+        and start_words[0].split("@", 1)[0].lower() == "/start"
+    ):
+        revoked = phone_verify.reset_test_verification_on_start(user.id)
+        logger.info("TEST_VERIFICATION_RESET_ON_START user_id=%s revoked=%s", user.id, revoked)
+
     if arg == "stopreminders":
         reminders.set_opt_out("bot", user.id, True)
         reminders.set_opt_out("business_dm", user.id, True)

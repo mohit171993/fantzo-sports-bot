@@ -168,6 +168,75 @@ def _match_detail(key: str):
     raise ValueError("Invalid match key")
 
 
+def _highlightly_live_bhav(match_id: str) -> dict:
+    """Use the display provider's own match ID when Roanuz has no safe key."""
+    match_id = str(match_id or "").strip()
+    result = {
+        "ok": True,
+        "matchId": match_id,
+        "oddsType": "live",
+        "requestedType": "live",
+        "source": "Highlightly live odds",
+        "entries": [],
+    }
+    if not (match_id.isascii() and match_id.isdecimal() and 1 <= len(match_id) <= 20):
+        return result
+    try:
+        rows = liveline._highlightly(
+            "/cricket/odds",
+            {"matchId": int(match_id), "oddsType": "live", "limit": 5},
+            ttl=60,
+        )
+    except Exception as exc:
+        logger.warning(
+            "IBETIN Highlightly live BHAV unavailable match_id=%s error=%s",
+            match_id, str(exc)[:160],
+        )
+        return result
+    if isinstance(rows, dict):
+        rows = [rows]
+    if not isinstance(rows, list):
+        return result
+
+    entries = []
+    for row in rows:
+        if not isinstance(row, dict) or str(row.get("matchId") or "") != match_id:
+            continue
+        odds = row.get("odds") if isinstance(row.get("odds"), list) else []
+        for market in odds:
+            if not isinstance(market, dict):
+                continue
+            market_type = str(market.get("type") or "live").strip().lower()
+            market_name = str(market.get("market") or "").strip()
+            if market_type != "live" or market_name.casefold() not in {
+                "full time result", "match winner", "match result"
+            }:
+                continue
+            raw_values = market.get("values") if isinstance(market.get("values"), list) else []
+            values = []
+            for item in raw_values:
+                if not isinstance(item, dict):
+                    continue
+                label = str(item.get("value") or item.get("name") or item.get("label") or "").strip()
+                odd = item.get("odd")
+                try:
+                    price = float(odd)
+                except (TypeError, ValueError):
+                    continue
+                if label and 1.0 <= price <= 10000.0:
+                    values.append({"label": label, "odd": price})
+            if len(values) >= 2:
+                entries.append({
+                    "bookmaker": str(market.get("bookmakerName") or "Bookmaker"),
+                    "bookmakerId": market.get("bookmakerId"),
+                    "type": "live",
+                    "market": "Match Winner",
+                    "values": values[:3],
+                })
+    result["entries"] = entries[:12]
+    return result
+
+
 def _api(handler):
     q = parse_qs(urlparse(handler.path).query)
     action = (q.get("action") or ["matches"])[0].strip().lower()
@@ -198,8 +267,11 @@ def _api(handler):
             return
 
         if action == "bhav":
+            if key.isascii() and key.isdecimal():
+                liveline._send_json(handler, 200, _highlightly_live_bhav(key))
+                return
             if not _valid_key(key):
-                liveline._send_json(handler, 200, {"ok": True, "matchId": key, "source": "No Roanuz live key", "entries": []})
+                liveline._send_json(handler, 200, {"ok": True, "matchId": key, "source": "No valid match key", "entries": []})
                 return
             liveline._send_json(handler, 200, v20._v20_bhav(key))
             return

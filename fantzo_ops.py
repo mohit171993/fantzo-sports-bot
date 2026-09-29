@@ -66,7 +66,7 @@ async def api_status_command(
     headers = {"x-rapidapi-key": core.HIGHLIGHTLY_API_KEY}
     params = {
         "date": today,
-        "timezone": "Asia/Dubai",
+        "timezone": "Asia/Kolkata",
         "limit": 1,
     }
 

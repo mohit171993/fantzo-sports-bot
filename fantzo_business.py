@@ -24,7 +24,7 @@ WELCOME_REPLY = (
 VERIFY_REPLY = (
     "👋 <b>Welcome to Fantzo</b>\n\n"
     "Before continuing, please verify the mobile number linked to your Telegram account.\n\n"
-    "Tap <b>📱 VERIFY MOBILE</b> below. After verification, the normal Fantzo options will continue."
+    "Tap <b>📱 VERIFY & CONTINUE</b> below. After verification, the normal Fantzo options will continue."
 )
 
 
@@ -219,7 +219,7 @@ def _welcome_buttons() -> InlineKeyboardMarkup:
     """Pre-verification Business replies expose only the Telegram contact gate."""
     return InlineKeyboardMarkup([[
         _styled_url_button(
-            "📱 VERIFY MOBILE",
+            "📱 VERIFY & CONTINUE",
             "https://t.me/fantzoofficialbot?start=verify_business_dm",
             "success",
         )

@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 TRACKING_BASE_URL = os.getenv("TRACKING_BASE_URL", "").strip().rstrip("/")
 FANTZO_BASE_URL = os.getenv("FANTZO_MINI_APP_URL", "https://www.fantzo.com").strip().rstrip("/") + "/"
 _server_started = False
-REPORT_TZ = ZoneInfo("Asia/Dubai")
+REPORT_TZ = ZoneInfo("Asia/Kolkata")
 
 DESTINATION_PATHS = {
     "home": "",
@@ -257,7 +257,7 @@ def _report_metrics_payload() -> dict:
             "verified": verified,
             "verified_24h": verified_24h,
             "verified_by_date": verified_by_date,
-            "verified_timezone": "Asia/Dubai",
+            "verified_timezone": "Asia/Kolkata",
             "by_campaign": by_campaign,
             "registration_note": "Completed external-site registrations are not available unless the destination sends a conversion event back.",
         }

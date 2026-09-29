@@ -25,7 +25,7 @@ def business_verify_buttons() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [
             _styled_button(
-                "📱 VERIFY MOBILE",
+                "📱 VERIFY & CONTINUE",
                 url=BUSINESS_VERIFY_DEEP_LINK,
                 style="success",
             )

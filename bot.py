@@ -27,7 +27,7 @@ HIGHLIGHTLY_API_KEY = os.getenv("HIGHLIGHTLY_API_KEY")
 ADMIN_USER_ID = int(os.getenv("ADMIN_USER_ID", "8992664481"))
 
 HIGHLIGHTLY_API_BASE = "https://sports.highlightly.net"
-APP_TIMEZONE = ZoneInfo("Asia/Dubai")
+APP_TIMEZONE = ZoneInfo("Asia/Kolkata")
 
 FANTZO_HOME = "https://fantzo.com"
 FANTZO_LIVE = "https://fantzo.com/en/live"
@@ -612,7 +612,7 @@ async def get_sport_matches_for_date(sport: str, date_text: str):
         f"/{sport}/matches",
         {
             "date": date_text,
-            "timezone": "Asia/Dubai",
+            "timezone": "Asia/Kolkata",
             "limit": 100,
         },
     )
@@ -645,11 +645,11 @@ async def get_team(sport: str, team_id: str):
 async def get_team_matches(sport: str, team_id: str, recent: bool):
     home_call = highlightly_get(
         f"/{sport}/matches",
-        {"homeTeamId": team_id, "timezone": "Asia/Dubai", "limit": 50, "offset": 0},
+        {"homeTeamId": team_id, "timezone": "Asia/Kolkata", "limit": 50, "offset": 0},
     )
     away_call = highlightly_get(
         f"/{sport}/matches",
-        {"awayTeamId": team_id, "timezone": "Asia/Dubai", "limit": 50, "offset": 0},
+        {"awayTeamId": team_id, "timezone": "Asia/Kolkata", "limit": 50, "offset": 0},
     )
     home_data, away_data = await asyncio.gather(home_call, away_call)
 

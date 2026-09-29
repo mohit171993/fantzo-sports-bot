@@ -23,10 +23,10 @@ import bot as core
 from fantzo_brand import has_foreign_brand
 
 logger = logging.getLogger(__name__)
-APP_TZ = ZoneInfo("Asia/Dubai")
+APP_TZ = ZoneInfo("Asia/Kolkata")
 CHANNEL_ID = os.getenv("FANTZO_CHANNEL_ID", "@fantzoupdates").strip()
-POST_HOUR_DUBAI = int(os.getenv("FANTZO_BANNER_HOUR_DUBAI", "17"))
-POST_MINUTE_DUBAI = int(os.getenv("FANTZO_BANNER_MINUTE_DUBAI", "30"))
+POST_HOUR_IST = int(os.getenv("FANTZO_BANNER_HOUR_IST", "19"))
+POST_MINUTE_IST = int(os.getenv("FANTZO_BANNER_MINUTE_IST", "0"))
 CHECK_INTERVAL_SECONDS = 60
 FAILURE_RETRY_SECONDS = 15 * 60
 DAILY_FALLBACK_IMAGE = Path(__file__).resolve().parent / "assets" / "fantzo_channel_daily.jpg"
@@ -95,7 +95,7 @@ def set_paused(paused: bool) -> None:
 
 
 def schedule_text() -> str:
-    return f"{POST_HOUR_DUBAI:02d}:{POST_MINUTE_DUBAI:02d} Dubai"
+    return f"{POST_HOUR_IST:02d}:{POST_MINUTE_IST:02d} IST"
 
 
 def delivery_status() -> dict[str, str]:
@@ -491,7 +491,7 @@ async def scheduler_loop(application):
         try:
             _set_setting("scheduler_heartbeat_at", _now_iso())
             now = datetime.now(APP_TZ); today = now.date().isoformat()
-            due = (now.hour > POST_HOUR_DUBAI) or (now.hour == POST_HOUR_DUBAI and now.minute >= POST_MINUTE_DUBAI)
+            due = (now.hour > POST_HOUR_IST) or (now.hour == POST_HOUR_IST and now.minute >= POST_MINUTE_IST)
             if due and _setting("paused", "0") != "1" and _setting("last_post_date", "") != today:
                 if not _failure_backoff_active():
                     await _post_daily(application.bot)

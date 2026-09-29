@@ -18,7 +18,7 @@ import fantzo_live_tv_mobile_gate as gate
 import fantzo_reminders as reminders
 
 
-FORBIDDEN = ("18+", "play responsibly", "betting", "gambling", "casino", "odds", "wager")
+FORBIDDEN = ("18+", "play responsibly", "betting", "gambling", "casino", "odds", "wager", "ibetin.com")
 
 
 def assert_neutral(test, text):
@@ -40,7 +40,7 @@ class FantzoPreverificationCopyTests(unittest.TestCase):
     def test_unverified_business_button_only_opens_verification(self):
         buttons = [button for row in business._welcome_buttons().inline_keyboard for button in row]
         self.assertEqual(len(buttons), 1)
-        self.assertEqual(buttons[0].text, "📱 VERIFY MOBILE")
+        self.assertEqual(buttons[0].text, "📱 VERIFY & CONTINUE")
         self.assertEqual(
             buttons[0].url,
             "https://t.me/fantzoofficialbot?start=verify_business_dm",
@@ -74,13 +74,21 @@ class FantzoPreverificationCopyTests(unittest.TestCase):
         keyboard = kwargs["reply_markup"].keyboard
         self.assertEqual(len(keyboard), 1)
         self.assertEqual(len(keyboard[0]), 1)
+        self.assertEqual(keyboard[0][0].text, "📱 VERIFY & CONTINUE")
         self.assertTrue(keyboard[0][0].request_contact)
+        self.assertTrue(kwargs["reply_markup"].is_persistent)
+        self.assertFalse(kwargs["reply_markup"].one_time_keyboard)
+        self.assertNotIn("sports", text.lower())
+        self.assertNotIn("live tv", text.lower())
 
         for source in ("bot", "business_dm"):
             reminder_text, reminder_markup = reminders._verification_copy(1, source)
             assert_neutral(self, reminder_text)
             if source == "bot":
+                self.assertEqual(reminder_markup.keyboard[0][0].text, "📱 VERIFY & CONTINUE")
                 self.assertTrue(reminder_markup.keyboard[0][0].request_contact)
+                self.assertTrue(reminder_markup.is_persistent)
+                self.assertFalse(reminder_markup.one_time_keyboard)
             else:
                 buttons = [b for row in reminder_markup.inline_keyboard for b in row]
                 self.assertEqual(len(buttons), 1)

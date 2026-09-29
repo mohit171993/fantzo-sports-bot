@@ -8,6 +8,8 @@ outgoing message; external betting websites remain outside bot control.
 from __future__ import annotations
 
 import sqlite3
+import posixpath
+import os
 from contextlib import closing
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -16,6 +18,36 @@ from datetime import datetime, timezone
 LIVE_LINE = "liveline"
 FULL = "full"
 BRANDS = frozenset({"fantzo", "ibetin", "dura", "betroxy"})
+PERSISTENT_DB_ROOT = "/app/ibetin_bot_persistent"
+
+
+def is_persistent_mode_path(db_path: str) -> bool:
+    """Only the Railway volume can retain a clean switch after a restart."""
+    if not db_path or not db_path.startswith("/"):
+        return False
+    normalized = posixpath.normpath(db_path)
+    return (normalized != PERSISTENT_DB_ROOT
+            and posixpath.commonpath((normalized, PERSISTENT_DB_ROOT))
+            == PERSISTENT_DB_ROOT)
+
+
+def is_persistent_volume_mounted(
+    root: str = PERSISTENT_DB_ROOT,
+    mountinfo_path: str = "/proc/self/mountinfo",
+) -> bool:
+    """Require a real mount at the Railway volume path, not a plain folder."""
+    root = posixpath.normpath(root)
+    try:
+        with open(mountinfo_path, encoding="utf-8", errors="replace") as info:
+            for line in info:
+                fields = line.split(" - ", 1)[0].split()
+                if len(fields) >= 5 and posixpath.normpath(fields[4]) == root:
+                    return True
+        return False
+    except OSError:
+        # Non-Linux staging environments may lack /proc; ismount still
+        # distinguishes a mounted filesystem from an ordinary directory.
+        return os.path.ismount(root)
 
 
 @dataclass(frozen=True)

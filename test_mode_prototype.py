@@ -1,6 +1,7 @@
 import ast
 import asyncio
 import os
+import posixpath
 import json
 import sys
 import tempfile
@@ -10,8 +11,15 @@ from unittest.mock import patch
 from urllib.parse import parse_qs, urlparse
 import unittest
 
-from mode_control import FULL, LIVE_LINE, ModeStore, http_route, parse_admin_mode_request
+from mode_control import (
+    FULL, LIVE_LINE, ModeStore, http_route, is_persistent_mode_path,
+    is_persistent_volume_mounted,
+    parse_admin_mode_request,
+)
 from scores_only import alert_score_match, score_match, score_page
+
+
+EXPECTED_BRAND = "dura"
 
 
 def _load_runtime_function(name, bindings):
@@ -60,11 +68,92 @@ class ModeTests(unittest.TestCase):
             self.bot.switch("betting")
         self.assertEqual(self.bot.state().mode, FULL)
 
+    def test_clean_switch_requires_volume_database_path(self):
+        self.assertTrue(is_persistent_mode_path(
+            "/app/ibetin_bot_persistent/ibetin_bot.db"))
+        for path in (
+            "", "ibetin_bot.db", "/app/ibetin_bot.db",
+            "/app/ibetin_bot_persistent_backup/ibetin_bot.db",
+            "/app/ibetin_bot_persistent/../ibetin_bot.db",
+        ):
+            self.assertFalse(is_persistent_mode_path(path), path)
+
+        ready = _load_runtime_function("_persistent_mode_storage_ready", {
+            "_store": SimpleNamespace(db_path="/app/ibetin_bot_persistent/ibetin_bot.db"),
+            "is_persistent_mode_path": is_persistent_mode_path,
+            "is_persistent_volume_mounted": lambda: True,
+            "PERSISTENT_DB_ROOT": "/app/ibetin_bot_persistent",
+            "os": SimpleNamespace(path=SimpleNamespace(
+                isdir=lambda _path: True, realpath=lambda path: path,
+                commonpath=posixpath.commonpath,
+            )),
+        })
+        self.assertTrue(ready())
+
+        not_mounted = _load_runtime_function("_persistent_mode_storage_ready", {
+            "_store": SimpleNamespace(db_path="/app/ibetin_bot_persistent/ibetin_bot.db"),
+            "is_persistent_mode_path": is_persistent_mode_path,
+            "is_persistent_volume_mounted": lambda: False,
+            "PERSISTENT_DB_ROOT": "/app/ibetin_bot_persistent",
+            "os": SimpleNamespace(path=SimpleNamespace(
+                isdir=lambda _path: True, realpath=lambda path: path,
+                commonpath=posixpath.commonpath,
+            )),
+        })
+        self.assertFalse(not_mounted())
+
+    def test_mountinfo_distinguishes_volume_from_plain_directory(self):
+        path = Path(self.temp.name) / "mountinfo"
+        path.write_text(
+            "36 25 0:32 / /app/ibetin_bot_persistent rw - ext4 /dev/sdb rw\n",
+            encoding="utf-8",
+        )
+        self.assertTrue(is_persistent_volume_mounted(mountinfo_path=str(path)))
+        path.write_text("36 25 0:32 / /app rw - ext4 /dev/sdb rw\n", encoding="utf-8")
+        self.assertFalse(is_persistent_volume_mounted(mountinfo_path=str(path)))
+        with patch("mode_control.os.path.ismount", return_value=True):
+            self.assertTrue(is_persistent_volume_mounted(
+                mountinfo_path=str(path) + ".missing"))
+
+    def test_dura_clean_score_link_rejects_shared_ibetin_fallback(self):
+        url_for = _load_runtime_function("_scores_url", {
+            "_brand": "dura",
+            "hub": SimpleNamespace(_public_base_url=lambda:
+                                   "https://ibetin-app-production.up.railway.app"),
+            "urlparse": urlparse,
+            "phone_verify": SimpleNamespace(live_line_url=lambda _uid, url: url),
+        })
+        with self.assertRaises(RuntimeError):
+            url_for()
+        url_for = _load_runtime_function("_scores_url", {
+            "_brand": "dura",
+            "hub": SimpleNamespace(_public_base_url=lambda:
+                                   "https://durasports-runtime.up.railway.app"),
+            "urlparse": urlparse,
+            "phone_verify": SimpleNamespace(live_line_url=lambda _uid, url: url),
+        })
+        self.assertEqual(url_for(), "https://durasports-runtime.up.railway.app/scores")
+        url_with_slash = _load_runtime_function("_scores_url", {
+            "_brand": "dura",
+            "hub": SimpleNamespace(_public_base_url=lambda:
+                                   "https://durasports-runtime.up.railway.app/"),
+            "urlparse": urlparse,
+            "phone_verify": SimpleNamespace(live_line_url=lambda _uid, url: url),
+        })
+        self.assertEqual(url_with_slash(),
+                         "https://durasports-runtime.up.railway.app/scores")
+
     def test_only_exact_admin_id_accepted(self):
         self.assertIsNone(parse_admin_mode_request(456, 123, ["full"]))
         self.assertIsNone(parse_admin_mode_request(123, 0, ["full"]))
         self.assertEqual(parse_admin_mode_request(123, 123, ["LIVEline"]), LIVE_LINE)
         self.assertEqual(parse_admin_mode_request(123, 123, ["status"]), "status")
+
+    def test_mode_admin_matches_existing_bot_admin(self):
+        func = _load_runtime_function("_admin_id", {
+            "core": SimpleNamespace(ADMIN_USER_ID=987654321),
+        })
+        self.assertEqual(func(), 987654321)
 
     def test_score_projection_drops_prices_links_and_untrusted_html(self):
         row = {"id": "m1", "state": "live", "league": {"name": "Cricket"},
@@ -136,8 +225,11 @@ class ModeTests(unittest.TestCase):
             "_admin_id": lambda: 123,
             "_store": self.bot,
             "_set_default_menu": set_menu,
+            "_persistent_mode_storage_ready": lambda: True,
+            "_score_destination_ready": lambda: True,
             "_mode_status": status,
             "_mode_keyboard": lambda: None,
+            "LIVE_LINE": LIVE_LINE,
             "ApplicationHandlerStop": StopUpdate,
         })
         context = SimpleNamespace(args=["liveline"], bot=object())
@@ -153,6 +245,27 @@ class ModeTests(unittest.TestCase):
             asyncio.run(func(_private_update(123, "/mode liveline", replies), context))
         self.assertEqual(self.bot.state().mode, LIVE_LINE)
         self.assertEqual(effects, ["menu", "status"])
+
+    def test_clean_switch_refuses_missing_volume_without_state_change(self):
+        replies = []
+        async def unused(*_args, **_kwargs):
+            self.fail("A refused switch must not update Telegram menus")
+        func = _load_runtime_function("_mode_command", {
+            "parse_admin_mode_request": parse_admin_mode_request,
+            "_admin_id": lambda: 123,
+            "_store": self.bot,
+            "_persistent_mode_storage_ready": lambda: False,
+            "_set_default_menu": unused,
+            "_mode_status": unused,
+            "_mode_keyboard": lambda: None,
+            "ApplicationHandlerStop": StopUpdate,
+            "LIVE_LINE": LIVE_LINE,
+        })
+        with self.assertRaises(StopUpdate):
+            asyncio.run(func(_private_update(123, "/mode liveline", replies),
+                             SimpleNamespace(args=["liveline"], bot=object())))
+        self.assertEqual(self.bot.state().mode, FULL)
+        self.assertIn("persistent storage", replies[0][0][0].lower())
 
     def test_unverified_clean_start_preserves_contact_gate_and_owner_reports(self):
         replies, effects = [], []
@@ -273,8 +386,7 @@ class ModeTests(unittest.TestCase):
         v34 = source_dir / "ibetin_liveline_v34_refined_ui.py"
         if not v34.exists():
             self.skipTest("The shared prototype directory has no brand entry point")
-        brand = source_dir.name
-        self.assertIn(brand, {"ibetin", "dura"})
+        brand = EXPECTED_BRAND
         tree = ast.parse(v34.read_text(encoding="utf-8"))
         main_guard = next(node for node in tree.body if isinstance(node, ast.If)
                           and ast.unparse(node.test) == "__name__ == '__main__'")
@@ -298,7 +410,7 @@ class ModeTests(unittest.TestCase):
         entry = source_dir / "ibetin_crm_queue_start.py"
         if not entry.exists():
             self.skipTest("The shared prototype directory has no brand entry point")
-        brand = source_dir.name
+        brand = EXPECTED_BRAND
         tree = ast.parse(entry.read_text(encoding="utf-8"))
         main_fn = next(node for node in tree.body if isinstance(node, ast.FunctionDef)
                        and node.name == "main")

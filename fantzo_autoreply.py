@@ -178,16 +178,22 @@ async def auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     core.touch_user(update)
     category, reply, markup = classify_and_reply(text)
     try:
-        core.track(user.id, f"autoreply:{category}")
+        await message.reply_text(
+            reply,
+            parse_mode="HTML",
+            reply_markup=markup,
+            disable_web_page_preview=True,
+        )
     except Exception:
-        logger.exception("Could not track Fantzo auto reply")
-
-    await message.reply_text(
-        reply,
-        parse_mode="HTML",
-        reply_markup=markup,
-        disable_web_page_preview=True,
-    )
+        try:
+            core.track(user.id, "autoreply:failed")
+        except Exception:
+            logger.exception("Could not track failed Fantzo auto reply")
+        raise
+    try:
+        core.track(user.id, f"autoreply:sent:{category}")
+    except Exception:
+        logger.exception("Could not track delivered Fantzo auto reply")
 
 
 async def autoreply_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

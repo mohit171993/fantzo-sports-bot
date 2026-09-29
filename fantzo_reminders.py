@@ -621,6 +621,12 @@ async def reminder_loop(application) -> None:
     await asyncio.sleep(20)
     while True:
         try:
+            with core.db() as conn:
+                conn.execute(
+                    "INSERT INTO reminder_settings(key,value) VALUES('last_loop_at',?) "
+                    "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    (_now_iso(),),
+                )
             await run_due_reminders(application)
         except Exception:
             logger.exception("Fantzo reminder loop error")

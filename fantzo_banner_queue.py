@@ -3,8 +3,9 @@ import logging
 import os
 import re
 from html import unescape
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from io import BytesIO
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, InputFile, Update
@@ -27,6 +28,14 @@ CHANNEL_ID = os.getenv("FANTZO_CHANNEL_ID", "@fantzoupdates").strip()
 POST_HOUR_DUBAI = int(os.getenv("FANTZO_BANNER_HOUR_DUBAI", "17"))
 POST_MINUTE_DUBAI = int(os.getenv("FANTZO_BANNER_MINUTE_DUBAI", "30"))
 CHECK_INTERVAL_SECONDS = 60
+FAILURE_RETRY_SECONDS = 15 * 60
+DAILY_FALLBACK_IMAGE = Path(__file__).resolve().parent / "assets" / "fantzo_channel_daily.jpg"
+DAILY_FALLBACK_CAPTION = (
+    "⚡ <b>FANTZO SPORTS</b>\n\n"
+    "Cricket, football and sports updates in one place. "
+    "Open Fantzo to explore what is on today."
+)
+_post_lock = asyncio.Lock()
 DEFAULT_CAPTION = (
     "📺 <b>FANTZO LIVE TV</b>\n\n"
     "🔥 Catch the live sports action on Fantzo.\n"
@@ -60,6 +69,8 @@ def ensure_tables():
         """)
         conn.execute("INSERT OR IGNORE INTO live_tv_banner_settings(key,value) VALUES('paused','0')")
         conn.execute("INSERT OR IGNORE INTO live_tv_banner_settings(key,value) VALUES('last_post_date','')")
+        conn.execute("INSERT OR IGNORE INTO live_tv_banner_settings(key,value) VALUES('last_post_at','')")
+        conn.execute("INSERT OR IGNORE INTO live_tv_banner_settings(key,value) VALUES('last_post_kind','')")
 
 
 def _now_iso(): return datetime.now(timezone.utc).isoformat()
@@ -85,6 +96,41 @@ def set_paused(paused: bool) -> None:
 
 def schedule_text() -> str:
     return f"{POST_HOUR_DUBAI:02d}:{POST_MINUTE_DUBAI:02d} Dubai"
+
+
+def delivery_status() -> dict[str, str]:
+    return {key: _setting(key) for key in (
+        "last_post_date", "last_post_at", "last_post_kind",
+        "last_failure_at", "last_failure_kind", "scheduler_heartbeat_at",
+    )}
+
+
+def _record_success(kind: str) -> None:
+    now = _now_iso()
+    today = datetime.now(APP_TZ).date().isoformat()
+    ensure_tables()
+    with core.db() as conn:
+        conn.executemany(
+            "INSERT INTO live_tv_banner_settings(key,value) VALUES(?,?) "
+            "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            (("last_post_date", today), ("last_post_at", now), ("last_post_kind", kind)),
+        )
+
+
+def _record_failure(kind: str) -> None:
+    _set_setting("last_failure_at", _now_iso())
+    _set_setting("last_failure_kind", kind)
+
+
+def _failure_backoff_active() -> bool:
+    value = _setting("last_failure_at")
+    if not value:
+        return False
+    try:
+        failed_at = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return datetime.now(timezone.utc) - failed_at < timedelta(seconds=FAILURE_RETRY_SECONDS)
+    except ValueError:
+        return False
 
 
 def queue_count():
@@ -151,7 +197,7 @@ def _admin_text() -> str:
         if queued and not paused
         else "Next auto post: <b>PAUSED</b>"
         if paused
-        else "Next auto post: <b>NO QUEUED BANNER</b>"
+        else f"Next auto post: <b>{schedule} (Fantzo daily creative)</b>"
     )
     return (
         "📺 <b>LIVE TV BANNER QUEUE</b>\n"
@@ -161,7 +207,8 @@ def _admin_text() -> str:
         f"Status: <b>{'PAUSED' if paused else 'ACTIVE'}</b>\n"
         f"{next_state}\n\n"
         "New uploads require a Fantzo visual approval before posting. "
-        "Previously queued banners remain in the queue."
+        "Previously queued banners remain in the queue. When the approved queue is empty, "
+        "the Fantzo daily creative posts instead."
     )
 
 
@@ -258,7 +305,6 @@ async def banner_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "banner_postnow":
         posted = await _post_next(context.bot)
         if posted:
-            _set_setting("last_post_date", datetime.now(APP_TZ).date().isoformat())
             await query.message.reply_text("✅ Next channel banner posted.")
         else:
             await query.message.reply_text("ℹ️ Banner queue is empty.")
@@ -350,30 +396,74 @@ async def send_banner(bot, chat_id, row, caption_prefix=""):
         )
 
     try:
-        await _send(caption, "HTML")
+        return await _send(caption, "HTML")
     except BadRequest as exc:
         message = str(exc).lower()
         if "parse" not in message and "entity" not in message:
             raise
         plain = unescape(re.sub(r"<[^>]*>", "", caption)).strip()
         logger.warning("Fantzo channel caption HTML invalid; retrying as plain text")
-        await _send(plain[:1000], None)
+        return await _send(plain[:1000], None)
+
+
+async def send_daily_fallback(bot):
+    markup = InlineKeyboardMarkup([[
+        InlineKeyboardButton(
+            "⚡ OPEN FANTZO",
+            url="https://t.me/fantzoofficialbot?start=livetv_banner",
+        )
+    ]])
+    with DAILY_FALLBACK_IMAGE.open("rb") as image:
+        return await bot.send_photo(
+            chat_id=CHANNEL_ID,
+            photo=image,
+            caption=DAILY_FALLBACK_CAPTION,
+            parse_mode="HTML",
+            reply_markup=markup,
+        )
 
 async def _post_next(bot):
-    row = next_banner()
-    if not row: return False
-    await send_banner(bot, CHANNEL_ID, row)
-    mark_posted(int(row["id"]))
-    logger.info("Fantzo Live TV banner %s posted to %s", row["id"], CHANNEL_ID)
-    return True
+    async with _post_lock:
+        row = next_banner()
+        if not row:
+            return False
+        try:
+            message = await send_banner(bot, CHANNEL_ID, row)
+        except Exception:
+            _record_failure("approved_banner")
+            raise
+        mark_posted(int(row["id"]))
+        _record_success("approved_banner")
+        logger.info("Fantzo approved banner %s posted to %s message=%s", row["id"], CHANNEL_ID, getattr(message, "message_id", None))
+        return True
+
+
+async def _post_daily(bot):
+    async with _post_lock:
+        today = datetime.now(APP_TZ).date().isoformat()
+        if _setting("last_post_date") == today:
+            return False
+        row = next_banner()
+        kind = "approved_banner" if row else "daily_fallback"
+        try:
+            if row:
+                message = await send_banner(bot, CHANNEL_ID, row)
+            else:
+                message = await send_daily_fallback(bot)
+        except Exception:
+            _record_failure(kind)
+            raise
+        if row:
+            mark_posted(int(row["id"]))
+        _record_success(kind)
+        logger.info("Fantzo channel %s posted to %s message=%s", kind, CHANNEL_ID, getattr(message, "message_id", None))
+        return True
 
 async def post_now(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.effective_user or update.effective_user.id != core.ADMIN_USER_ID:
         return
     try:
         posted = await _post_next(context.bot)
-        if posted:
-            _set_setting("last_post_date", datetime.now(APP_TZ).date().isoformat())
         await update.effective_message.reply_text(
             "✅ Next channel banner posted."
             if posted else
@@ -399,10 +489,12 @@ async def scheduler_loop(application):
     ensure_tables(); await asyncio.sleep(15)
     while True:
         try:
+            _set_setting("scheduler_heartbeat_at", _now_iso())
             now = datetime.now(APP_TZ); today = now.date().isoformat()
             due = (now.hour > POST_HOUR_DUBAI) or (now.hour == POST_HOUR_DUBAI and now.minute >= POST_MINUTE_DUBAI)
             if due and _setting("paused", "0") != "1" and _setting("last_post_date", "") != today:
-                if await _post_next(application.bot): _set_setting("last_post_date", today)
+                if not _failure_backoff_active():
+                    await _post_daily(application.bot)
         except Exception: logger.exception("Fantzo Live TV banner scheduler error")
         await asyncio.sleep(CHECK_INTERVAL_SECONDS)
 

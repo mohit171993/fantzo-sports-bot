@@ -173,42 +173,6 @@ def _campaign_breakdown_payload(conn, cutoff_24h: str) -> dict:
             pass
         return out
 
-    if _table_exists(conn, "ibetin_leads") and _column_exists(conn, "ibetin_leads", "campaign"):
-        has_verified = _column_exists(conn, "ibetin_leads", "verified_at")
-        try:
-            if has_verified:
-                rows = conn.execute(
-                    """
-                    SELECT lower(COALESCE(NULLIF(campaign,''),'direct')) campaign,
-                           COUNT(*) leads,
-                           SUM(CASE WHEN verified_at IS NOT NULL AND verified_at!='' THEN 1 ELSE 0 END) verified,
-                           SUM(CASE WHEN verified_at>=? THEN 1 ELSE 0 END) verified_24h
-                    FROM ibetin_leads
-                    GROUP BY lower(COALESCE(NULLIF(campaign,''),'direct'))
-                    """,
-                    (cutoff_24h,),
-                ).fetchall()
-            else:
-                rows = conn.execute(
-                    """
-                    SELECT lower(COALESCE(NULLIF(campaign,''),'direct')) campaign,
-                           COUNT(*) leads, 0 verified, 0 verified_24h
-                    FROM ibetin_leads
-                    GROUP BY lower(COALESCE(NULLIF(campaign,''),'direct'))
-                    """
-                ).fetchall()
-            for row in rows:
-                key = str(row["campaign"] if hasattr(row, "keys") else row[0]).lower()
-                if not key:
-                    continue
-                out[key] = {
-                    "leads": int(row["leads"] if hasattr(row, "keys") else row[1] or 0),
-                    "verified": int(row["verified"] if hasattr(row, "keys") else row[2] or 0),
-                    "verified_24h": int(row["verified_24h"] if hasattr(row, "keys") else row[3] or 0),
-                }
-        except Exception:
-            pass
-
     return out
 
 
@@ -267,24 +231,6 @@ def _report_metrics_payload() -> dict:
                             f"WHERE {verified_time_col}>=? AND {verified_time_col}<?",
                             (start_utc, end_utc),
                         )
-        elif _table_exists(conn, "ibetin_leads"):
-            leads = _metric_count(conn, "SELECT COUNT(*) FROM ibetin_leads")
-            if _column_exists(conn, "ibetin_leads", "first_seen_at"):
-                leads_24h = _metric_count(conn, "SELECT COUNT(*) FROM ibetin_leads WHERE first_seen_at>=?", (cutoff_24h,))
-            elif _column_exists(conn, "ibetin_leads", "created_at"):
-                leads_24h = _metric_count(conn, "SELECT COUNT(*) FROM ibetin_leads WHERE created_at>=?", (cutoff_24h,))
-            if _table_exists(conn, "liveline_verified_users"):
-                verified = _metric_count(conn, "SELECT COUNT(DISTINCT user_id) FROM liveline_verified_users")
-                if _column_exists(conn, "liveline_verified_users", "verified_at"):
-                    verified_24h = _metric_count(conn, "SELECT COUNT(DISTINCT user_id) FROM liveline_verified_users WHERE verified_at>=?", (cutoff_24h,))
-                    for day, start_utc, end_utc in day_windows:
-                        verified_by_date[day] = _metric_count(
-                            conn,
-                            "SELECT COUNT(DISTINCT user_id) FROM liveline_verified_users "
-                            "WHERE verified_at>=? AND verified_at<?",
-                            (start_utc, end_utc),
-                        )
-
         by_campaign = _campaign_breakdown_payload(conn, cutoff_24h)
 
         registration_clicks = 0
@@ -292,12 +238,12 @@ def _report_metrics_payload() -> dict:
         if _table_exists(conn, "clicks") and _column_exists(conn, "clicks", "action"):
             registration_clicks = _metric_count(
                 conn,
-                "SELECT COUNT(*) FROM clicks WHERE lower(action) IN ('join_fantzo','join_ibetin','join_dura','register','registration','signup','sign_up')"
+                "SELECT COUNT(*) FROM clicks WHERE lower(action) IN ('join_fantzo','register','registration','signup','sign_up')"
             )
             if _column_exists(conn, "clicks", "created_at"):
                 registration_clicks_24h = _metric_count(
                     conn,
-                    "SELECT COUNT(*) FROM clicks WHERE lower(action) IN ('join_fantzo','join_ibetin','join_dura','register','registration','signup','sign_up') AND created_at>=?",
+                    "SELECT COUNT(*) FROM clicks WHERE lower(action) IN ('join_fantzo','register','registration','signup','sign_up') AND created_at>=?",
                     (cutoff_24h,),
                 )
 

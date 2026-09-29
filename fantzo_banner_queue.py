@@ -19,6 +19,7 @@ from telegram.ext import (
 )
 
 import bot as core
+from fantzo_brand import has_foreign_brand
 
 logger = logging.getLogger(__name__)
 APP_TZ = ZoneInfo("Asia/Dubai")
@@ -41,6 +42,7 @@ def ensure_tables():
                 file_id TEXT NOT NULL,
                 caption TEXT DEFAULT '',
                 status TEXT NOT NULL DEFAULT 'queued',
+                brand TEXT NOT NULL DEFAULT 'legacy',
                 created_at TEXT NOT NULL,
                 posted_at TEXT
             )
@@ -48,6 +50,8 @@ def ensure_tables():
         cols = {r["name"] for r in conn.execute("PRAGMA table_info(live_tv_banners)").fetchall()}
         if "media_type" not in cols:
             conn.execute("ALTER TABLE live_tv_banners ADD COLUMN media_type TEXT NOT NULL DEFAULT 'document'")
+        if "brand" not in cols:
+            conn.execute("ALTER TABLE live_tv_banners ADD COLUMN brand TEXT NOT NULL DEFAULT 'legacy'")
         conn.execute("""
             CREATE TABLE IF NOT EXISTS live_tv_banner_settings (
                 key TEXT PRIMARY KEY,
@@ -86,17 +90,48 @@ def schedule_text() -> str:
 def queue_count():
     ensure_tables()
     with core.db() as conn:
-        return int(conn.execute("SELECT COUNT(*) AS c FROM live_tv_banners WHERE status='queued'").fetchone()["c"])
+        return int(conn.execute(
+            "SELECT COUNT(*) AS c FROM live_tv_banners "
+            "WHERE status='queued' AND brand IN ('legacy','fantzo')"
+        ).fetchone()["c"])
+
+def pending_count():
+    ensure_tables()
+    with core.db() as conn:
+        return int(conn.execute("SELECT COUNT(*) AS c FROM live_tv_banners WHERE status='pending_review'").fetchone()["c"])
 
 def add_banner(file_id, caption="", media_type="photo"):
     ensure_tables()
     with core.db() as conn:
-        conn.execute("INSERT INTO live_tv_banners(file_id,caption,media_type,status,created_at) VALUES(?,?,?,'queued',?)", (file_id, caption or "", media_type, _now_iso()))
+        cursor = conn.execute(
+            "INSERT INTO live_tv_banners(file_id,caption,media_type,status,brand,created_at) "
+            "VALUES(?,?,?,'pending_review','unverified',?)",
+            (file_id, caption or "", media_type, _now_iso()),
+        )
+        return int(cursor.lastrowid)
+
+def review_banner(banner_id: int, approved: bool) -> bool:
+    ensure_tables()
+    with core.db() as conn:
+        row = conn.execute(
+            "SELECT caption FROM live_tv_banners WHERE id=? AND status='pending_review'",
+            (banner_id,),
+        ).fetchone()
+        if not row or (approved and has_foreign_brand(row["caption"])):
+            return False
+        result = conn.execute(
+            "UPDATE live_tv_banners SET status=?, brand=? WHERE id=? AND status='pending_review'",
+            ("queued" if approved else "rejected", "fantzo" if approved else "unverified", banner_id),
+        )
+        return result.rowcount == 1
 
 def next_banner():
     ensure_tables()
     with core.db() as conn:
-        return conn.execute("SELECT id,file_id,caption,media_type FROM live_tv_banners WHERE status='queued' ORDER BY id ASC LIMIT 1").fetchone()
+        return conn.execute(
+            "SELECT id,file_id,caption,media_type FROM live_tv_banners "
+            "WHERE status='queued' AND brand IN ('legacy','fantzo') ORDER BY id ASC LIMIT 1"
+        ).fetchone()
 
 def mark_posted(banner_id):
     with core.db() as conn:
@@ -109,6 +144,7 @@ def clear_queue():
 def _admin_text() -> str:
     paused = is_paused()
     queued = queue_count()
+    pending = pending_count()
     schedule = schedule_text()
     next_state = (
         f"Next auto post: <b>{schedule}</b>"
@@ -121,10 +157,11 @@ def _admin_text() -> str:
         "📺 <b>LIVE TV BANNER QUEUE</b>\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
         f"Queued: <b>{queued}</b>\n"
+        f"Awaiting visual approval: <b>{pending}</b>\n"
         f"Status: <b>{'PAUSED' if paused else 'ACTIVE'}</b>\n"
         f"{next_state}\n\n"
-        "Use <b>UPLOAD BANNERS</b> before sending channel images so normal "
-        "Fantzo home-banner uploads are not intercepted."
+        "New uploads require a Fantzo visual approval before posting. "
+        "Previously queued banners remain in the queue."
     )
 
 
@@ -162,8 +199,8 @@ async def begin_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["fantzo_banner_queue_upload"] = True
     await update.effective_message.reply_text(
         "🖼 <b>CHANNEL BANNER UPLOAD MODE ON</b>\n\n"
-        "Send photos or PNG/JPG/WebP files now. Each image will be added to "
-        "the channel queue. Use /bannerdone when finished.",
+        "Send photos or PNG/JPG/WebP files now. Each image will be shown "
+        "for Fantzo approval before entering the channel queue. Use /bannerdone when finished.",
         parse_mode="HTML",
     )
 
@@ -186,6 +223,24 @@ async def banner_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         raise ApplicationHandlerStop
 
     data = str(query.data or "")
+    review = re.fullmatch(r"banner_review_(approve|reject)_(\d+)", data)
+    if review:
+        approved = review.group(1) == "approve"
+        changed = review_banner(int(review.group(2)), approved)
+        await query.answer(
+            "Fantzo banner queued" if changed and approved else
+            "Banner rejected" if changed else "Review expired or blocked",
+            show_alert=not changed,
+        )
+        if changed:
+            try:
+                await query.edit_message_caption(
+                    caption="✅ Approved for the Fantzo channel queue." if approved else
+                    "🗑 Rejected. This banner will not be posted."
+                )
+            except BadRequest:
+                logger.warning("Could not update Fantzo banner review preview")
+        raise ApplicationHandlerStop
     await query.answer()
 
     if data == "banner_toggle":
@@ -194,7 +249,7 @@ async def banner_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["fantzo_banner_queue_upload"] = True
         await query.message.reply_text(
             "🖼 <b>CHANNEL BANNER UPLOAD MODE ON</b>\n\n"
-            "Send photos or PNG/JPG/WebP files now. Each image is queued. "
+            "Send photos or PNG/JPG/WebP files now. Each image needs visual approval. "
             "Tap DONE UPLOADING when finished.",
             parse_mode="HTML",
         )
@@ -240,11 +295,28 @@ async def receive_banner(update: Update, context: ContextTypes.DEFAULT_TYPE):
             media_type = "document"
     if not file_id:
         return
-    add_banner(file_id, (message.caption or "").strip(), media_type)
-    await message.reply_text(
-        f"✅ Channel banner queued. Queue: {queue_count()}\n"
-        "Send the next image or tap DONE UPLOADING."
+    caption = (message.caption or "").strip()
+    filename = message.document.file_name if message.document else ""
+    if has_foreign_brand(caption) or has_foreign_brand(filename):
+        await message.reply_text(
+            "⛔ This upload mentions another brand. Send a Fantzo creative."
+        )
+        raise ApplicationHandlerStop
+
+    banner_id = add_banner(file_id, caption, media_type)
+    review_markup = InlineKeyboardMarkup([[
+        InlineKeyboardButton("✅ APPROVE FANTZO", callback_data=f"banner_review_approve_{banner_id}"),
+        InlineKeyboardButton("🗑 REJECT", callback_data=f"banner_review_reject_{banner_id}"),
+    ]])
+    preview_caption = (
+        f"Fantzo channel creative #{banner_id}. Check the image and caption carefully.\n"
+        "Approve only if the visual belongs to Fantzo.\n\n"
+        f"{caption[:700]}"
     )
+    if media_type == "photo":
+        await message.reply_photo(photo=file_id, caption=preview_caption, reply_markup=review_markup)
+    else:
+        await message.reply_document(document=file_id, caption=preview_caption, reply_markup=review_markup)
     raise ApplicationHandlerStop
 
 async def send_banner(bot, chat_id, row, caption_prefix=""):

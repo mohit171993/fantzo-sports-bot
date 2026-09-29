@@ -569,6 +569,11 @@ async def _send_with_retry(bot, row, stage: int) -> bool:
 
 
 async def run_due_reminders(application) -> None:
+    # Live TV sends only clean sports responses. Pause campaign
+    # reminders while it is active; existing reminder state is retained.
+    import fantzo_mode
+    if fantzo_mode.is_livetv():
+        return
     if is_paused() or _is_quiet_hours():
         return
     ensure_tables()
@@ -764,3 +769,4 @@ def stats() -> dict:
         "sent": sent,
         "undeliverable": undeliverable,
     }
+

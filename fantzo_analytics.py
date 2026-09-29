@@ -297,6 +297,19 @@ class TrackingHandler(BaseHTTPRequestHandler):
             self.end_headers()
             return
 
+        # Existing bot-owned tracking links may outlive a mode switch. While
+        # Live TV is active they must not redirect to the Full website, even
+        # when opened from an old message or a previously installed chat menu.
+        import fantzo_mode
+        if fantzo_mode.is_livetv():
+            self.send_response(302)
+            self.send_header(
+                "Location", "https://t.me/fantzoofficialbot?start=livetv_mode"
+            )
+            self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
+            self.end_headers()
+            return
+
         params = parse_qs(parsed.query)
         source = _clean_source(params.get("source", ["unknown"])[0])
         destination = _clean_destination(params.get("dest", ["home"])[0])
@@ -430,3 +443,4 @@ async def stats_command(update, context) -> None:
         parse_mode="HTML",
         disable_web_page_preview=True,
     )
+

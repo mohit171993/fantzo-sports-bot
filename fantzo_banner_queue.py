@@ -423,7 +423,12 @@ async def send_daily_fallback(bot):
         )
 
 async def _post_next(bot):
+    import fantzo_mode
+    if fantzo_mode.is_livetv():
+        return False
     async with _post_lock:
+        if fantzo_mode.is_livetv():
+            return False
         row = next_banner()
         if not row:
             return False
@@ -439,7 +444,12 @@ async def _post_next(bot):
 
 
 async def _post_daily(bot):
+    import fantzo_mode
+    if fantzo_mode.is_livetv():
+        return False
     async with _post_lock:
+        if fantzo_mode.is_livetv():
+            return False
         today = datetime.now(APP_TZ).date().isoformat()
         if _setting("last_post_date") == today:
             return False
@@ -536,3 +546,4 @@ def install(application):
         _start_scheduler_when_running(application),
         name="fantzo-banner-scheduler-starter",
     )
+

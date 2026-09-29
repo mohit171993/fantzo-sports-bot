@@ -21,6 +21,7 @@ import fantzo_admin_reports
 import fantzo_live_tv_mobile_gate
 import fantzo_lead_funnel
 import fantzo_native_ui
+import fantzo_account_reverify
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +56,11 @@ async def _send_banner_preview_when_running(application) -> None:
 
 async def configure_telegram_ui_with_restored_features(application) -> None:
     await _original_configure_telegram_ui(application)
+
+    # One owner-requested account reset, guarded by both exact username and
+    # pinned Telegram ID. A mismatch leaves every account untouched.
+    fantzo_live_tv_mobile_gate.ensure_tables()
+    fantzo_account_reverify.apply_once()
 
     try:
         await application.bot.set_my_short_description(

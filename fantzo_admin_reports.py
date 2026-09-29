@@ -22,6 +22,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, InputFile
 from telegram.ext import ApplicationHandlerStop, CommandHandler, MessageHandler, filters
 
 import bot_tracked as tracked
+import fantzo_autoreply as autoreply
 import fantzo_banner_queue as banner_queue
 import fantzo_crm_ops as crm_ops
 import fantzo_reminders as reminders
@@ -466,10 +467,7 @@ def _automation_text() -> str:
             "SELECT COUNT(*) FROM reminder_sends WHERE status='sent' AND sent_at>=?",
             (day,),
         ) if _table_exists(conn, "reminder_sends") else 0
-        queued = _scalar(
-            conn,
-            "SELECT COUNT(*) FROM live_tv_banners WHERE status='queued'"
-        ) if _table_exists(conn, "live_tv_banners") else 0
+        queued = banner_queue.queue_count()
 
     return (
         "🤖 <b>FANTZO AUTOMATION</b>\n"
@@ -481,11 +479,89 @@ def _automation_text() -> str:
         f"🖼 Queued channel banners: <b>{_fmt_int(queued)}</b>\n"
         + (
             f"🕒 Next auto post: <b>{escape(banner_queue.schedule_text())}</b>"
-            if queued and not banner_queue.is_paused()
-            else "🕒 Next auto post: <b>NONE · QUEUE EMPTY</b>"
-            if not queued
+            + (" · Fantzo daily creative" if not queued else " · approved banner")
+            if not banner_queue.is_paused()
             else "🕒 Next auto post: <b>PAUSED</b>"
         )
+    )
+
+
+def _heartbeat_state(value: str, max_age_minutes: int) -> str:
+    if not value:
+        return "No heartbeat yet"
+    try:
+        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        if datetime.now(timezone.utc) - dt <= timedelta(minutes=max_age_minutes):
+            return "Running"
+    except ValueError:
+        pass
+    return "Stale"
+
+
+def _delivery_health_text() -> str:
+    """Owner-only evidence of attempts and confirmed Telegram sends."""
+    day, _, _ = _cutoffs()
+    channel = banner_queue.delivery_status()
+    with core.db() as conn:
+        if not channel["last_post_at"] and _table_exists(conn, "live_tv_banners"):
+            channel["last_post_at"] = str(_scalar(
+                conn, "SELECT MAX(posted_at) FROM live_tv_banners WHERE status='posted'", default="",
+            ))
+            if channel["last_post_at"]:
+                channel["last_post_kind"] = "approved_banner_legacy"
+        reminder_heartbeat = _scalar(
+            conn, "SELECT value FROM reminder_settings WHERE key='last_loop_at'", default=""
+        ) if _table_exists(conn, "reminder_settings") else ""
+        reminder_sent_24 = _scalar(
+            conn, "SELECT COUNT(*) FROM reminder_sends WHERE status='sent' AND sent_at>=?", (day,)
+        ) if _table_exists(conn, "reminder_sends") else 0
+        reminder_failed_24 = _scalar(
+            conn, "SELECT COUNT(*) FROM reminder_sends WHERE status!='sent' AND sent_at>=?", (day,)
+        ) if _table_exists(conn, "reminder_sends") else 0
+        reminder_last = _scalar(
+            conn, "SELECT MAX(sent_at) FROM reminder_sends WHERE status='sent'", default=""
+        ) if _table_exists(conn, "reminder_sends") else ""
+
+        def dm_count(action: str) -> int:
+            return int(_scalar(
+                conn, "SELECT COUNT(*) FROM clicks WHERE action LIKE ? AND created_at>=?",
+                (action, day),
+            )) if _table_exists(conn, "clicks") else 0
+
+        def dm_last(action: str) -> str:
+            return str(_scalar(
+                conn, "SELECT MAX(created_at) FROM clicks WHERE action LIKE ?",
+                (action,), default="",
+            )) if _table_exists(conn, "clicks") else ""
+
+        direct_sent = dm_count("autoreply:sent:%")
+        direct_failed = dm_count("autoreply:failed")
+        business_sent = dm_count("business_dm:sent")
+        business_failed = dm_count("business_dm:failed")
+        direct_last = dm_last("autoreply:sent:%")
+        business_last = dm_last("business_dm:sent")
+
+    return (
+        "📡 <b>FANTZO DELIVERY HEALTH</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
+        f"📣 Channel: <b>{'PAUSED' if banner_queue.is_paused() else _heartbeat_state(channel['scheduler_heartbeat_at'], 3)}</b>"
+        f" · queue {banner_queue.queue_count()} · review {banner_queue.pending_count()}\n"
+        f"Last confirmed post: <b>{escape(_fmt_dt(channel['last_post_at']))}</b>"
+        f" ({escape(channel['last_post_kind'] or '—')})\n"
+        f"Last send failure: <b>{escape(_fmt_dt(channel['last_failure_at']))}</b>"
+        f" ({escape(channel['last_failure_kind'] or '—')})\n\n"
+        f"🔔 Reminders: <b>{'PAUSED' if reminders.is_paused() else _heartbeat_state(str(reminder_heartbeat), 7)}</b>"
+        f" · sent 24h {reminder_sent_24} · failed 24h {reminder_failed_24}\n"
+        f"Last confirmed send: <b>{escape(_fmt_dt(reminder_last))}</b>\n\n"
+        f"💬 Direct DM: <b>{'ON' if autoreply.is_enabled() else 'OFF'}</b>"
+        f" · sent 24h {direct_sent} · failed 24h {direct_failed}\n"
+        f"Last confirmed send: <b>{escape(_fmt_dt(direct_last))}</b>\n"
+        f"💼 Business DM: <b>{'ON' if autoreply.is_enabled() else 'OFF'}</b>"
+        f" · sent 24h {business_sent} · failed 24h {business_failed}\n"
+        f"Last confirmed send: <b>{escape(_fmt_dt(business_last))}</b>\n\n"
+        "<i>Sent means Telegram accepted the message. Delivery to a person cannot be proven here.</i>"
     )
 
 
@@ -501,6 +577,7 @@ def _automation_menu() -> InlineKeyboardMarkup:
                 callback_data="ops:toggle_channel",
             ),
         ],
+        [InlineKeyboardButton("📡 DELIVERY HEALTH", callback_data="ops:delivery_health")],
         [InlineKeyboardButton("⬅️ DASHBOARD", callback_data="ops:home")],
     ])
 
@@ -652,6 +729,7 @@ def _tools_text() -> str:
         "🖼 <code>/setbanner</code> — change the Fantzo home banner.\n\n"
         "<b>TECHNICAL · NOT DAILY TEAM WORK</b>\n"
         "🩺 <code>/apistatus</code> — sports API health.\n"
+        "📡 <code>/deliveryhealth</code> — confirmed channel, reminder and DM sends.\n"
         "💾 <code>/backupstatus</code> / <code>/backupnow</code> — database backups.\n"
         "📺 <code>/livetvadmin</code> — Live TV admin access.\n"
         "🤖 <code>/autoreply</code>, <code>/stats</code>, <code>/trialtv</code> — diagnostics/testing.\n\n"
@@ -1881,6 +1959,21 @@ async def _handle_report_callback(update, context) -> bool:
             await _show(query, _automation_text(), _automation_menu())
             return True
 
+        if action == "delivery_health":
+            if not _is_owner(update):
+                await query.answer("Delivery health is owner-only.", show_alert=True)
+                return True
+            await query.answer()
+            await _show(
+                query,
+                _delivery_health_text(),
+                InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🔄 REFRESH", callback_data="ops:delivery_health")],
+                    [InlineKeyboardButton("⬅️ AUTOMATION", callback_data="ops:automation")],
+                ]),
+            )
+            return True
+
         if action == "guide":
             await query.answer()
             await _show(
@@ -2235,6 +2328,20 @@ async def crm_command(update, context) -> None:
 
 
 
+async def delivery_health_command(update, context) -> None:
+    if not _is_owner(update) or not update.effective_message:
+        if update.effective_message:
+            await update.effective_message.reply_text("This command is restricted.")
+        return
+    await update.effective_message.reply_text(
+        _delivery_health_text(),
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔄 REFRESH", callback_data="ops:delivery_health")],
+        ]),
+    )
+
+
 async def admin_text_handler(update, context) -> None:
     """Handle Fantzo admin SEARCH and NOTE input before normal bot auto-replies."""
     if not _is_admin(update):
@@ -2300,6 +2407,7 @@ def register_handlers(application) -> None:
     logger.info("Fantzo contact storage audit=%s", crm_ops.contact_storage_audit())
     application.add_handler(CommandHandler("reports", reports_command))
     application.add_handler(CommandHandler("crm", crm_command))
+    application.add_handler(CommandHandler("deliveryhealth", delivery_health_command))
     application.add_handler(
         MessageHandler(
             filters.UpdateType.MESSAGE & filters.TEXT & ~filters.COMMAND,

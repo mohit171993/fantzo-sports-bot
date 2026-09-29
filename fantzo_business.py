@@ -342,6 +342,16 @@ def _retry_seconds(exc: RetryAfter) -> float:
         return 1.0
 
 
+def _track_business_delivery(message, outcome: str) -> None:
+    user = getattr(message, "from_user", None)
+    if not user:
+        return
+    try:
+        core.track(int(user.id), f"business_dm:{outcome}")
+    except Exception:
+        logger.exception("Could not track Fantzo Business delivery %s", outcome)
+
+
 async def _reply_with_retry(message, reply: str, markup=None) -> None:
     kwargs = {
         "chat_id": message.chat_id,
@@ -369,6 +379,7 @@ async def _reply_with_retry(message, reply: str, markup=None) -> None:
                 getattr(sent, "message_id", None),
                 bool(kwargs.get("reply_markup")),
             )
+            _track_business_delivery(message, "sent")
             return
         except BadRequest as exc:
             if kwargs.get("reply_markup") is not None:
@@ -380,10 +391,12 @@ async def _reply_with_retry(message, reply: str, markup=None) -> None:
                 business_connection_id,
                 message.chat_id,
             )
+            _track_business_delivery(message, "failed")
             raise
         except RetryAfter as exc:
             if attempt >= 2:
                 logger.error("Fantzo Business DM still rate-limited after retries: %s", exc)
+                _track_business_delivery(message, "failed")
                 raise
             delay = _retry_seconds(exc) + 1.0
             logger.warning(
@@ -392,6 +405,9 @@ async def _reply_with_retry(message, reply: str, markup=None) -> None:
                 attempt + 2,
             )
             await asyncio.sleep(delay)
+        except Exception:
+            _track_business_delivery(message, "failed")
+            raise
 
 
 async def business_auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

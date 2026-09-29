@@ -268,7 +268,12 @@ def _api(handler):
 
         if action == "bhav":
             if key.isascii() and key.isdecimal():
-                liveline._send_json(handler, 200, _highlightly_live_bhav(key))
+                primary = None
+                try:
+                    primary = v20.v18._roanuz_primary_for_match(key)
+                except Exception as exc:
+                    logger.warning("IBETIN Roanuz BHAV lookup failed match_id=%s error=%s", key, str(exc)[:160])
+                liveline._send_json(handler, 200, primary or _highlightly_live_bhav(key))
                 return
             if not _valid_key(key):
                 liveline._send_json(handler, 200, {"ok": True, "matchId": key, "source": "No valid match key", "entries": []})

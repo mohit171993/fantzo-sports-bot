@@ -70,11 +70,13 @@ VERIFY_REPLY = (
 )
 
 
-def telegram_mini_app_url(section: str = "home") -> str:
+def telegram_mini_app_url(section: str = "home", customer_id: int = 0) -> str:
     section = (section or "home").strip().lower()
     if section not in ALLOWED_MINI_APP_SECTIONS:
         section = "home"
-    return f"https://t.me/{BOT_USERNAME}?startapp={quote(section, safe='')}"
+    if not customer_id or not phone_verify.is_verified(customer_id):
+        return phone_verify.verification_bot_url("verify_business_dm")
+    return fantzo_autoreply._hub_url(section)
 
 
 def _business_url(section: str = "home", customer_id: int = 0) -> str:
@@ -83,7 +85,7 @@ def _business_url(section: str = "home", customer_id: int = 0) -> str:
         if customer_id and phone_verify.is_verified(customer_id):
             return phone_verify.live_line_url(customer_id, LIVE_LINE_DIRECT_URL)
         return phone_verify.verification_bot_url()
-    return telegram_mini_app_url(section)
+    return telegram_mini_app_url(section, customer_id)
 
 
 def _button(label: str, section: str, customer_id: int = 0) -> TelegramInlineKeyboardButton:
@@ -100,6 +102,7 @@ def verification_keyboard() -> InlineKeyboardMarkup:
             TelegramInlineKeyboardButton(
                 "📱 VERIFY & CONTINUE",
                 url=phone_verify.verification_bot_url("verify_business_dm"),
+                api_kwargs={"style": "primary"},
             )
         ]]
     )

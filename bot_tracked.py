@@ -28,6 +28,7 @@ import ibetin_leads
 import ibetin_news as news
 import ibetin_phone_verify as phone_verify
 import ibetin_reports
+import dura_mode
 import private_apk_upload
 import trial_live_tv
 
@@ -357,22 +358,33 @@ def premium_main_keyboard(user_id: int = 0) -> InlineKeyboardMarkup:
             callback_data="liveline_access",
         )
 
-    rows = [
-        [hub_button("🚀 JOIN DURASPORTS", "home")],
-        [live_line_button],
-        [
-            site_button("🔴 LIVE NOW", IBETIN_LIVE_URL),
-            site_button("🏆 SPORTS", IBETIN_SPORTS_URL),
-        ],
-        [
-            news.news_webapp_button("📰 NEWS"),
-            hub_button("🔔 MATCH ALERTS", "alerts"),
-        ],
-        [
-            InlineKeyboardButton("📢 JOIN CHANNEL", url=IBETIN_CHANNEL_URL),
-            site_button("🛟 SUPPORT", IBETIN_SUPPORT_URL),
-        ],
-    ]
+    if not dura_mode.is_full_mode():
+        # DURA_MODE=liveline: live scores / match updates only.
+        rows = [
+            [live_line_button],
+            [
+                news.news_webapp_button("📰 NEWS"),
+                hub_button("🔔 MATCH ALERTS", "alerts"),
+            ],
+            [InlineKeyboardButton("📢 JOIN CHANNEL", url=IBETIN_CHANNEL_URL)],
+        ]
+    else:
+        rows = [
+            [hub_button("🚀 JOIN DURASPORTS", "home")],
+            [live_line_button],
+            [
+                site_button("🔴 LIVE NOW", IBETIN_LIVE_URL),
+                site_button("🏆 SPORTS", IBETIN_SPORTS_URL),
+            ],
+            [
+                news.news_webapp_button("📰 NEWS"),
+                hub_button("🔔 MATCH ALERTS", "alerts"),
+            ],
+            [
+                InlineKeyboardButton("📢 JOIN CHANNEL", url=IBETIN_CHANNEL_URL),
+                site_button("🛟 SUPPORT", IBETIN_SUPPORT_URL),
+            ],
+        ]
 
     if LIVE_TV_MODE == "public":
         url = fantzo_live_tv.minitv_url(user_id)
@@ -388,6 +400,13 @@ def premium_main_keyboard(user_id: int = 0) -> InlineKeyboardMarkup:
 def conversion_keyboard(user_id: int) -> InlineKeyboardMarkup:
     """Focused post-verification menu for paid-traffic conversion."""
     live_url = phone_verify.live_line_url(user_id, IBETIN_LIVE_LINE_URL)
+    if not dura_mode.is_full_mode():
+        return InlineKeyboardMarkup(
+            [
+                [site_button("🏏 OPEN DURASPORTS LIVE LINE", live_url)],
+                [InlineKeyboardButton("📢 JOIN CHANNEL", url=IBETIN_CHANNEL_URL)],
+            ]
+        )
     return InlineKeyboardMarkup(
         [
             [hub_button("🚀 JOIN DURASPORTS", "home")],
@@ -397,7 +416,30 @@ def conversion_keyboard(user_id: int) -> InlineKeyboardMarkup:
     )
 
 
+def _liveline_only_keyboard(user_id: int = 0) -> InlineKeyboardMarkup:
+    """DURA_MODE=liveline replacement for the betting-site menus."""
+    if user_id and phone_verify.is_verified(user_id):
+        live = site_button(
+            "🏏 OPEN DURASPORTS LIVE LINE",
+            phone_verify.live_line_url(user_id, IBETIN_LIVE_LINE_URL),
+        )
+    else:
+        live = InlineKeyboardButton("🏏 OPEN DURASPORTS LIVE LINE", callback_data="liveline_access")
+    rows = [
+        [live],
+        [news.news_webapp_button("📰 SPORTS NEWS")],
+        [hub_button("🔔 MATCH ALERTS", "alerts")],
+    ]
+    if LIVE_TV_MODE == "public" and user_id:
+        url = fantzo_live_tv.minitv_url(user_id)
+        if url:
+            rows.insert(1, [InlineKeyboardButton("📺 OPEN LIVE TV", web_app=WebAppInfo(url=url))])
+    return InlineKeyboardMarkup(rows)
+
+
 def premium_join_keyboard() -> InlineKeyboardMarkup:
+    if not dura_mode.is_full_mode():
+        return _liveline_only_keyboard()
     return InlineKeyboardMarkup(
         [
             [site_button("🌐 OPEN DURASPORTS", IBETIN_HOME_URL)],
@@ -415,6 +457,8 @@ def premium_join_keyboard() -> InlineKeyboardMarkup:
 
 
 def premium_explore_keyboard(user_id: int = 0) -> InlineKeyboardMarkup:
+    if not dura_mode.is_full_mode():
+        return _liveline_only_keyboard(user_id)
     rows = [
         [hub_button("🌐 DURASPORTS MINI APP HOME", "home")],
         [
@@ -1050,17 +1094,26 @@ async def _mini_launcher(update, title: str, button: InlineKeyboardButton, actio
 async def website_command(update, context) -> None:
     if not await _require_verified(update, context):
         return
+    if not dura_mode.is_full_mode():
+        await liveline_command(update, context)
+        return
     await _mini_launcher(update, "🌐 <b>DURASPORTS MINI APP</b>", hub_button("OPEN DURASPORTS MINI APP", "home"), "website_hub")
 
 
 async def live_command(update, context) -> None:
     if not await _require_verified(update, context):
         return
+    if not dura_mode.is_full_mode():
+        await liveline_command(update, context)
+        return
     await _mini_launcher(update, "🔴 <b>DURASPORTS LIVE</b>", site_button("OPEN LIVE", IBETIN_LIVE_URL), "live")
 
 
 async def support_command(update, context) -> None:
     if not await _require_verified(update, context):
+        return
+    if not dura_mode.is_full_mode():
+        await liveline_command(update, context)
         return
     await _mini_launcher(update, "🛟 <b>DURASPORTS SUPPORT</b>", site_button("OPEN SUPPORT", IBETIN_SUPPORT_URL), "support")
 
@@ -1074,11 +1127,17 @@ async def news_command(update, context) -> None:
 async def sports_command(update, context) -> None:
     if not await _require_verified(update, context):
         return
+    if not dura_mode.is_full_mode():
+        await liveline_command(update, context)
+        return
     await _mini_launcher(update, "🏆 <b>DURASPORTS SPORTS</b>", site_button("OPEN SPORTS", IBETIN_SPORTS_URL), "sports")
 
 
 async def team_command(update, context) -> None:
     if not await _require_verified(update, context):
+        return
+    if not dura_mode.is_full_mode():
+        await liveline_command(update, context)
         return
     await _mini_launcher(update, "🔎 <b>FIND A TEAM</b>", site_button("OPEN SPORTS SEARCH", IBETIN_SPORTS_URL), "find_team")
 

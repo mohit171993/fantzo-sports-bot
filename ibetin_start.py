@@ -6,6 +6,8 @@ from urllib.parse import parse_qs, urlparse
 
 from telegram import Bot
 
+import dura_mode
+
 import ibetin_entry
 import fantzo_business as business
 import fantzo_reminders as reminders
@@ -103,8 +105,23 @@ def _install_hub_and_restore_main_ui(analytics_module) -> None:
     _restore_main_bot_runtime()
 
 
+def _liveline_targets() -> dict:
+    """DURA_MODE=liveline: every Mini App section stays inside the bot."""
+    liveline = f"{hub._public_base_url()}/liveline"
+    return {
+        "home": liveline,
+        "sports": liveline,
+        "live": liveline,
+        "liveline": liveline,
+        "results": liveline,
+        "news": hub.news_url(),
+    }
+
+
 def _redirect_target(section: str) -> str:
     section = (section or "").strip().lower()
+    if not dura_mode.is_full_mode():
+        return _liveline_targets().get(section, "")
     targets = {
         "home": hub.IBETIN_HOME_URL,
         "sports": hub.IBETIN_SPORTS_URL,
@@ -136,6 +153,8 @@ def _launcher_page() -> str:
     launcher never renders that dashboard: it immediately routes to the final
     IBETIN destination once Telegram exposes start_param.
     """
+    if not dura_mode.is_full_mode():
+        return dura_mode.liveline_launcher_page("/liveline")
     targets = {
         "home": hub.IBETIN_HOME_URL,
         "sports": hub.IBETIN_SPORTS_URL,
@@ -363,12 +382,20 @@ def run_navigation_self_test() -> None:
     if not news_buttons or news_buttons[0].web_app is None or news_buttons[0].url:
         errors.append("news-launcher: primary News button is not a web_app")
 
-    if _redirect_target("home") != hub.IBETIN_HOME_URL:
-        errors.append("home redirect target invalid")
-    if _redirect_target("live") != hub.IBETIN_LIVE_URL:
-        errors.append("live redirect target invalid")
-    if _redirect_target("support") != hub.IBETIN_SUPPORT_URL:
-        errors.append("support redirect target invalid")
+    if not dura_mode.is_full_mode():
+        liveline_target = f"{hub._public_base_url()}/liveline"
+        if _redirect_target("home") != liveline_target:
+            errors.append("liveline-mode home redirect must open Live Line")
+        for blocked in ("casino", "games", "payments", "support"):
+            if _redirect_target(blocked):
+                errors.append(f"liveline-mode {blocked} redirect must be disabled")
+    else:
+        if _redirect_target("home") != hub.IBETIN_HOME_URL:
+            errors.append("home redirect target invalid")
+        if _redirect_target("live") != hub.IBETIN_LIVE_URL:
+            errors.append("live redirect target invalid")
+        if _redirect_target("support") != hub.IBETIN_SUPPORT_URL:
+            errors.append("support redirect target invalid")
 
     if errors:
         raise RuntimeError("IBETIN navigation self-test FAILED: " + " | ".join(errors))

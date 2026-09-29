@@ -12,6 +12,7 @@ from urllib.parse import parse_qs, urlencode, urlparse
 from zoneinfo import ZoneInfo
 
 import bot as core
+import dura_mode
 
 logger = logging.getLogger(__name__)
 
@@ -325,6 +326,12 @@ class TrackingHandler(BaseHTTPRequestHandler):
             return
 
         if parsed.path.rstrip("/") in {"/meta-ch", "/meta-ch-v2"}:
+            if not dura_mode.is_full_mode():
+                # DURA_MODE=liveline: affiliate registration landing disabled.
+                self.send_response(404)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
             from ibetin_meta_landing import page_html
             raw = page_html().encode("utf-8")
             self.send_response(200)
@@ -360,7 +367,10 @@ class TrackingHandler(BaseHTTPRequestHandler):
             logger.exception("Could not record IBETIN open: %s", exc)
 
         self.send_response(302)
-        self.send_header("Location", destination_url(source))
+        self.send_header(
+            "Location",
+            destination_url(source) if dura_mode.is_full_mode() else "/liveline",
+        )
         self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
         self.end_headers()
 

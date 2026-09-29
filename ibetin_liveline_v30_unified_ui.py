@@ -3,6 +3,7 @@ import hmac
 import json
 import logging
 import os
+import re
 import shutil
 import threading
 import time
@@ -28,6 +29,7 @@ if os.path.isdir(_IBETIN_PERSIST_DIR):
     except Exception as exc:
         logging.getLogger(__name__).warning("IBETIN persistent DB bootstrap failed: %s", str(exc)[:140])
 
+import dura_mode
 import ibetin_liveline_v25_fast_cache as v25
 import ibetin_phone_verify as phone_verify
 
@@ -1624,7 +1626,7 @@ def _page_v40_visual_polish() -> str:
     return html
 
 
-def _page_v40_public() -> str:
+def _page_v40_public_full() -> str:
     html = _page_v40_visual_polish()
     html = html.replace(
         "<title>IBETIN Live Line · Visual Polish V40</title>",
@@ -1643,6 +1645,80 @@ def _page_v40_public() -> str:
         1,
     )
     return html
+
+
+
+# ---------------------------------------------------------------------------
+# DURA_MODE liveline renderer.
+# Full mode returns the V40 pages byte-for-byte unchanged. Liveline mode
+# post-processes the same V40 build at render time: odds/BHAV/market panels,
+# the V35 market renderer, the V37 promo JS/CSS and the POWERED BY header are
+# removed. Patterns avoid brand literals so dura_brand_bootstrap.py rewrites
+# (IBETIN -> DURA, ibetin.com -> durabet.com) cannot break them.
+# ---------------------------------------------------------------------------
+_LIVELINE_DROP_SCRIPT_MARKERS = ("__IBETIN_V35_MARKET_RENDERER__", "__IBETIN_V37_PROMO__")
+_LIVELINE_CSS_DROP = (
+    r"odd|bhav|quickMarket|quickHead|quickLoading|session(?:Title|Grid|Card|Vals)|"
+    r"previewPrice|previewHist|previewHome|previewMarket|previewSession|"
+    r"ibPromo|ibQuickPromo|ibHomePromo|ibPowered|liveLineSub|dotcom|ibBrandSig"
+)
+_LIVELINE_JS_LINES = re.compile(
+    r"^(?:const bhavCache=|const BHAV_TTL=|async function getBhav\(|function "
+    r"(?:entries|values|findMatchMarket|sessionMarkets|homeOddsHtml|quickMarketHtml|"
+    r"renderQuickMarket|fullBhavHtml)\().*\n",
+    re.M,
+)
+_LIVELINE_JS_FRAGMENTS = (
+    ("${homeOddsHtml(m)}", ""),
+    (";if(mode==='live')setTimeout(()=>rows.slice(0,6).forEach(m=>getBhav(matchKey(m))),120)", ""),
+    (";getBhav(key).then(x=>{if(document.getElementById('quickMarket'))renderQuickMarket(x);if(detailTab==='bhav')drawPanel()})", ""),
+    ("['bhav','BHAV'],", ""),
+    (",cached=bhavCache.get(matchKey(m))?.data||null", ""),
+    ("<div id=\"quickMarket\" class=\"quickMarket\" style=\"${cached?'':'display:block'}\">${cached?quickMarketHtml(cached):'<div class=\"quickLoading\">Loading live BHAV…</div>'}</div>", ""),
+    ("else if(detailTab==='bhav'){const key=matchKey(m),cached=bhavCache.get(key)?.data||null;p.innerHTML=ptitle('LIVE BHAV')+(cached?fullBhavHtml(cached):'<div class=\"loading\"><div class=\"spin\"></div>Loading…</div>');getBhav(key).then(j=>{if(detailTab==='bhav'&&document.getElementById('panel'))document.getElementById('panel').innerHTML=ptitle('LIVE BHAV')+fullBhavHtml(j)})}", ""),
+    (".dtabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr))", ".dtabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr))"),
+)
+_LIVELINE_JS_REGEX = (
+    re.compile(r"\n\s*getBhav\(key,true\)\.then\(x=>\{.*?\}\);", re.S),
+    re.compile(r'<small class="liveLineSub">.*?</small>', re.S),
+    re.compile(r'<div class="ibPowered">.*?</div>', re.S),
+)
+
+
+def _liveline_page(html: str) -> str:
+    def drop_script(match):
+        block = match.group(0)
+        return "" if any(marker in block for marker in _LIVELINE_DROP_SCRIPT_MARKERS) else block
+
+    html = re.sub(r"<script>\s*\(function\(\)\{.*?</script>\n?", drop_script, html, flags=re.S)
+    for old, new in _LIVELINE_JS_FRAGMENTS:
+        if old not in html:
+            logger.warning("DURA liveline renderer: fragment not found (%s)", old[:48])
+        html = html.replace(old, new)
+    html = _LIVELINE_JS_LINES.sub("", html)
+    for pattern in _LIVELINE_JS_REGEX:
+        html = pattern.sub("", html)
+    html = re.sub(
+        r"(<style>)(.*?)(</style>)",
+        lambda m: m.group(1) + dura_mode.strip_css_rules(m.group(2), _LIVELINE_CSS_DROP) + m.group(3),
+        html,
+        flags=re.S,
+    )
+    leaked = dura_mode.find_forbidden(html)
+    if leaked:
+        logger.error("DURA liveline renderer leaked terms=%s", leaked)
+    return html
+
+
+def _page_v40_production() -> str:
+    """Production V40 renderer; the mode is read on every render."""
+    html = _page_v40_visual_polish()
+    return html if dura_mode.is_full_mode() else _liveline_page(html)
+
+
+def _page_v40_public() -> str:
+    html = _page_v40_public_full()
+    return html if dura_mode.is_full_mode() else _liveline_page(html)
 
 
 def _install_public_liveline_routes() -> None:
@@ -1719,7 +1795,7 @@ def _install_v40_visual_polish_route() -> None:
             if not v23.liveline._authorized(self.path):
                 v23.liveline._send_html(self, 403, "<h3>IBETIN Live Line preview link is invalid.</h3>")
                 return
-            v23.liveline._send_html(self, 200, _page_v40_visual_polish())
+            v23.liveline._send_html(self, 200, _page_v40_production())
             return
         previous_get(self)
 
@@ -1890,6 +1966,7 @@ def _install_v35_preview_command() -> None:
         await previous_config(application)
         application.add_handler(v23.liveline.CommandHandler("previewui", _previewui_command))
         logger.info("IBETIN /previewui premium preview command registered")
+        dura_mode.register_command(application)
 
     runtime.configure_telegram_ui = configure_with_preview
     runtime.app.configure_telegram_ui = configure_with_preview
@@ -1906,10 +1983,22 @@ _install_v39_favourites_route()
 _install_v40_visual_polish_route()
 _install_public_liveline_routes()
 _install_v35_preview_command()
+dura_mode.install_send_guard()
+dura_mode.install_http_gate(
+    v23.liveline.base.ibetin_start.ibetin_entry.analytics,
+    liveline_path=IBETIN_PUBLIC_LIVELINE_PATH,
+    blocked_paths={
+        IBETIN_V35_PREVIEW_PATH,
+        IBETIN_V36_BRAND_PREVIEW_PATH,
+        IBETIN_V37_PROMO_PREVIEW_PATH,
+        IBETIN_V38_MATCH_PULSE_PATH,
+        IBETIN_V39_FAVOURITES_PATH,
+    },
+)
 
 # Promote the approved V40 UI to the production Live route.
-v23._page = _page_v40_visual_polish
-v23.liveline._page = _page_v40_visual_polish
+v23._page = _page_v40_production
+v23.liveline._page = _page_v40_production
 logger.info("IBETIN V40 promoted to production Live route; V35 and V30 remain rollback baselines")
 
 app = v25.app

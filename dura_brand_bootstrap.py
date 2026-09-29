@@ -23,6 +23,20 @@ STATIC_REPLACEMENTS = [
 ]
 
 
+# DURA_MODE files hold literal domain/term lists used by the liveline checks;
+# rewriting them on disk would corrupt those checks.
+REWRITE_EXCLUDED = {"dura_mode.py", "test_dura_mode_switch.py"}
+
+
+def _full_mode() -> bool:
+    try:
+        import dura_mode
+
+        return dura_mode.is_full_mode()
+    except Exception:
+        return False
+
+
 def replacements():
     items = list(STATIC_REPLACEMENTS)
 
@@ -95,14 +109,16 @@ def main() -> None:
 
     changed = 0
     for path in ROOT.glob("*.py"):
-        if path.name == Path(__file__).name:
+        if path.name == Path(__file__).name or path.name in REWRITE_EXCLUDED:
             continue
         if patch_file(path):
             changed += 1
 
-    os.environ.setdefault("IBETIN_HOME_URL", "https://www.durabet.com")
-    os.environ.setdefault("IBETIN_MINI_APP_URL", "https://www.durabet.com")
-    print(f"DURA_BRAND_BOOTSTRAP patched_files={changed}", flush=True)
+    if _full_mode():
+        # Betting-site defaults only matter in DURA_MODE=full.
+        os.environ.setdefault("IBETIN_HOME_URL", "https://www.durabet.com")
+        os.environ.setdefault("IBETIN_MINI_APP_URL", "https://www.durabet.com")
+    print(f"DURA_BRAND_BOOTSTRAP patched_files={changed} dura_mode_full={_full_mode()}", flush=True)
 
 
 if __name__ == "__main__":

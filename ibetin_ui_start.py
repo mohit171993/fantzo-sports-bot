@@ -11,6 +11,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from telegram.ext import CommandHandler
 
 import bot as core
+import dura_mode
 import fantzo_reminders as reminders
 import ibetin_start
 import ibetin_ui_v2
@@ -28,7 +29,10 @@ _original_hub_page = ibetin_start.hub._page
 def _hub_page_without_home_shell(section: str):
     requested = (section or "home").strip().lower()
     if requested == "home":
-        target = json.dumps(ibetin_start.hub.IBETIN_HOME_URL)
+        if dura_mode.is_full_mode():
+            target = json.dumps(ibetin_start.hub.IBETIN_HOME_URL)
+        else:
+            target = json.dumps("/liveline")
         return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"><title>IBETIN</title>

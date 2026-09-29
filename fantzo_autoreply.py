@@ -7,6 +7,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardButton as TelegramInlin
 from telegram.ext import ContextTypes
 
 import bot as core
+import dura_mode
 
 logger = logging.getLogger(__name__)
 
@@ -123,7 +124,38 @@ def _support_keyboard() -> InlineKeyboardMarkup:
     )
 
 
+# DURA_MODE=liveline: account / money / support questions get a neutral
+# live-scores answer instead of deposit, withdrawal or payout guidance.
+LIVELINE_ONLY_WORDS = [
+    "deposit", "add money", "payment", "pay", "upi", "recharge", "withdraw", "withdrawal",
+    "payout", "cashout", "cash out", "login", "password", "otp", "account", "register",
+    "registration", "signup", "sign up", "bonus", "offer", "promo", "promotion", "support",
+    "help", "problem", "issue", "complaint", "failed", "pending", "stuck", "casino", "bet",
+    "betting", "games", "slots",
+]
+LIVELINE_ONLY_REPLY = (
+    "🏏 <b>DURASPORTS Live Line</b>\n\n"
+    "This bot shares live cricket scores, fixtures, results and match updates. "
+    "Open the Live Line below."
+)
+
+
+def liveline_only_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("🏏 WATCH DURASPORTS LIVE LINE", url=IBETIN_LIVE_LINE_URL)],
+            [TelegramInlineKeyboardButton("📢 JOIN CHANNEL", url=IBETIN_CHANNEL_URL)],
+        ]
+    )
+
+
 def standard_reply() -> str:
+    if not dura_mode.is_full_mode():
+        return (
+            "👋 <b>Welcome to DURASPORTS</b>\n\n"
+            "I can help with live cricket and football scores, fixtures, results, news and match alerts.\n\n"
+            "Choose an option below or simply type what you need."
+        )
     return (
         "👋 <b>Welcome to DURASPORTS</b>\n\n"
         "I can help with live sports, cricket, football, news, match alerts, payments and support.\n\n"
@@ -180,6 +212,9 @@ def classify_and_reply(text: str):
             _alerts_keyboard(),
         )
 
+    if not dura_mode.is_full_mode() and _contains(t, LIVELINE_ONLY_WORDS):
+        return "liveline_only", LIVELINE_ONLY_REPLY, liveline_only_keyboard()
+
     if _contains(t, ["deposit", "add money", "payment", "pay", "upi", "recharge", "withdraw", "withdrawal", "payout", "cashout", "cash out"]):
         return (
             "payments",
@@ -208,6 +243,12 @@ def classify_and_reply(text: str):
             _single_button("⚡ OPEN DURASPORTS", "home"),
         )
 
+    if not dura_mode.is_full_mode():
+        return (
+            "fallback",
+            "🤖 <b>DURASPORTS Assistant</b>\n\nYou can ask me about live cricket and football scores, fixtures, results, news or match alerts.",
+            standard_keyboard(),
+        )
     return (
         "fallback",
         "🤖 <b>DURASPORTS Assistant</b>\n\nYou can ask me about live sports, cricket, football, news, match alerts, payments or support.",

@@ -11,6 +11,7 @@ from telegram.error import BadRequest, RetryAfter
 from telegram.ext import ApplicationHandlerStop, ContextTypes
 
 import bot as core
+import dura_mode
 import fantzo_autoreply
 import ibetin_phone_verify as phone_verify
 import ibetin_leads
@@ -388,6 +389,17 @@ def _contains(text: str, words) -> bool:
     return any(re.search(rf"\b{re.escape(word)}\b", text) for word in words)
 
 
+# DURA_MODE=liveline: join / money / account / support questions get a
+# neutral live-scores answer instead of betting-site or payout guidance.
+LIVELINE_ONLY_WORDS = [
+    "deposit", "add money", "payment", "pay", "upi", "recharge", "withdraw", "withdrawal",
+    "payout", "cashout", "cash out", "login", "password", "otp", "account", "register",
+    "registration", "signup", "sign up", "bonus", "offer", "promo", "promotion", "support",
+    "help", "problem", "issue", "complaint", "failed", "pending", "stuck", "casino", "join",
+    "play", "play now", "start playing", "bet", "betting", "games", "slots",
+]
+
+
 def classify_business_dm(text: str, customer_id: int = 0):
     t = " ".join((text or "").lower().strip().split())
 
@@ -405,6 +417,20 @@ def classify_business_dm(text: str, customer_id: int = 0):
             "🏏 <b>DURASPORTS Live Line</b>\n\nOpen DURASPORTS Live Line below.",
             InlineKeyboardMarkup(
                 [[_button("🏏 OPEN DURASPORTS LIVE LINE", "liveline", customer_id)]]
+            ),
+        )
+
+    if not dura_mode.is_full_mode() and _contains(t, LIVELINE_ONLY_WORDS):
+        return (
+            "liveline_only",
+            "🏏 <b>IBETIN Live Line</b>\n\n"
+            "This chat shares live cricket scores, fixtures, results and match updates. "
+            "Open the Live Line below.",
+            InlineKeyboardMarkup(
+                [
+                    [_button("🏏 OPEN IBETIN LIVE LINE", "liveline", customer_id)],
+                    [TelegramInlineKeyboardButton("📢 JOIN CHANNEL", url="https://t.me/ibetinoffcial")],
+                ]
             ),
         )
 

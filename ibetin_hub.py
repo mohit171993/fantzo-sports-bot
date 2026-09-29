@@ -19,6 +19,7 @@ from telegram import (
 from telegram.ext import CommandHandler
 
 import bot as core
+import dura_mode
 import ibetin_match_alerts as match_alerts
 
 logger = logging.getLogger(__name__)
@@ -240,6 +241,10 @@ def _home_cards() -> str:
         ("🔔", "My Alerts", "Notification controls", hub_url("alerts")),
         ("⚙️", "Settings", "Language & preferences", hub_url("settings")),
     ]
+    if not dura_mode.is_full_mode():
+        # DURA_MODE=liveline: no casino / games / payments / betting-site tiles.
+        keep = {"Sports News", "My Alerts", "Settings"}
+        cards = [card for card in cards if card[1] in keep]
     return "".join(
         (
             f'<a class="tile" href="{escape(url, quote=True)}">'

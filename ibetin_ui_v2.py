@@ -3,6 +3,8 @@ import logging
 from html import escape
 from urllib.parse import urlencode, urlparse, parse_qs
 
+import dura_mode
+
 logger = logging.getLogger(__name__)
 
 
@@ -29,6 +31,10 @@ def _hub_page(hub, section: str) -> str:
         ("🔔", "My Alerts", "Notification controls", alerts),
         ("⚙️", "Settings", "Language & preferences", settings),
     ]
+    full_mode = dura_mode.is_full_mode()
+    if not full_mode:
+        # DURA_MODE=liveline: no casino / games / payments / betting-site tiles.
+        cards = [card for card in cards if card[1] in {"Sports News", "My Alerts", "Settings"}]
 
     card_html = "".join(
         f'<a class="tile" href="{escape(url, quote=True)}"><span class="ico">{icon}</span>'
@@ -36,6 +42,9 @@ def _hub_page(hub, section: str) -> str:
         for icon, title, subtitle, url in cards
     )
 
+    support_link = (
+        f'<a href="{escape(support, quote=True)}"><strong>🛟</strong>Support</a>' if full_mode else ""
+    )
     body = ""
     extra_script = ""
 
@@ -126,7 +135,7 @@ select{{width:100%;margin-top:12px;padding:13px;border-radius:12px;background:#f
 @media(max-width:390px){{.grid{{gap:8px}}.tile{{padding:11px;min-height:74px}}.tile b{{font-size:12px}}}}
 </style></head><body>
 <div class="wrap"><div class="top"><div class="brand">IBETIN</div><div class="pill">TELEGRAM MINI APP</div></div>{body}</div>
-<nav class="nav"><a href="{escape(home, quote=True)}"><strong>⌂</strong>Home</a><a href="{escape(news, quote=True)}"><strong>📰</strong>News</a><a href="{escape(alerts, quote=True)}"><strong>🔔</strong>Alerts</a><a href="{escape(support, quote=True)}"><strong>🛟</strong>Support</a></nav>
+<nav class="nav"><a href="{escape(home, quote=True)}"><strong>⌂</strong>Home</a><a href="{escape(news, quote=True)}"><strong>📰</strong>News</a><a href="{escape(alerts, quote=True)}"><strong>🔔</strong>Alerts</a>{support_link}</nav>
 <div id="toast" class="toast"></div>
 <script>
 const tg=window.Telegram&&window.Telegram.WebApp;if(tg){{tg.ready();tg.expand();try{{tg.setHeaderColor('#ffffff');tg.setBackgroundColor('#f5f7fb');}}catch(e){{}}}}

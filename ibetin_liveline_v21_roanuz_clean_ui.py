@@ -234,6 +234,17 @@ def _highlightly_live_bhav(match_id: str) -> dict:
                     "values": values[:3],
                 })
     result["entries"] = entries[:12]
+    if not entries:
+        matched = [row for row in rows if isinstance(row, dict) and str(row.get("matchId") or "") == match_id]
+        markets = sorted({
+            str(market.get("market") or "")[:60]
+            for row in matched for market in (row.get("odds") or [])
+            if isinstance(market, dict)
+        })
+        logger.info(
+            "IBETIN Highlightly live BHAV probe match_id=%s rows=%s matched=%s markets=%s entries=0",
+            match_id, len(rows), len(matched), markets[:12],
+        )
     return result
 
 

@@ -265,6 +265,9 @@ def install(reports):
             f"⚠️ Not verified: <b>{data['total']-data['verified']}</b> · 👨‍💼 New already assigned: <b>{data['new_owned']}</b>"
         )
 
+    def b(text, action):
+        return Button(text, callback_data="reports:" + action)
+
     def fb_dailydose_text():
         data = fb_dailydose_report(reports)
         last_start = reports._fmt_admin_time(str(data.get("last_start") or ""))
@@ -294,8 +297,6 @@ def install(reports):
         ])
 
     def menu():
-        def b(text, action):
-            return Button(text, callback_data="reports:" + action)
         return Markup([
             [b("🆕 NEW / UNWORKED", "queue:new"), b("⏰ DUE NOW", "queue:due")],
             [b("👥 ALL LEADS", "queue:all"), b("📱 SAVED MOBILES", "queue:mobile")],

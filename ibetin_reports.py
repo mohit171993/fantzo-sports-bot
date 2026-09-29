@@ -248,6 +248,18 @@ def _lead_view(user_id: int):
             "SELECT * FROM ibetin_leads WHERE user_id=?",
             (uid,),
         ).fetchone()
+        latest_campaign_row = conn.execute(
+            """
+            SELECT action, created_at
+            FROM clicks
+            WHERE user_id=?
+              AND action LIKE 'campaign_start:%'
+              AND action != 'campaign_start:direct'
+            ORDER BY created_at DESC, id DESC
+            LIMIT 1
+            """,
+            (uid,),
+        ).fetchone()
     if not row:
         return None
     lead = dict(row)
@@ -258,6 +270,13 @@ def _lead_view(user_id: int):
     lead["first_name"] = first_name
     lead["phone_number"] = phone
     lead["is_currently_verified"] = uid in phones
+    if latest_campaign_row:
+        action = str(latest_campaign_row["action"] or "")
+        lead["latest_campaign"] = action.split(":", 1)[1] if ":" in action else ""
+        lead["latest_campaign_at"] = str(latest_campaign_row["created_at"] or "")
+    else:
+        lead["latest_campaign"] = ""
+        lead["latest_campaign_at"] = ""
     return lead
 
 
@@ -349,8 +368,23 @@ def _lead_card_text(lead: dict) -> str:
     phone_raw = str(lead.get("phone_number") or "").strip()
     phone = escape(phone_raw) if phone_raw else "Not captured"
     telegram_user_id = int(lead.get("user_id") or 0)
-    campaign = escape(str(lead.get("campaign") or "direct"))
+    campaign_raw = str(lead.get("campaign") or "direct")
+    latest_campaign_raw = str(lead.get("latest_campaign") or "").strip()
+    campaign = escape(campaign_raw)
     source = escape(str(lead.get("source") or "bot"))
+
+    origin_campaign = latest_campaign_raw or campaign_raw
+    origin_labels = {
+        "fb_dailydose": "Daily Dose",
+    }
+    origin = origin_labels.get(origin_campaign)
+    if not origin:
+        readable = origin_campaign
+        if readable.startswith("fb_"):
+            readable = readable[3:]
+        readable = readable.replace("_", " ").replace("-", " ").strip()
+        origin = readable.title() if readable and readable != "direct" else "Direct"
+    origin = escape(origin)
     assigned = escape(str(lead.get("assigned_name") or "UNASSIGNED"))
     first_seen = escape(_fmt_admin_time(str(lead.get("first_seen_at") or "")))
     verified_raw = str(lead.get("verified_at") or "")
@@ -381,6 +415,7 @@ def _lead_card_text(lead: dict) -> str:
         f"📱 Mobile: <code>{phone}</code>" if phone_raw else "📱 Mobile: <b>Not captured</b>",
         f"🔐 Verification: {verification_text}",
         f"🕒 First seen: <b>{first_seen}</b>",
+        f"📍 Lead from: <b>{origin}</b>",
         f"🎯 Campaign: <code>{campaign}</code>",
         f"📥 Source: <b>{source}</b>",
         f"👨‍💼 Assigned: <b>{assigned}</b>",

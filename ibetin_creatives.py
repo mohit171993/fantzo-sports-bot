@@ -74,6 +74,36 @@ def ensure_tables() -> None:
         )
 
 
+def _seed_bundled_creatives() -> None:
+    """Register approved local variants without reactivating rejected rows."""
+    bundles = {
+        "channel": (FALLBACK_BANNER, Path(__file__).with_name("ibetin_channel_v2.jpg")),
+        "reminder": (REMINDER_BANNER, Path(__file__).with_name("ibetin_reminder_v2.jpg")),
+    }
+    with core.db() as conn:
+        for pool, files in bundles.items():
+            for variant, path in enumerate(files):
+                if not path.is_file():
+                    logger.warning("Missing IBETIN bundled creative: %s", path)
+                    continue
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO creative_assets(
+                        file_id, file_unique_id, media_type, filename,
+                        pool, created_at, active, brand
+                    ) VALUES (?, ?, 'bundled_photo', ?, ?, ?, 1, ?)
+                    """,
+                    (
+                        str(path),
+                        f"bundled:{BRAND}:{pool}:{variant}",
+                        path.name,
+                        pool,
+                        core.now_iso(),
+                        BRAND,
+                    ),
+                )
+
+
 def _creative_admin_id():
     try:
         with core.db() as conn:
@@ -547,6 +577,12 @@ async def _send_creative_as_photo(bot, creative, kwargs):
     media_type = str(creative["media_type"] or "")
     file_id = str(creative["file_id"])
 
+    if media_type == "bundled_photo":
+        with open(file_id, "rb") as image_file:
+            return await bot.send_photo(
+                photo=InputFile(image_file, filename=Path(file_id).name), **kwargs
+            )
+
     if media_type == "photo":
         return await bot.send_photo(photo=file_id, **kwargs)
 
@@ -968,6 +1004,7 @@ def install(application) -> None:
         return
     application.bot_data["ibetin_creative_manager_installed"] = True
     ensure_tables()
+    _seed_bundled_creatives()
 
     # Negative group ensures uploads are captured before the legacy single-banner handler.
     application.add_handler(CommandHandler("creativeunlock", creativeunlock_command), group=-5)

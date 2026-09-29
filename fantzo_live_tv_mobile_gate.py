@@ -228,6 +228,25 @@ def is_registered(user_id: int) -> bool:
     return bool(row)
 
 
+TEST_REVERIFY_USER_ID = 1456774567
+
+
+def reset_test_verification_on_start(user_id: int) -> int:
+    """Reopen the self-contact gate for the exact tester on a new /start."""
+    if int(user_id or 0) != TEST_REVERIFY_USER_ID:
+        return 0
+    ensure_tables()
+    with core.db() as conn:
+        revoked = conn.execute(
+            "UPDATE live_tv_mobile_users "
+            "SET capture_method='reverify_required', updated_at=? "
+            "WHERE user_id=? AND capture_method='telegram_contact'",
+            (_now_iso(), TEST_REVERIFY_USER_ID),
+        ).rowcount
+    logger.info("FANTZO_TEST_VERIFICATION_RESET_ON_START user_id=%s revoked=%s", TEST_REVERIFY_USER_ID, revoked)
+    return int(revoked or 0)
+
+
 def save_verified_contact(user_id: int, value: str, source: str) -> tuple[str, str]:
     normalized = normalize_telegram_mobile(value)
     if not normalized:
@@ -547,6 +566,18 @@ def install() -> None:
     async def gated_start(update, context):
         user = update.effective_user
         arg = context.args[0].lower() if context.args else ""
+
+        # A new Telegram /start begins a fresh test visit; the in-chat START
+        # button does not interrupt an already verified visit.
+        message = update.effective_message
+        start_words = str(message.text or "").split(None, 1) if message else []
+        if (
+            user
+            and int(user.id) == TEST_REVERIFY_USER_ID
+            and start_words
+            and start_words[0].split("@", 1)[0].lower() == "/start"
+        ):
+            reset_test_verification_on_start(user.id)
 
         if user:
             lead_funnel.record_start(user.id, arg)

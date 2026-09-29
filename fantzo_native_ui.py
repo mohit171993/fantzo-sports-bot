@@ -76,7 +76,7 @@ def install_native_button_styles() -> None:
 def start_only_quick_menu() -> ReplyKeyboardMarkup:
     """Safe persistent keyboard for an account that is not yet verified."""
     return ReplyKeyboardMarkup(
-        [[KeyboardButton("▶️ START")]],
+        [[KeyboardButton("▶️ START", api_kwargs={"style": "primary"})]],
         resize_keyboard=True,
         is_persistent=True,
         input_field_placeholder="Tap START",
@@ -87,7 +87,7 @@ def verified_quick_menu() -> ReplyKeyboardMarkup:
     """Compact iBetin-style bottom keyboard for verified Fantzo users."""
     return ReplyKeyboardMarkup(
         [[
-            KeyboardButton("▶️ START"),
+            KeyboardButton("▶️ START", api_kwargs={"style": "primary"}),
             KeyboardButton(
                 "⚡ OPEN FANTZO",
                 web_app=WebAppInfo(
@@ -96,6 +96,7 @@ def verified_quick_menu() -> ReplyKeyboardMarkup:
                         "home",
                     )
                 ),
+                api_kwargs={"style": "success"},
             ),
         ]],
         resize_keyboard=True,

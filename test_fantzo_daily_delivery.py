@@ -5,6 +5,7 @@ import sqlite3
 import unittest
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
+from unittest import mock
 
 import bot as core
 import fantzo_account_reverify as reverify
@@ -31,8 +32,13 @@ class FantzoDailyDeliveryTests(unittest.TestCase):
         core.db = lambda: self.conn
         core.init_db()
         banners.ensure_tables()
+        # This fixture has no persistent mode table; select Full explicitly so
+        # it exercises the existing banner delivery path instead of fail-closed mode.
+        self.full_mode = mock.patch("fantzo_mode.is_livetv", return_value=False)
+        self.full_mode.start()
 
     def tearDown(self):
+        self.full_mode.stop()
         core.db = self.original_db
         self.conn.close()
 

@@ -6,7 +6,7 @@ This is local review work only. It has not been deployed.
 
 In the Fantzo bot's private chat, the configured `ADMIN_USER_ID` can use `/mode livetv`, `/mode full`, or `/mode status`. The status reply also has two inline buttons. `/mode clean` and `/mode liveline` map to Live TV for compatibility. Other users receive no response to these commands or forwarded mode buttons.
 
-`/mode livetv` refuses to switch unless public Live TV is enabled, a public HTTPS `/minitv` URL is configured, and the embedded provider URL is HTTPS and does not resemble the private SKY test link. The admin sees a clear error and the current mode is unchanged. If a previously saved Live TV mode later loses that configuration, `/mode status` flags the degraded state.
+`/mode livetv` refuses to switch unless public Live TV is enabled, a public HTTPS `/minitv` URL is configured, the embedded provider URL is HTTPS and does not resemble the private SKY test link, and `DB_PATH` points to a file inside the mounted `/data` volume. The admin sees a clear error and the current mode is unchanged. If a previously saved Live TV mode later loses that configuration, `/mode status` flags the degraded state.
 
 The mode and each switch are stored in the bot SQLite database (`DB_PATH`). The initial state is Full, preserving the current production behaviour. A persistent queue tracks verified users' chat-menu updates and records successes or failures; `/mode status` shows those counts.
 
@@ -22,7 +22,7 @@ The mode and each switch are stored in the bot SQLite database (`DB_PATH`). The 
 
 ## Release gates and limits
 
-1. Verify `DB_PATH` actually points to the mounted `/data` volume in Railway. The code uses `bot.DB_PATH`, whose default is the relative `fantzo_bot.db`; a Railway volume mounted at `/data` does not by itself make that file persistent. Set and privately verify an absolute `DB_PATH` under `/data`, then switch modes, restart the service, and confirm `/mode status` and the audit row survive. Do not change the existing user database path without a data migration or an explicit verification that it already uses `/data`.
+1. Verify `DB_PATH` actually points to the mounted `/data` volume in Railway. The code uses `bot.DB_PATH`, whose default is the relative `fantzo_bot.db`; a Railway volume mounted at `/data` does not by itself make that file persistent. The new activation preflight refuses Live TV when `DB_PATH` is outside the mounted volume. Set and privately verify an absolute `DB_PATH` under `/data`, then switch modes, restart the service, and confirm `/mode status` and the audit row survive. Do not change the existing user database path without a data migration or an explicit verification that it already uses `/data`.
 2. Inspect the public MiniTV route and embedded provider in a verified test account, including cold load and mobile view. Railway deployment logs confirm the route was installed with `mode=public`, but provider content and the exact public URL are still unverified.
 3. Review current ad destinations. If an ad links through the bot-owned `/go`, Live TV mode changes that destination to the bot. The code does **not** pause or manage ads.
 4. Previously sent **direct external links** and WebApp URLs cannot be revoked by the bot. New bot replies and bot-owned `/go` are guarded. A fully clean journey also requires reviewing those external destinations.
@@ -30,7 +30,7 @@ The mode and each switch are stored in the bot SQLite database (`DB_PATH`). The 
 
 Review fixes: `fantzo_mode.py` now rechecks verification inside `_sync_one_chat_menu` and stops group/channel updates inside `liveline_guard`. `test_fantzo_mode.py` covers revoked verification during queued menu sync and group command silence.
 
-Local tests: `test_fantzo_mode.py` (14 tests with Telegram API stubs), Python syntax compilation, and `git diff --check`. No real Telegram or Railway execution has been performed for this prototype.
+Local tests: `test_fantzo_mode.py` (15 tests with Telegram API stubs), 7 preverification tests, 5 daily-delivery tests, 3 brand-isolation tests, real `python-telegram-bot==21.6` import/handler construction, Python syntax compilation, and `git diff --check`. These suites run in separate Python processes because the focused mode suite replaces `telegram` and `bot` modules with stubs. No real Telegram or Railway execution has been performed for this prototype.
 
 ## Review branch
 

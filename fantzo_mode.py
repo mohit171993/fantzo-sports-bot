@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
+import posixpath
 import re
 from contextlib import closing
 from datetime import datetime, timezone
@@ -85,6 +87,39 @@ def is_livetv() -> bool:
     return is_liveline()
 
 
+def _data_volume_is_mounted() -> bool:
+    # ismount can miss a bind mount on the same filesystem. Linux mountinfo
+    # records the actual mount point used by Railway's volume.
+    try:
+        with open("/proc/self/mountinfo", encoding="utf-8") as mounts:
+            for line in mounts:
+                fields = line.split()
+                if len(fields) > 4 and fields[4] == "/data":
+                    return True
+    except OSError:
+        pass
+    return os.path.ismount("/data")
+
+
+def persistent_mode_storage_problem() -> str | None:
+    """Refuse a clean switch if the mode database will vanish on restart."""
+    configured = str(core.DB_PATH or "").strip()
+    if not configured.startswith("/data/"):
+        return "DB_PATH must be an absolute file path under the persistent /data volume"
+    if not posixpath.normpath(configured).startswith("/data/"):
+        return "DB_PATH must stay inside the persistent /data volume"
+    try:
+        root = os.path.realpath("/data")
+        database = os.path.realpath(configured)
+        if os.path.commonpath((root, database)) != root or database == root:
+            return "DB_PATH must stay inside the persistent /data volume"
+    except (OSError, ValueError):
+        return "DB_PATH could not be verified on the persistent /data volume"
+    if not _data_volume_is_mounted():
+        return "the persistent /data volume is not mounted"
+    return None
+
+
 def public_livetv_problem() -> str | None:
     """Return a non-secret reason Live TV cannot be activated, or None."""
     import fantzo_live_tv
@@ -103,11 +138,19 @@ def public_livetv_problem() -> str | None:
     return None
 
 
+def livetv_activation_problem() -> str | None:
+    return public_livetv_problem() or persistent_mode_storage_problem()
+
+
 def set_mode(mode: str, actor_user_id: int) -> None:
     if mode not in {"full", "livetv"}:
         raise ValueError("Unsupported Fantzo mode")
     if int(actor_user_id) != int(core.ADMIN_USER_ID):
         raise PermissionError("Only the Fantzo admin can change mode")
+    if mode == "livetv":
+        problem = persistent_mode_storage_problem()
+        if problem:
+            raise ValueError(f"Live TV mode cannot be activated: {problem}")
     now = datetime.now(timezone.utc).isoformat()
     with closing(core.db()) as conn, conn:
         conn.execute(
@@ -280,7 +323,7 @@ async def _mode_reply(update: Update, context, requested: str) -> None:
     if update.effective_chat.type != "private" or int(user.id) != int(core.ADMIN_USER_ID):
         return
     if requested == "livetv":
-        problem = public_livetv_problem()
+        problem = livetv_activation_problem()
         if problem:
             await message.reply_text(
                 f"Live TV mode was not activated: {problem}. Current mode remains "
@@ -297,8 +340,8 @@ async def _mode_reply(update: Update, context, requested: str) -> None:
             logger.exception("Fantzo mode saved but Telegram global menu update failed")
     current = get_mode()
     counts = menu_sync_counts(current)
-    degraded = public_livetv_problem() if current == "livetv" else None
-    warning = f"⚠️ Public Live TV unavailable: {degraded}.\n" if degraded else ""
+    degraded = livetv_activation_problem() if current == "livetv" else None
+    warning = f"⚠️ Live TV mode needs attention: {degraded}.\n" if degraded else ""
     await message.reply_text(
         f"Fantzo mode: <b>{'Live TV' if current == 'livetv' else 'Full'}</b>\n"
         "Live TV shows the clean TV and sports screens. Full restores the existing bot flows.\n"
@@ -329,7 +372,7 @@ async def mode_callback(update: Update, context) -> None:
         raise ApplicationHandlerStop
     mode = str(query.data or "").partition(":")[2]
     if mode == "livetv":
-        problem = public_livetv_problem()
+        problem = livetv_activation_problem()
         if problem:
             await query.answer(f"Live TV not activated: {problem}. Mode unchanged.", show_alert=True)
             raise ApplicationHandlerStop
@@ -342,9 +385,12 @@ async def mode_callback(update: Update, context) -> None:
             logger.exception("Fantzo mode saved but Telegram global menu update failed")
     await query.answer()
     counts = menu_sync_counts()
+    degraded = livetv_activation_problem() if get_mode() == "livetv" else None
+    warning = f"⚠️ Live TV mode needs attention: {degraded}.\n" if degraded else ""
     await query.edit_message_text(
         f"Fantzo mode: <b>{'Live TV' if get_mode() == 'livetv' else 'Full'}</b>\n"
         "Ad campaigns are managed separately.\n"
+        f"{warning}"
         f"Chat menus updated: {counts.get('done', 0)}; pending: {counts.get('pending', 0)}; failed: {counts.get('failed', 0)}.",
         parse_mode="HTML",
         reply_markup=mode_keyboard(),

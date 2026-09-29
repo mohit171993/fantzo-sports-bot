@@ -10,6 +10,7 @@ import unittest
 from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest import mock
 
 
 class TelegramObject:
@@ -68,6 +69,7 @@ sys.modules["bot_tracked"] = tracked
 
 sys.path.insert(0, str(Path(__file__).parent))
 mode = importlib.import_module("fantzo_mode")
+storage_check = mode.persistent_mode_storage_problem
 analytics = importlib.import_module("fantzo_analytics")
 analytics.record_open = lambda source: None
 
@@ -112,9 +114,45 @@ class ModeTests(unittest.TestCase):
         self.tempdir = tempfile.TemporaryDirectory()
         core.DB_PATH = str(Path(self.tempdir.name) / "mode.sqlite")
         mode.ensure_table()
+        self.storage_patcher = mock.patch.object(mode, "persistent_mode_storage_problem", return_value=None)
+        self.storage_patcher.start()
 
     def tearDown(self):
+        self.storage_patcher.stop()
         self.tempdir.cleanup()
+
+    def test_clean_activation_refuses_nonpersistent_mode_database(self):
+        original_path = core.DB_PATH
+        original_enabled = television.is_public_enabled
+        television.is_public_enabled = lambda: True
+        try:
+            core.DB_PATH = "fantzo_bot.db"
+            self.assertIn("absolute file path", storage_check())
+            with mock.patch.object(mode, "persistent_mode_storage_problem", side_effect=storage_check):
+                with self.assertRaisesRegex(ValueError, "absolute file path"):
+                    mode.set_mode("livetv", core.ADMIN_USER_ID)
+            update = FakeUpdate(text="/mode livetv", user_id=core.ADMIN_USER_ID)
+            context = types.SimpleNamespace(args=["livetv"], bot=object())
+            with mock.patch.object(mode, "persistent_mode_storage_problem", side_effect=storage_check):
+                with self.assertRaises(HandlerStop):
+                    asyncio.run(mode.mode_command(update, context))
+            core.DB_PATH = original_path
+            self.assertEqual(mode.get_mode(), "full")
+            self.assertIn("not activated", update.effective_message.replies[0][0])
+            core.DB_PATH = "/data/../tmp/fantzo_bot.db"
+            self.assertIn("stay inside", storage_check())
+            core.DB_PATH = "/data/fantzo_bot.db"
+            with mock.patch.object(mode.os.path, "ismount", return_value=False):
+                self.assertIn("not mounted", storage_check())
+            with mock.patch.object(mode.os.path, "ismount", return_value=True):
+                self.assertIsNone(storage_check())
+            mountinfo = "41 29 0:42 / /data rw,relatime - ext4 volume rw\n"
+            with mock.patch.object(mode.os.path, "ismount", return_value=False):
+                with mock.patch("builtins.open", mock.mock_open(read_data=mountinfo)):
+                    self.assertIsNone(storage_check())
+        finally:
+            core.DB_PATH = original_path
+            television.is_public_enabled = original_enabled
 
     def test_default_full_and_restart_persistence(self):
         self.assertEqual(mode.get_mode(), "full")

@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 TARGET_USER_ID = 1456774567
 TARGET_USERNAME = "mohit_97saxena"
-ACTION_KEY = "reverify_mohit_97saxena_2026_09_29"
+ACTION_KEY = "reverify_mohit_97saxena_2026_09_29_after_test"
 
 
 def apply_once() -> str:

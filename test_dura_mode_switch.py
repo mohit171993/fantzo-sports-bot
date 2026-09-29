@@ -38,6 +38,9 @@ BASELINE_REF = os.getenv("DURA_MODE_BASELINE_REF", "origin/durasports-production
 PROD_LIKE_ENV = {
     "DURA_CHANNEL_URL": "https://t.me/durasportsofficial",
     "DURA_BOT_USERNAME": "Dura_Sportsbot",
+    # The production tip no longer falls back to a default bot username, and
+    # the navigation self-test runs before get_me() can set one.
+    "IBETIN_BOT_USERNAME": "Dura_Sportsbot",
 }
 SAMPLE_TEXTS = [
     "hi", "deposit", "withdraw money", "payout pending", "bonus offer", "join", "register",

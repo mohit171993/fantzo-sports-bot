@@ -29,11 +29,11 @@ POST_HOUR_IST = int(os.getenv("FANTZO_BANNER_HOUR_IST", "19"))
 POST_MINUTE_IST = int(os.getenv("FANTZO_BANNER_MINUTE_IST", "0"))
 CHECK_INTERVAL_SECONDS = 60
 FAILURE_RETRY_SECONDS = 15 * 60
-DAILY_FALLBACK_IMAGE = Path(__file__).resolve().parent / "assets" / "fantzo_channel_daily.jpg"
+DAILY_FALLBACK_IMAGE = Path(__file__).resolve().parent / "assets" / "fantzo_live_tv_daily.jpg"
 DAILY_FALLBACK_CAPTION = (
-    "⚡ <b>FANTZO SPORTS</b>\n\n"
-    "Cricket, football and sports updates in one place. "
-    "Open Fantzo to explore what is on today."
+    "📺 <b>FANTZO LIVE TV</b>\n\n"
+    "Explore live sports streams on Fantzo. "
+    "Tap below to see what is available now."
 )
 _post_lock = asyncio.Lock()
 DEFAULT_CAPTION = (
@@ -409,7 +409,7 @@ async def send_banner(bot, chat_id, row, caption_prefix=""):
 async def send_daily_fallback(bot):
     markup = InlineKeyboardMarkup([[
         InlineKeyboardButton(
-            "⚡ OPEN FANTZO",
+            "📺 WATCH LIVE TV",
             url="https://t.me/fantzoofficialbot?start=livetv_banner",
         )
     ]])

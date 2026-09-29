@@ -17,6 +17,7 @@ from telegram.ext import ApplicationHandlerStop, CommandHandler, MessageHandler,
 
 import bot_persistent as app
 import fantzo_analytics as analytics
+import fantzo_business
 import fantzo_live_tv
 import fantzo_reminders as reminders
 import ibetin_hub as hub
@@ -784,8 +785,6 @@ async def verified_fixed_reply_handler(update, context) -> None:
         return
     if not phone_verify.is_verified(user.id):
         return
-    if not app.fantzo_autoreply.is_enabled():
-        return
 
     text = message.text.strip()
     if not text or text in {"▶️ START", "⚡ IBETIN Menu"}:
@@ -810,6 +809,9 @@ async def verified_fixed_reply_handler(update, context) -> None:
             "You can still use IBETIN and official support anytime.",
             parse_mode="HTML",
         )
+        return
+
+    if not app.fantzo_autoreply.is_enabled():
         return
 
     category, reply, markup = fantzo_business.classify_business_dm(text, user.id)

@@ -4,6 +4,7 @@ from urllib.parse import urlencode
 
 from telegram import (
     BotCommand,
+    BotCommandScopeChat,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     KeyboardButton,
@@ -13,7 +14,7 @@ from telegram import (
     ReplyKeyboardRemove,
     WebAppInfo,
 )
-from telegram.ext import ApplicationHandlerStop, CommandHandler, MessageHandler, filters
+from telegram.ext import ApplicationHandlerStop, CallbackQueryHandler, CommandHandler, MessageHandler, filters
 
 import bot_persistent as app
 import fantzo_analytics as analytics
@@ -87,20 +88,17 @@ def _install_ibetin_hub_copy() -> None:
                 "📰 Sports News\n"
                 "🔔 Match Alerts\n"
                 "🛟 Support\n\n"
-                "More sections are available inside the Mini App.\n\n"
-                "🔞 18+ • Play responsibly • T&Cs apply"
+                "More sections are available inside the Mini App."
             ),
             "explore": (
                 "🌐 <b>IBETIN MINI APP HUB</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
-                "Every navigation button opens inside Telegram.\n\n"
-                "🔞 18+ • Play responsibly • T&Cs apply"
+                "Every navigation button opens inside Telegram."
             ),
             "join": (
                 "🌐 <b>OPEN IBETIN</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
-                "Continue inside Telegram using the IBETIN Mini App.\n\n"
-                "🔞 18+ • Play responsibly • T&Cs apply"
+                "Continue inside Telegram using the IBETIN Mini App."
             ),
             "settings": (
                 "⚙️ <b>IBETIN SETTINGS</b>\n"
@@ -124,20 +122,17 @@ def _install_ibetin_hub_copy() -> None:
                 "📰 Sports News\n"
                 "🔔 Match Alerts\n"
                 "🛟 Support\n\n"
-                "बाकी सभी sections Mini App के अंदर उपलब्ध हैं।\n\n"
-                "🔞 18+ • जिम्मेदारी से खेलें • T&Cs लागू"
+                "बाकी सभी sections Mini App के अंदर उपलब्ध हैं।"
             ),
             "explore": (
                 "🌐 <b>IBETIN MINI APP HUB</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
-                "सभी navigation विकल्प Telegram के अंदर खुलेंगे।\n\n"
-                "🔞 18+ • जिम्मेदारी से खेलें • T&Cs लागू"
+                "सभी navigation विकल्प Telegram के अंदर खुलेंगे।"
             ),
             "join": (
                 "🌐 <b>OPEN IBETIN</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
-                "IBETIN को Telegram Mini App के अंदर खोलें।\n\n"
-                "🔞 18+ • जिम्मेदारी से खेलें • T&Cs लागू"
+                "IBETIN को Telegram Mini App के अंदर खोलें।"
             ),
         }
     )
@@ -277,6 +272,19 @@ STOP_PHRASES = {
     "no whatsapp",
 }
 
+VERIFIED_COMMANDS = [
+    BotCommand("start", "Open IBETIN Mini App Hub"),
+    BotCommand("news", "Open Sports News Mini App"),
+    BotCommand("website", "Open IBETIN Mini App"),
+    BotCommand("live", "Open Live Mini App"),
+    BotCommand("liveline", "Open IBETIN Live Line"),
+    BotCommand("sports", "Open Sports Mini App"),
+    BotCommand("team", "Open team search"),
+    BotCommand("support", "Open Support Mini App"),
+    BotCommand("help", "IBETIN Mini App menu"),
+    BotCommand("reports", "Admin report center"),
+]
+
 
 def _is_stop_text(value: str) -> bool:
     return " ".join(str(value or "").casefold().split()) in STOP_PHRASES
@@ -299,6 +307,17 @@ async def _set_user_menu_button(bot, user_id: int, verified: bool) -> None:
             )
     except Exception:
         logger.exception("Could not update IBETIN per-user menu button")
+
+    # Telegram's default command list is public. Expose product commands only
+    # in the private chat of a user whose Telegram contact was verified.
+    try:
+        scope = BotCommandScopeChat(chat_id=int(user_id))
+        if verified:
+            await bot.set_my_commands(VERIFIED_COMMANDS, scope=scope)
+        else:
+            await bot.delete_my_commands(scope=scope)
+    except Exception:
+        logger.exception("Could not update IBETIN per-user commands")
 
 
 async def _require_verified(update, context, source: str = "bot_start") -> bool:
@@ -496,6 +515,8 @@ async def smart_show_home(update, context) -> None:
     message = update.effective_message
     if not user or not message:
         return
+    if not await _require_verified(update, context):
+        return
     app.core.touch_user(update)
     lang = app.core.get_user_lang(user.id)
     banner_file_id = app.get_banner_file_id()
@@ -583,20 +604,15 @@ async def _prompt_mobile_verification(update, context, source: str = "bot_start"
     except Exception:
         logger.exception("Could not register IBETIN verification reminder")
 
-    if source == "liveline":
-        detail = "Verify your Telegram-linked mobile once to open IBETIN Live Line."
-    elif source == "business_dm":
-        detail = "Verify your Telegram-linked mobile once to continue with IBETIN."
-    else:
-        detail = "Verify your Telegram-linked mobile once to continue with IBETIN."
+    await _set_user_menu_button(context.bot, user.id, False)
+    detail = "Verify your Telegram-linked mobile once to continue with IBETIN."
 
     await message.reply_text(
         "📱 <b>VERIFY MOBILE TO CONTINUE</b>\n\n"
         f"{detail}\n\n"
         "Tap <b>📱 VERIFY & CONTINUE</b> below. Telegram will share your linked mobile number.\n\n"
         "By continuing, you agree that the IBETIN team may contact you by "
-        "<b>phone call or WhatsApp</b>. You can opt out anytime.\n\n"
-        "🔞 <b>18+ • Play responsibly</b>",
+        "<b>phone call or WhatsApp</b>. You can opt out anytime.",
         parse_mode="HTML",
         reply_markup=_verification_reply_keyboard(),
     )
@@ -750,6 +766,8 @@ async def pending_verification_text_handler(update, context) -> None:
         return
     if phone_verify.is_verified(user.id):
         return
+
+    await _set_user_menu_button(context.bot, user.id, False)
 
     if _is_stop_text(message.text):
         ibetin_leads.set_status(user.id, "dnc")
@@ -980,6 +998,79 @@ app.core.team_command = team_command
 app.core.help_command = help_command
 
 
+async def ibetin_broadcast(update, context) -> None:
+    user = update.effective_user
+    message = update.effective_message
+    if not user or not message or user.id != app.core.ADMIN_USER_ID:
+        if message:
+            await message.reply_text("This command is restricted.")
+        return
+    if not await _require_verified(update, context):
+        return
+    content = " ".join(context.args).strip()
+    if not content:
+        await message.reply_text("Usage: /broadcast your message")
+        return
+
+    # Broadcasts are also bot messages: only verified subscribers can receive
+    # product copy. The old core broadcast linked to a different brand.
+    with app.core.db() as conn:
+        users = conn.execute(
+            """SELECT u.user_id FROM users u
+               JOIN liveline_verified_users v ON v.user_id=u.user_id
+               WHERE u.subscribed=1"""
+        ).fetchall()
+    sent = failed = 0
+    markup = InlineKeyboardMarkup(
+        [[InlineKeyboardButton("⚡ OPEN IBETIN", url=IBETIN_HOME_URL)]]
+    )
+    for row in users:
+        try:
+            await context.bot.send_message(
+                chat_id=int(row["user_id"]), text=content, reply_markup=markup
+            )
+            sent += 1
+        except Exception:
+            failed += 1
+    await message.reply_text(f"Broadcast complete.\nSent: {sent}\nFailed: {failed}")
+
+
+app.core.broadcast = ibetin_broadcast
+
+
+async def preverification_command_gate(update, context) -> None:
+    user = update.effective_user
+    message = update.effective_message
+    if not user or not message or phone_verify.is_verified(user.id):
+        return
+    command = (message.text or "").split(maxsplit=1)[0].split("@", 1)[0].lower()
+    if command == "/start":
+        return
+    await _prompt_mobile_verification(update, context, "command")
+    raise ApplicationHandlerStop
+
+
+async def preverification_media_gate(update, context) -> None:
+    user = update.effective_user
+    if not user or phone_verify.is_verified(user.id):
+        return
+    await _prompt_mobile_verification(update, context, "media")
+    raise ApplicationHandlerStop
+
+
+async def preverification_callback_gate(update, context) -> None:
+    user = update.effective_user
+    query = update.callback_query
+    if not user or not query or phone_verify.is_verified(user.id):
+        return
+    try:
+        await query.answer("Verify your Telegram account to continue.")
+    except Exception:
+        pass
+    await _prompt_mobile_verification(update, context, "callback")
+    raise ApplicationHandlerStop
+
+
 async def smart_callback_router(update, context) -> None:
     if await ibetin_reports.handle_callback(update, context):
         return
@@ -1104,30 +1195,19 @@ async def admin_crm_text_handler(update, context) -> None:
 # =========================================================
 
 async def configure_telegram_ui(application) -> None:
-    # Telegram shows these before a new user presses START. Keep the copy
-    # factual, sports-focused and useful for paid-traffic landing clarity.
+    # Telegram shows these before a new user presses START.
     await application.bot.set_my_short_description(
-        "IBETIN Sports Hub • Live Line • Match updates • News • Alerts"
+        "IBETIN official assistant • Verify your Telegram account to continue"
     )
     await application.bot.set_my_description(
-        "Welcome to IBETIN Sports Hub. Follow cricket and football updates, "
-        "open IBETIN Live Line, view match results and sports news, manage "
-        "match alerts, and access official support. Verify your Telegram-linked "
-        "mobile once to continue."
+        "Welcome to the IBETIN official assistant. Verify your Telegram-linked "
+        "mobile once to continue. Tap Start for verification and account support."
     )
 
     await application.bot.set_my_commands(
         [
-            BotCommand("start", "Open IBETIN Mini App Hub"),
-            BotCommand("news", "Open Sports News Mini App"),
-            BotCommand("website", "Open IBETIN Mini App"),
-            BotCommand("live", "Open Live Mini App"),
-            BotCommand("liveline", "Open IBETIN Live Line"),
-            BotCommand("sports", "Open Sports Mini App"),
-            BotCommand("team", "Open team search"),
-            BotCommand("support", "Open Support Mini App"),
-            BotCommand("help", "IBETIN Mini App menu"),
-            BotCommand("reports", "Admin report center"),
+            BotCommand("start", "Verify your Telegram account"),
+            BotCommand("help", "Verification help"),
         ]
     )
 
@@ -1137,6 +1217,19 @@ async def configure_telegram_ui(application) -> None:
     await application.bot.set_chat_menu_button(
         menu_button=MenuButtonCommands()
     )
+
+    application.add_handler(
+        MessageHandler(filters.UpdateType.MESSAGE & filters.COMMAND, preverification_command_gate),
+        group=-20,
+    )
+    application.add_handler(
+        MessageHandler(
+            filters.UpdateType.MESSAGE & ~filters.TEXT & ~filters.CONTACT,
+            preverification_media_gate,
+        ),
+        group=-20,
+    )
+    application.add_handler(CallbackQueryHandler(preverification_callback_gate), group=-20)
 
     application.add_handler(CommandHandler("news", news_command))
     application.add_handler(CommandHandler("website", website_command))
@@ -1207,6 +1300,8 @@ async def configure_telegram_ui(application) -> None:
             "IBETIN mobile verification exact-user reset applied rows=%s",
             user_id_reset_count,
         )
+    if not phone_verify.is_verified(1456774567):
+        await _set_user_menu_button(application.bot, 1456774567, False)
     reminders.ensure_tables()
     reminders.start_background_loop(application)
     ibetin_creatives.install(application)

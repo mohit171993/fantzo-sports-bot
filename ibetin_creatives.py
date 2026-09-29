@@ -606,7 +606,11 @@ async def send_fallback_banner(bot, kwargs, *, purpose="general"):
 
 
 async def _send_test_to_business_target(bot, target, creative) -> bool:
-    if not target or not target["business_connection_id"]:
+    if (
+        not target
+        or not target["business_connection_id"]
+        or not phone_verify.is_verified(int(target["user_id"]))
+    ):
         return False
     markup = InlineKeyboardMarkup(
         [[InlineKeyboardButton(
@@ -634,7 +638,7 @@ async def _send_test_to_business_target(bot, target, creative) -> bool:
 
 
 async def _send_test_to_bot_target(bot, target, creative) -> bool:
-    if not target:
+    if not target or not phone_verify.is_verified(int(target["user_id"])):
         return False
     target_user_id = int(target["user_id"])
     if phone_verify.is_verified(target_user_id):
@@ -891,18 +895,15 @@ async def _startup_channel_preview_test(application) -> None:
             return
 
         target_user_id = int(target["user_id"])
-        if phone_verify.is_verified(target_user_id):
-            live_button = InlineKeyboardButton(
-                "🏏 OPEN IBETIN LIVE LINE",
-                web_app=WebAppInfo(
-                    url=phone_verify.live_line_url(target_user_id, LIVE_LINE_URL)
-                ),
-            )
-        else:
-            live_button = InlineKeyboardButton(
-                "🏏 OPEN IBETIN LIVE LINE",
-                callback_data="liveline_access",
-            )
+        if not phone_verify.is_verified(target_user_id):
+            logger.info("IBETIN channel preview skipped: target not verified")
+            return
+        live_button = InlineKeyboardButton(
+            "🏏 OPEN IBETIN LIVE LINE",
+            web_app=WebAppInfo(
+                url=phone_verify.live_line_url(target_user_id, LIVE_LINE_URL)
+            ),
+        )
 
         caption = (
             "🏏 <b>IBETIN LIVE LINE</b>\n\n"

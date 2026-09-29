@@ -24,6 +24,12 @@ import fantzo_native_ui
 import fantzo_account_reverify
 
 logger = logging.getLogger(__name__)
+PUBLIC_SHORT_DESCRIPTION = "Cricket & football scores, fixtures, Live TV and sports updates."
+PUBLIC_DESCRIPTION = (
+    "Fantzo Sports brings cricket and football live scores, fixtures, "
+    "match alerts, Live TV access and sports updates inside Telegram. "
+    "One-time Telegram mobile verification is required to continue."
+)
 
 # Preserve the restored first-message Business DM behaviour, but make the
 # callback return immediately so Telegram RetryAfter sleeps cannot block /start.
@@ -64,12 +70,10 @@ async def configure_telegram_ui_with_restored_features(application) -> None:
 
     try:
         await application.bot.set_my_short_description(
-            "Cricket & football scores, fixtures, Live TV and sports updates."
+            PUBLIC_SHORT_DESCRIPTION
         )
         await application.bot.set_my_description(
-            "Fantzo Sports brings cricket and football live scores, fixtures, "
-            "match alerts, Live TV access and sports updates inside Telegram. "
-            "One-time Telegram mobile verification is required to continue."
+            PUBLIC_DESCRIPTION
         )
     except Exception:
         logger.exception("Could not update Fantzo Telegram bot descriptions")

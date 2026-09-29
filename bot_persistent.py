@@ -1,5 +1,7 @@
 import logging
 import os
+import re
+import secrets
 
 from telegram import (
     BotCommand,
@@ -12,6 +14,7 @@ from telegram import (
 )
 from telegram.ext import (
     Application,
+    ApplicationHandlerStop,
     BusinessConnectionHandler,
     CallbackQueryHandler,
     CommandHandler,
@@ -25,6 +28,7 @@ import fantzo_analytics as analytics
 import fantzo_autoreply
 import fantzo_business
 import trial_live_tv
+from fantzo_brand import has_foreign_brand
 
 logger = logging.getLogger(__name__)
 
@@ -201,7 +205,7 @@ async def setbanner_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     await message.reply_text(
         "🖼 <b>Send the Fantzo banner now.</b>\n\n"
         "Send it as a normal Telegram <b>photo</b>. No caption is required.\n"
-        "I will save Telegram's own image reference and confirm when it is ready.",
+        "You will see a preview to approve before the home banner changes.",
         parse_mode="HTML",
     )
 
@@ -219,18 +223,51 @@ async def banner_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     if not waiting and not caption_trigger:
         return
 
-    file_id = message.photo[-1].file_id
-    save_banner_file_id(file_id)
-    context.user_data["awaiting_fantzo_banner"] = False
-    logger.info("Fantzo home banner captured successfully")
+    if has_foreign_brand(caption):
+        await message.reply_text("⛔ This upload mentions another brand. Send a Fantzo banner.")
+        raise ApplicationHandlerStop
 
-    await message.reply_text(
-        "✅ <b>Fantzo banner saved.</b>\n\n"
-        "It will now appear above the premium home menu.\n"
-        "Tap <b>⚡ Fantzo Menu</b> to test it.",
-        parse_mode="HTML",
-        reply_markup=QUICK_MENU,
+    file_id = message.photo[-1].file_id
+    token = secrets.token_hex(8)
+    context.user_data["pending_fantzo_home_banner"] = (token, file_id)
+    context.user_data["awaiting_fantzo_banner"] = False
+    await message.reply_photo(
+        photo=file_id,
+        caption="Fantzo home banner preview. Approve only if this visual belongs to Fantzo.",
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton("✅ APPROVE FANTZO", callback_data=f"fantzo_home_banner_approve_{token}"),
+            InlineKeyboardButton("🗑 REJECT", callback_data=f"fantzo_home_banner_reject_{token}"),
+        ]]),
     )
+    raise ApplicationHandlerStop
+
+
+async def home_banner_review(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    user = update.effective_user
+    if not query or not user or user.id != core.ADMIN_USER_ID:
+        if query:
+            await query.answer("Restricted", show_alert=True)
+        raise ApplicationHandlerStop
+
+    match = re.fullmatch(r"fantzo_home_banner_(approve|reject)_([0-9a-f]{16})", str(query.data or ""))
+    pending = context.user_data.get("pending_fantzo_home_banner")
+    if not match or not pending or pending[0] != match.group(2):
+        await query.answer("This preview expired. Upload the banner again.", show_alert=True)
+        raise ApplicationHandlerStop
+
+    context.user_data.pop("pending_fantzo_home_banner", None)
+    approved = match.group(1) == "approve"
+    if approved:
+        save_banner_file_id(pending[1])
+    await query.answer("Fantzo home banner saved" if approved else "Banner rejected")
+    try:
+        await query.edit_message_caption(
+            caption="✅ Fantzo home banner saved." if approved else "🗑 Rejected. The home banner was not changed."
+        )
+    except Exception:
+        logger.warning("Could not update Fantzo home banner review preview")
+    raise ApplicationHandlerStop
 
 
 def run() -> None:
@@ -287,6 +324,10 @@ def run() -> None:
         )
     )
     app.add_handler(MessageHandler(filters.UpdateType.MESSAGE & filters.PHOTO, banner_upload))
+    app.add_handler(
+        CallbackQueryHandler(home_banner_review, pattern=r"^fantzo_home_banner_"),
+        group=-8,
+    )
     app.add_handler(CallbackQueryHandler(core.callback_router))
 
     logger.info(

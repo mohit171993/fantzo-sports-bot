@@ -350,7 +350,8 @@ async def contact_handler(update: Update, context) -> None:
         return
 
     pending = bool(context.user_data.get(_PENDING_KEY))
-    if not pending and is_registered(user.id):
+    was_registered = is_registered(user.id)
+    if not pending and was_registered:
         return
 
     contact = message.contact
@@ -396,6 +397,7 @@ async def contact_handler(update: Update, context) -> None:
         e164,
         source,
         is_new_lead,
+        is_new_verification=not was_registered,
     )
 
     try:

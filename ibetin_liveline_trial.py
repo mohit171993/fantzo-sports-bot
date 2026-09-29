@@ -168,8 +168,20 @@ def _normalize_match(match):
 
 
 def _matches_for_date(date_text: str):
-    data = _highlightly("/cricket/matches", {"date": date_text, "timezone": "Asia/Dubai", "limit": 100, "offset": 0}, ttl=45)
-    return data if isinstance(data, list) else []
+    """Read all daily match pages; a busy slate can exceed the first 100 rows."""
+    rows = []
+    for offset in (0, 100, 200):
+        data = _highlightly(
+            "/cricket/matches",
+            {"date": date_text, "timezone": "Asia/Dubai", "limit": 100, "offset": offset},
+            ttl=45,
+        )
+        if not isinstance(data, list):
+            break
+        rows.extend(data)
+        if len(data) < 100:
+            break
+    return rows
 
 
 def _matches_mode(mode: str):

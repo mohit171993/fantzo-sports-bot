@@ -572,12 +572,11 @@ def _match_text(match) -> str:
     if not isinstance(match, dict):
         return ""
     parts = []
-    for key in ("report", "state", "status", "matchStatus", "match_status", "status_note", "statusNote", "note", "result"):
+    for key in ("report", "state", "status", "play_status", "playStatus", "matchStatus", "match_status", "status_note", "statusNote", "note", "result"):
         value = match.get(key)
         if value not in (None, "", {}, []):
             parts.append(str(value))
     return " ".join(parts).casefold()
-
 
 def _match_has_score(match) -> bool:
     if not isinstance(match, dict):
@@ -598,6 +597,11 @@ def _match_has_score(match) -> bool:
                         text = str(value).strip()
                         if text and text not in {"0", "0/0", "0.0", "-"}:
                             return True
+    play_scores = _apply_play_scores({}, match)
+    for key in ("homeScore", "awayScore"):
+        score = str(play_scores.get(key) or "").strip()
+        if score and score not in {"0", "0/0"}:
+            return True
     return False
 
 
@@ -611,18 +615,11 @@ def _toss_done(match) -> bool:
 def _live_state(match) -> str:
     if not isinstance(match, dict):
         return ""
-    raw = (
-        match.get("state")
-        or match.get("status")
-        or match.get("matchStatus")
-        or match.get("match_status")
-        or ""
-    )
+    raw = v20._status(match)
     return _norm_live_state(raw)
 
-
 def _is_live_coverage_match(match) -> bool:
-    """LIVE starts at toss and survives temporary interruptions, but not stumps/end states."""
+    """Keep matches with live status, toss, or a recent real score; exclude final states."""
     if not isinstance(match, dict):
         return False
     state = _live_state(match)
@@ -634,19 +631,25 @@ def _is_live_coverage_match(match) -> bool:
         return False
 
     toss = _toss_done(match)
-    started = toss or _match_has_score(match) or state in _LIVE_PLAYING_STATES
-
-    if state in _LIVE_PLAYING_STATES:
-        return True
-    if toss:
+    scored = _match_has_score(match)
+    if state in _LIVE_PLAYING_STATES or toss:
         return True
 
     interruption = state in _LIVE_INTERRUPTION_STATES or any(word in text for word in _LIVE_INTERRUPT_WORDS)
-    if interruption and started:
+    if interruption and scored:
         return True
 
+    # Some fixture records keep a scheduled state after play starts. A nonzero
+    # score is live evidence only around the scheduled start, not indefinitely.
+    if scored:
+        start = _parse_match_start_for_live(match)
+        if start is None:
+            start = _parse_match_start_for_live({"startTime": v20._start_time(match)})
+        if start is not None:
+            age = (datetime.now(liveline.DUBAI_TZ) - start).total_seconds()
+            if -10 * 60 <= age <= 12 * 3600:
+                return True
     return False
-
 
 def _parse_match_start_for_live(match):
     if not isinstance(match, dict):
@@ -747,58 +750,41 @@ def _dedupe_matches(rows):
 
 
 def _roanuz_toss_promotions():
-    """Promote near-start Roanuz fixture matches into LIVE once toss is confirmed."""
+    """Scan the full fixture list for live evidence, then inspect nearby fixtures."""
     try:
         fixtures = v20._roanuz_fixtures_raw()
     except Exception as exc:
-        logger.warning("IBETIN V23 Roanuz fixture toss scan unavailable: %s", str(exc)[:140])
+        logger.warning("IBETIN V23 Roanuz fixture live scan unavailable: %s", str(exc)[:140])
         return []
 
     now = datetime.now(liveline.DUBAI_TZ)
-    near = []
+    near, promoted = [], []
     for raw in fixtures or []:
         if not isinstance(raw, dict):
             continue
         state = _norm_live_state(v20._status(raw))
         if state in _LIVE_END_STATES:
             continue
+        key = v20._match_key(raw)
+        if _is_live_coverage_match(raw):
+            promoted.append(raw)
+            if key:
+                _schedule_webhook_subscription(key)
+            continue
         start = _parse_match_start_for_live(raw)
         if start is None:
-            # Raw Roanuz start field may use provider-specific names.
-            try:
-                raw_start = v20._start_time(raw)
-                probe = {"startTime": raw_start}
-                start = _parse_match_start_for_live(probe)
-            except Exception:
-                start = None
-        if start is None:
+            start = _parse_match_start_for_live({"startTime": v20._start_time(raw)})
+        if start is None or not key:
             continue
         delta = (start - now).total_seconds()
-        if -4 * 3600 <= delta <= 90 * 60:
+        if -6 * 3600 <= delta <= 90 * 60:
             near.append((abs(delta), raw))
 
     near.sort(key=lambda item: item[0])
-    promoted = []
-    for _distance, raw in near[:8]:
+    # Detail calls are capped to protect the score provider during busy slates.
+    for _distance, raw in near[:16]:
         key = v20._match_key(raw)
-        if not key:
-            continue
-        # Subscribe before toss so the webhook can deliver the toss transition.
         _schedule_webhook_subscription(key)
-
-        # List-level toss/status may already be enough.
-        if _is_live_coverage_match(raw):
-            promoted.append(raw)
-            logger.info(
-                "IBETIN V23 Roanuz toss promotion from fixture key=%s %s vs %s state=%s",
-                key,
-                (v20._normalize_roanuz_match(raw).get("home") or {}).get("name"),
-                (v20._normalize_roanuz_match(raw).get("away") or {}).get("name"),
-                _norm_live_state(v20._status(raw)),
-            )
-            continue
-
-        # Otherwise inspect match detail because fixtures can lag on toss.
         try:
             payload = v20.admin._roanuz_get(f"match/{key}/", ttl=20)
             detail = v20._find_match_dict(payload, key)
@@ -806,17 +792,17 @@ def _roanuz_toss_promotions():
                 promoted.append(detail)
                 nm = v20._normalize_roanuz_match(detail)
                 logger.info(
-                    "IBETIN V23 Roanuz toss/detail promotion key=%s %s vs %s state=%s",
+                    "IBETIN V23 Roanuz fixture live promotion key=%s %s vs %s state=%s",
                     key,
                     (nm.get("home") or {}).get("name"),
                     (nm.get("away") or {}).get("name"),
                     _norm_live_state(v20._status(detail)),
                 )
         except Exception as exc:
-            logger.warning("IBETIN V23 Roanuz toss detail check failed key=%s: %s", key, str(exc)[:120])
+            logger.warning("IBETIN V23 Roanuz fixture detail check failed key=%s: %s", key, str(exc)[:120])
 
+    logger.info("IBETIN V23 Roanuz fixture live scan candidates=%s confirmed=%s", len(fixtures or []), len(promoted))
     return _dedupe_matches(promoted)
-
 
 def _background_live_discovery():
     global _WEBHOOK_LAST_DISCOVERY, _WEBHOOK_DISCOVERY_BUSY
@@ -854,13 +840,10 @@ def _fast_matches(mode: str):
         pushed = _webhook_live_rows()
         if pushed:
             _schedule_live_discovery()
-            live = [
-                m for m in (_normalize_live_row(x) for x in pushed)
-                if v21._display_ok(m)
-            ]
-            if live:
-                logger.info("IBETIN V23 live coverage feed source=Roanuz webhook matches=%s", len(live))
-                return live[:40], "Roanuz webhook"
+        pushed_live = [
+            m for m in (_normalize_live_row(x) for x in pushed)
+            if v21._display_ok(m)
+        ]
         global _WEBHOOK_REST_FALLBACK_COUNT
         _WEBHOOK_REST_FALLBACK_COUNT += 1
         try:
@@ -886,6 +869,8 @@ def _fast_matches(mode: str):
                 return live[:40], source
         except Exception as exc:
             logger.warning("IBETIN V23 Roanuz live coverage list failed: %s", str(exc)[:160])
+            if pushed_live:
+                return pushed_live[:40], "Roanuz webhook"
 
         try:
             raw_live = _fallback_live_candidates()

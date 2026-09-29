@@ -1197,11 +1197,11 @@ async def admin_crm_text_handler(update, context) -> None:
 async def configure_telegram_ui(application) -> None:
     # Telegram shows these before a new user presses START.
     await application.bot.set_my_short_description(
-        "IBETIN official assistant • Verify your Telegram account to continue"
+        "IBTN LIVE LINE • Live cricket scores and updates"
     )
     await application.bot.set_my_description(
-        "Welcome to the IBETIN official assistant. Verify your Telegram-linked "
-        "mobile once to continue. Tap Start for verification and account support."
+        "IBTN LIVE LINE shows live cricket scores, fixtures and results. "
+        "Verify your Telegram-linked mobile in chat to continue to account support."
     )
 
     await application.bot.set_my_commands(

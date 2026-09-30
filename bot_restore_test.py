@@ -22,6 +22,7 @@ import fantzo_live_tv_mobile_gate
 import fantzo_lead_funnel
 import fantzo_native_ui
 import fantzo_account_reverify
+import public_start_banner
 
 logger = logging.getLogger(__name__)
 PUBLIC_SHORT_DESCRIPTION = "📺 Live TV, live line and live scores for cricket and football, all in one place."
@@ -88,6 +89,7 @@ async def configure_telegram_ui_with_restored_features(application) -> None:
     fantzo_lead_funnel.register_handlers(application)
     fantzo_native_ui.register_handlers(application)
     fantzo_admin_reports.register_handlers(application)
+    public_start_banner.install(application)
     logger.info(
         "Fantzo production features installed: isolated Fantzo native UI, iBetin-style compact admin/report navigation, Fantzo CRM, paid-ad attribution, banner queue, reminders, growth, ops safety, global mobile verification and Fantzo sports UX"
     )

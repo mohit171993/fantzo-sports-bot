@@ -119,26 +119,26 @@ def install() -> None:
     core.TEXT["en"]["welcome"] = (
         "🏟 <b>FANTZO SPORTS</b>\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
-        "Quick access without a crowded menu.\n\n"
+        "✨ <b>Quick access without a crowded menu.</b>\n\n"
         "⚡ Open Fantzo\n"
         "📺 Live TV\n"
         "🔴 Live scores\n"
         "🏏 Cricket   •   ⚽ Football\n"
         "📅 Fixtures   •   🏆 Results\n"
         "🔔 Match alerts\n\n"
-        "Choose what you want to open 👇"
+        "👇 <b>Choose what you want to open</b>"
     )
     core.TEXT["hi"]["welcome"] = (
         "🏟 <b>FANTZO SPORTS</b>\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
-        "कम विकल्प, तेज़ access.\n\n"
+        "✨ <b>कम विकल्प, तेज़ access.</b>\n\n"
         "⚡ Fantzo खोलें\n"
         "📺 Live TV\n"
         "🔴 लाइव स्कोर\n"
         "🏏 क्रिकेट   •   ⚽ फुटबॉल\n"
         "📅 फिक्स्चर   •   🏆 रिज़ल्ट\n"
         "🔔 मैच अलर्ट\n\n"
-        "अपना विकल्प चुनें 👇"
+        "👇 <b>अपना विकल्प चुनें</b>"
     )
 
     # Keep the sports bot useful, but make Fantzo.com the dominant destination.

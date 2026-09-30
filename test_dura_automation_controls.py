@@ -84,6 +84,38 @@ class AutomationStatusTests(unittest.TestCase):
             self.assertEqual(status["last_channel"]["message_id"], 101)
 
 
+class ChannelLaunchIsolationTests(unittest.TestCase):
+    def test_staging_opt_out_prevents_the_hard_coded_channel_send(self):
+        tree = ast.parse((ROOT / "fantzo_reminders.py").read_text(encoding="utf-8"))
+        assignment = next(
+            node for node in tree.body
+            if isinstance(node, ast.Assign)
+            and any(isinstance(target, ast.Name) and target.id == "CHANNEL_LAUNCH_ENABLED"
+                    for target in node.targets)
+        )
+
+        def configured(value):
+            namespace = {"os": types.SimpleNamespace(
+                getenv=lambda name, default: value if name == "IBETIN_CHANNEL_LAUNCH_ENABLED" and value is not None else default,
+            )}
+            exec(compile(ast.Module(body=[assignment], type_ignores=[]), "fantzo_reminders.py", "exec"), namespace)
+            return namespace["CHANNEL_LAUNCH_ENABLED"]
+
+        self.assertTrue(configured(None))  # unchanged production default
+        self.assertFalse(configured("false"))
+
+        def unexpected(*_args, **_kwargs):
+            raise AssertionError("Staging opt-out touched the database or Telegram")
+
+        launcher = load_function("fantzo_reminders.py", "send_liveline_channel_launch", {
+            "CHANNEL_LAUNCH_ENABLED": configured("false"),
+            "ensure_tables": unexpected,
+        })
+        self.assertFalse(asyncio.run(launcher(types.SimpleNamespace(bot=types.SimpleNamespace(
+            send_message=unexpected,
+        )))))
+
+
 class DirectReplyToggleTests(unittest.TestCase):
     def test_verified_direct_reply_respects_admin_toggle(self):
         replies = []

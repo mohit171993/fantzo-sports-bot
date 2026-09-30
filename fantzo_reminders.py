@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from telegram import (
@@ -21,6 +22,7 @@ QUIET_END_HOUR = 8
 MAX_SENDS_PER_RUN = 20
 RETRY_BACKOFF_MINUTES = 30
 MAX_ATTEMPTS_PER_RUN = 40
+REMINDER_IMAGE = Path(__file__).resolve().parent / "assets" / "fantzo_reminder.jpg"
 
 
 def ensure_tables() -> None:
@@ -549,12 +551,33 @@ async def _send_with_retry(bot, row, stage: int) -> bool:
         "reply_markup": markup,
         "disable_web_page_preview": True,
     }
+    photo_kwargs = {
+        "chat_id": int(row["user_id"]),
+        "caption": text,
+        "parse_mode": "HTML",
+        "reply_markup": markup,
+    }
     if source == "business_dm" and row["business_connection_id"]:
-        kwargs["business_connection_id"] = str(row["business_connection_id"])
+        connection_id = str(row["business_connection_id"])
+        kwargs["business_connection_id"] = connection_id
+        photo_kwargs["business_connection_id"] = connection_id
 
     for attempt in range(3):
         try:
-            await bot.send_message(**kwargs)
+            sent_photo = False
+            if REMINDER_IMAGE.is_file():
+                try:
+                    with REMINDER_IMAGE.open("rb") as image:
+                        await bot.send_photo(photo=image, **photo_kwargs)
+                    sent_photo = True
+                except RetryAfter:
+                    raise
+                except Forbidden:
+                    raise
+                except Exception as exc:
+                    logger.warning("Fantzo reminder image skipped; sending text: %s", exc)
+            if not sent_photo:
+                await bot.send_message(**kwargs)
             if source == "business_dm" and not verified:
                 _mark_business_verification_pending(user_id)
             return True

@@ -29,17 +29,17 @@ POST_HOUR_IST = int(os.getenv("FANTZO_BANNER_HOUR_IST", "19"))
 POST_MINUTE_IST = int(os.getenv("FANTZO_BANNER_MINUTE_IST", "0"))
 CHECK_INTERVAL_SECONDS = 60
 FAILURE_RETRY_SECONDS = 15 * 60
-DAILY_FALLBACK_IMAGE = Path(__file__).resolve().parent / "assets" / "fantzo_live_tv_daily.jpg"
+DAILY_FALLBACK_IMAGE = Path(__file__).resolve().parent / "assets" / "fantzo_channel_banner.jpg"
 DAILY_FALLBACK_CAPTION = (
     "📺 <b>FANTZO LIVE TV</b>\n\n"
-    "Explore live sports streams on Fantzo. "
-    "Tap below to see what is available now."
+    "Today's matches, in one place.\n"
+    "Tap below to watch."
 )
 _post_lock = asyncio.Lock()
 DEFAULT_CAPTION = (
     "📺 <b>FANTZO LIVE TV</b>\n\n"
-    "🔥 Catch the live sports action on Fantzo.\n"
-    "Tap below to watch Live TV."
+    "Live sports on Fantzo.\n"
+    "Tap below to watch."
 )
 
 

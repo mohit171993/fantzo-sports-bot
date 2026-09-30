@@ -157,11 +157,11 @@ def _launcher_page() -> str:
 <title>IBETIN</title>
 <script src=\"https://telegram.org/js/telegram-web-app.js\"></script>
 <style>
-html,body{{margin:0;min-height:100%;background:#fff;color:#141e2c;font-family:'Inter',Arial,Helvetica,sans-serif}}
+html,body{{margin:0;min-height:100%;background:#fff;color:#0d1316;font-family:'Space Grotesk','Sora',Arial,sans-serif}}
 main{{display:flex;min-height:70vh;align-items:center;justify-content:center;padding:24px;text-align:center}}
 .logo{{font-size:24px;font-weight:900;letter-spacing:.8px}}
-.status{{margin-top:10px;color:#748093;font-size:13px}}
-.spin{{width:26px;height:26px;margin:18px auto 0;border:3px solid #e7eaef;border-top-color:#1d71d0;border-radius:50%;animation:s .75s linear infinite}}
+.status{{margin-top:10px;color:#748e93;font-size:13px}}
+.spin{{width:26px;height:26px;margin:18px auto 0;border:3px solid #e7edef;border-top-color:#00ddff;border-radius:50%;animation:s .75s linear infinite}}
 @keyframes s{{to{{transform:rotate(360deg)}}}}
 </style>
 </head>

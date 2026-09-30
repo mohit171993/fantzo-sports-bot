@@ -1149,7 +1149,7 @@ body{padding-bottom:calc(84px + env(safe-area-inset-bottom))}
 .foot{font-size:9px;line-height:1.35}.bottom{bottom:max(8px,env(safe-area-inset-bottom))}
 .bottom button{font-size:8px}.ptitle b{font-size:11px}.notice{font-size:10px}
 .table{font-size:9px}.ball{font-size:9px}.graph{font-size:9px}
-.scorecardRow strong{font-size:17px;color:#083f7f}
+.scorecardRow strong{font-size:17px;color:#00ddff}
 """
     html = html.replace(
         "</style></head>",

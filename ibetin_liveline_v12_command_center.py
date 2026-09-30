@@ -130,63 +130,63 @@ def _v12_page() -> str:
     css = r'''
 /* V12 — IBETIN Sports Command Center */
 :root{
-  --v12-navy:#0a1d3b;--v12-blue:#074183;--v12-blue2:#0b62c5;
-  --v12-gold:#288cff;--v12-goldSoft:#fff7d6;--v12-surface:#ffffff;
-  --v12-bg:#eef2f8;--v12-line:#d7dfec;--v12-ink:#132848;--v12-muted:#707f96;
+  --v12-navy:#0e1518;--v12-blue:#00ddff;--v12-blue2:#00ddff;
+  --v12-gold:#28e2ff;--v12-goldSoft:#e7edee;--v12-surface:#ffffff;
+  --v12-bg:#f1f4f5;--v12-line:#dce5e7;--v12-ink:#131b1f;--v12-muted:#709096;
   --v12-green:#11855d;--v12-red:#e6384f;
 }
 html,body{background:var(--v12-bg)!important}
-.topShell{background:linear-gradient(120deg,#0a1d3b 0%,#074183 60%,#0b57ad 100%)!important;border-top:3px solid var(--v12-gold)!important}
+.topShell{background:linear-gradient(120deg,#0e1518 0%,#00ddff 60%,#00ddff 100%)!important;border-top:3px solid var(--v12-gold)!important}
 .brandRow{height:62px!important}
 .brandMark{border-radius:11px!important;transform:rotate(-2deg)}
 .brandText b{letter-spacing:1px!important}.brandText span{opacity:.88!important}
 .liveChip:after{content:'V12 TEST'!important}
 
 /* Sports command bar */
-.v12Command{margin:0 0 12px;background:linear-gradient(145deg,#fff,#f7fbff);border:1px solid #cdd8e8;border-radius:16px;box-shadow:0 8px 22px rgba(9,51,100,.08);overflow:hidden}
+.v12Command{margin:0 0 12px;background:linear-gradient(145deg,#fff,#fafbfc);border:1px solid #d4dfe1;border-radius:16px;box-shadow:0 8px 22px rgba(22,32,37,.08);overflow:hidden}
 .v12Sports{display:flex;gap:7px;overflow:auto;padding:10px 10px 8px;scrollbar-width:none}.v12Sports::-webkit-scrollbar{display:none}
-.v12Sport{border:1px solid #d8e0eb;background:#f8fbff;color:#5c6e89;border-radius:999px;padding:8px 11px;font-size:9px;font-weight:950;white-space:nowrap;display:flex;align-items:center;gap:5px}
-.v12Sport.active{background:linear-gradient(180deg,#0b57ad,#074183);border-color:#074183;color:#fff;box-shadow:0 4px 10px rgba(7,65,131,.16)}
-.v12Sport .soon{font-size:6px;background:#e9eef5;color:#7c8da6;border-radius:999px;padding:2px 4px}.v12Sport.active .soon{display:none}
+.v12Sport{border:1px solid #dce5e7;background:#fbfcfc;color:#5e8087;border-radius:999px;padding:8px 11px;font-size:9px;font-weight:950;white-space:nowrap;display:flex;align-items:center;gap:5px}
+.v12Sport.active{background:linear-gradient(180deg,#00ddff,#00ddff);border-color:#00ddff;color:#fff;box-shadow:0 4px 10px rgba(0,221,255,.16)}
+.v12Sport .soon{font-size:6px;background:#ecf1f2;color:#7d9ea5;border-radius:999px;padding:2px 4px}.v12Sport.active .soon{display:none}
 .v12SearchRow{display:grid;grid-template-columns:1fr auto;gap:8px;padding:0 10px 9px}
-.v12SearchBox{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #d1dbea;border-radius:11px;padding:0 10px;min-height:40px;box-shadow:inset 0 1px 2px rgba(15,55,100,.02)}
-.v12SearchBox span{font-size:14px}.v12SearchBox input{width:100%;border:0;outline:0;background:transparent;color:#153c68;font-size:11px;font-weight:750}
-.v12SearchBox input::placeholder{color:#97a3b4;font-weight:650}
-.v12Clear{border:1px solid #d3dcea;background:#fff;color:#315987;border-radius:11px;padding:0 11px;font-size:9px;font-weight:950}
+.v12SearchBox{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #d7e2e4;border-radius:11px;padding:0 10px;min-height:40px;box-shadow:inset 0 1px 2px rgba(24,34,40,.02)}
+.v12SearchBox span{font-size:14px}.v12SearchBox input{width:100%;border:0;outline:0;background:transparent;color:#1a252b;font-size:11px;font-weight:750}
+.v12SearchBox input::placeholder{color:#97afb4;font-weight:650}
+.v12Clear{border:1px solid #d9e2e4;background:#fff;color:#00ddff;border-radius:11px;padding:0 11px;font-size:9px;font-weight:950}
 .v12Filters{display:flex;gap:6px;overflow:auto;padding:0 10px 10px;scrollbar-width:none}.v12Filters::-webkit-scrollbar{display:none}
-.v12Filter{border:1px solid #d6deea;background:#fff;color:#64758e;border-radius:9px;padding:7px 10px;font-size:8px;font-weight:950;white-space:nowrap}
-.v12Filter.active{background:var(--v12-goldSoft);border-color:#388ef1;color:#634a00;box-shadow:0 3px 8px rgba(25,132,255,.12)}
-.v12QuickStat{display:flex;align-items:center;justify-content:space-between;gap:8px;border-top:1px solid #e1e7f0;padding:8px 10px;background:#f8fbff;color:#75849a;font-size:8px;font-weight:800}
-.v12QuickStat strong{color:#174983}.v12FeedDot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#1b9d6b;margin-right:5px}
+.v12Filter{border:1px solid #dae4e6;background:#fff;color:#64878e;border-radius:9px;padding:7px 10px;font-size:8px;font-weight:950;white-space:nowrap}
+.v12Filter.active{background:var(--v12-goldSoft);border-color:#2ae3ff;color:#141d22;box-shadow:0 3px 8px rgba(25,224,255,.12)}
+.v12QuickStat{display:flex;align-items:center;justify-content:space-between;gap:8px;border-top:1px solid #e4ebed;padding:8px 10px;background:#fbfcfc;color:#75949a;font-size:8px;font-weight:800}
+.v12QuickStat strong{color:#00ddff}.v12FeedDot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#1b9d6b;margin-right:5px}
 
 /* Make hierarchy calmer and easier to scan */
-.dayHead{margin-top:5px!important}.dayTitle{font-size:11px!important}.dayDot{background:#0a59b3!important;box-shadow:0 0 0 4px rgba(10,89,179,.10)!important}
-.leagueBlock{border-radius:15px!important;border-color:#d1dbe9!important;box-shadow:0 5px 16px rgba(13,53,98,.055)!important}
-.leagueSectionHead{background:#fff!important;color:#133f72!important;border-bottom:1px solid #dae1ec!important;padding:10px 11px!important}
-.leagueIcon{background:#ecf3fd!important;color:#0a509f!important;box-shadow:none!important;border:1px solid #d2def1!important}
-.leagueSectionName{font-size:10px!important}.leagueSectionMeta{color:#8593a7!important}.leagueCount{background:#f1f5fa!important;border-color:#dae1ec!important;color:#61728c!important}
-.leagueMatches{background:#f8fbfe!important;padding:8px!important}
-.leagueMatches .match{border:1px solid #d7dfeb!important;border-radius:12px!important;box-shadow:0 3px 9px rgba(10,50,96,.045)!important}
-.leagueMatches .match:before{width:3px!important}.leagueMatches .matchHead{background:#fff!important}.leagueMatches .format{color:#315c8e!important}
-.leagueMatches .matchFoot{background:#f8fbff!important}.leagueMatches .arrow{border-radius:8px!important}
+.dayHead{margin-top:5px!important}.dayTitle{font-size:11px!important}.dayDot{background:#00ddff!important;box-shadow:0 0 0 4px rgba(0,221,255,.10)!important}
+.leagueBlock{border-radius:15px!important;border-color:#d7e1e3!important;box-shadow:0 5px 16px rgba(23,33,38,.055)!important}
+.leagueSectionHead{background:#fff!important;color:#00ddff!important;border-bottom:1px solid #dee6e8!important;padding:10px 11px!important}
+.leagueIcon{background:#f3f6f6!important;color:#00ddff!important;box-shadow:none!important;border:1px solid #dce5e7!important}
+.leagueSectionName{font-size:10px!important}.leagueSectionMeta{color:#85a1a7!important}.leagueCount{background:#f4f7f7!important;border-color:#dee6e8!important;color:#61858c!important}
+.leagueMatches{background:#fafbfc!important;padding:8px!important}
+.leagueMatches .match{border:1px solid #dce5e6!important;border-radius:12px!important;box-shadow:0 3px 9px rgba(22,32,36,.045)!important}
+.leagueMatches .match:before{width:3px!important}.leagueMatches .matchHead{background:#fff!important}.leagueMatches .format{color:#00ddff!important}
+.leagueMatches .matchFoot{background:#fbfcfc!important}.leagueMatches .arrow{border-radius:8px!important}
 .v12Hidden{display:none!important}
-.v12NoResults{background:#fff;border:1px solid #d5ddea;border-radius:14px;padding:22px 14px;text-align:center;color:#768498;font-size:10px;margin:8px 0}
+.v12NoResults{background:#fff;border:1px solid #dae3e5;border-radius:14px;padding:22px 14px;text-align:center;color:#769298;font-size:10px;margin:8px 0}
 
 /* Live Pulse */
-.v12Pulse{margin:0 0 10px;border-radius:14px;overflow:hidden;background:linear-gradient(135deg,#0a1d3b,#0a509f);color:#fff;box-shadow:0 10px 24px rgba(8,52,102,.16);border:1px solid #174f8f}
+.v12Pulse{margin:0 0 10px;border-radius:14px;overflow:hidden;background:linear-gradient(135deg,#0e1518,#00ddff);color:#fff;box-shadow:0 10px 24px rgba(23,33,38,.16);border:1px solid #00ddff}
 .v12PulseTop{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.12)}
 .v12PulseTop b{font-size:9px;letter-spacing:.65px}.v12PulseBadge{background:#e6384f;border-radius:999px;padding:4px 7px;font-size:7px;font-weight:1000}
-.v12PulseBody{padding:12px}.v12PulseMain{font-size:13px;font-weight:1000;line-height:1.45}.v12PulseSub{margin-top:5px;color:#ccdbf1;font-size:9px;line-height:1.45}
-.v12PulseGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:10px}.v12PulseStat{background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.12);border-radius:9px;padding:8px;text-align:center}.v12PulseStat b{display:block;color:#74b5ff;font-size:10px}.v12PulseStat span{display:block;color:#bcd1e9;font-size:7px;margin-top:3px}
+.v12PulseBody{padding:12px}.v12PulseMain{font-size:13px;font-weight:1000;line-height:1.45}.v12PulseSub{margin-top:5px;color:#d9e2e4;font-size:9px;line-height:1.45}
+.v12PulseGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:10px}.v12PulseStat{background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.12);border-radius:9px;padding:8px;text-align:center}.v12PulseStat b{display:block;color:#74ecff;font-size:10px}.v12PulseStat span{display:block;color:#a6f3ff;font-size:7px;margin-top:3px}
 
 /* BHAV */
-.v12BhavHead{padding:13px 12px;background:linear-gradient(135deg,#0b244a,#084b98);color:#fff}.v12BhavHeadLine{display:flex;align-items:center;justify-content:space-between;gap:8px}.v12BhavHead b{font-size:12px}.v12BhavHead small{display:block;margin-top:5px;color:#ccdaf0;font-size:8px}.v12MarketTag{background:var(--v12-gold);color:#17365a;border-radius:999px;padding:5px 8px;font-size:7px;font-weight:1000}
-.v12BhavTeams{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 11px 4px}.v12BhavTeam{background:#f5f9fe;border:1px solid #d9e1ee;border-radius:10px;padding:9px;text-align:center;color:#19406d;font-size:9px;font-weight:950}
-.v12Book{display:grid;grid-template-columns:minmax(78px,1.3fr) 1fr 1fr;align-items:center;gap:7px;padding:9px 11px;border-top:1px solid #e3e9f1}.v12BookName{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#52637c;font-size:8px;font-weight:900}.v12Odd{background:#eef4fe;border:1px solid #d1def1;border-radius:9px;padding:8px 5px;text-align:center;color:#0b4f9d;font-size:11px;font-weight:1000}.v12Odd span{display:block;color:#7b8ca5;font-size:6px;margin-bottom:3px;text-transform:uppercase}.v12BhavNote{padding:9px 11px;background:#fff9e4;color:#0e417c;border-top:1px solid #a1c8f4;font-size:7px;line-height:1.45}
+.v12BhavHead{padding:13px 12px;background:linear-gradient(135deg,#12191d,#00ddff);color:#fff}.v12BhavHeadLine{display:flex;align-items:center;justify-content:space-between;gap:8px}.v12BhavHead b{font-size:12px}.v12BhavHead small{display:block;margin-top:5px;color:#d8e2e4;font-size:8px}.v12MarketTag{background:var(--v12-gold);color:#172227;border-radius:999px;padding:5px 8px;font-size:7px;font-weight:1000}
+.v12BhavTeams{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 11px 4px}.v12BhavTeam{background:#f9fafa;border:1px solid #dfe7e8;border-radius:10px;padding:9px;text-align:center;color:#00ddff;font-size:9px;font-weight:950}
+.v12Book{display:grid;grid-template-columns:minmax(78px,1.3fr) 1fr 1fr;align-items:center;gap:7px;padding:9px 11px;border-top:1px solid #e6edee}.v12BookName{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#54737a;font-size:8px;font-weight:900}.v12Odd{background:#f4f7f8;border:1px solid #dce5e6;border-radius:9px;padding:8px 5px;text-align:center;color:#00ddff;font-size:11px;font-weight:1000}.v12Odd span{display:block;color:#7c9da4;font-size:6px;margin-bottom:3px;text-transform:uppercase}.v12BhavNote{padding:9px 11px;background:#eff3f4;color:#00ddff;border-top:1px solid #96f1ff;font-size:7px;line-height:1.45}
 
 /* Better detail tabs */
 .detailTabs{position:sticky;top:0;z-index:8;background:var(--v12-bg)!important;padding-top:4px!important}
-.detailTab{font-size:8px!important;padding:9px 10px!important}.detailTab.active{background:#074183!important;border-color:#074183!important}
+.detailTab{font-size:8px!important;padding:9px 10px!important}.detailTab.active{background:#00ddff!important;border-color:#00ddff!important}
 
 /* Bottom nav: all five controls functional in V12 */
 .bottomInner{grid-template-columns:repeat(5,1fr)!important}.bottomItem:last-child{cursor:pointer}

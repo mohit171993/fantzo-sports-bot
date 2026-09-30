@@ -59,8 +59,19 @@ async def configure_public_ui(application) -> None:
 async def configure_chat_ui(context, user_id: int, verified: bool) -> None:
     """Restore existing Fantzo shortcuts only for a verified private chat."""
     try:
+        import fantzo_mode
+        clean_tv_mode = fantzo_mode.is_livetv()
         await context.bot.set_my_commands(
-            VERIFIED_COMMANDS if verified else PREVERIFY_COMMANDS,
+            (
+                [
+                    BotCommand("start", "Open Fantzo Live TV"),
+                    BotCommand("team", "Find a cricket or football team"),
+                    BotCommand("sports", "View live sports coverage"),
+                    BotCommand("help", "Fantzo Live TV help"),
+                ]
+                if verified and clean_tv_mode else
+                VERIFIED_COMMANDS if verified else PREVERIFY_COMMANDS
+            ),
             scope=BotCommandScopeChat(chat_id=user_id),
         )
         await context.bot.set_chat_menu_button(
@@ -70,7 +81,7 @@ async def configure_chat_ui(context, user_id: int, verified: bool) -> None:
                     text="Open Fantzo",
                     web_app=WebAppInfo(url=tracked.tracked_url("telegram_native_menu")),
                 )
-                if verified
+                if verified and not clean_tv_mode
                 else MenuButtonCommands()
             ),
         )
@@ -431,6 +442,20 @@ async def contact_handler(update: Update, context) -> None:
         masked = e164[:4] + "••••" + e164[-4:]
     else:
         masked = e164
+
+    import fantzo_mode
+    if fantzo_mode.is_livetv():
+        if source == "business_dm":
+            clear_business_verification_pending(user.id)
+        await message.reply_text(
+            "✅ <b>Telegram mobile verified</b>\n\n"
+            f"Verified number: <code>{masked}</code>\n"
+            "Fantzo Live TV is ready.",
+            parse_mode="HTML",
+            reply_markup=ReplyKeyboardRemove(),
+        )
+        await fantzo_mode.send_livetv_home(update)
+        return
 
     import fantzo_business_flow_fix as live_flow
 

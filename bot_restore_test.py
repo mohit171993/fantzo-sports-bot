@@ -22,6 +22,7 @@ import fantzo_live_tv_mobile_gate
 import fantzo_lead_funnel
 import fantzo_native_ui
 import fantzo_account_reverify
+import fantzo_mode
 
 logger = logging.getLogger(__name__)
 PUBLIC_SHORT_DESCRIPTION = "Fantzo account access and support. Verify in the bot to continue."
@@ -62,6 +63,10 @@ async def _send_banner_preview_when_running(application) -> None:
 async def configure_telegram_ui_with_restored_features(application) -> None:
     await _original_configure_telegram_ui(application)
     await fantzo_live_tv_mobile_gate.configure_public_ui(application)
+    fantzo_mode.install(application)
+    if fantzo_mode.is_livetv():
+        await fantzo_mode._sync_public_menu(application.bot)
+    fantzo_mode.schedule_menu_sync(application.bot)
 
     # One owner-requested account reset, guarded by both exact username and
     # pinned Telegram ID. A mismatch leaves every account untouched.
@@ -98,6 +103,9 @@ tracked.app.configure_telegram_ui = configure_telegram_ui_with_restored_features
 
 
 if __name__ == "__main__":
+    # The tracking HTTP server starts before Telegram post_init. Create the
+    # mode table first so Full mode redirects remain unchanged at startup.
+    fantzo_mode.ensure_table()
     tracked.private_apk_upload.install_on_tracking_handler(tracked.analytics)
     tracked.trial_live_tv.install_on_tracking_handler(tracked.analytics)
     tracked.fantzo_live_tv.install_on_tracking_handler(tracked.analytics)

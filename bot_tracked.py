@@ -1264,11 +1264,10 @@ async def configure_telegram_ui(application) -> None:
     await _set_active_bot_username(application.bot)
     # Telegram shows these before a new user verifies their account.
     await application.bot.set_my_short_description(
-        "Verify your Telegram-linked mobile to continue."
+        "🗞 Live line, full scorecards and sports news, every match as it happens."
     )
     await application.bot.set_my_description(
-        "Share your Telegram-linked contact in chat to verify your account "
-        "and continue to supported services."
+        "🗞 Your front page for live sport.\n🏏 Live line and full scorecards\n⚽ Live scores from the top leagues\n📰 Sports updates as they happen\n🔔 Match alerts straight to your chat\nTap START and stay ahead of the game!"
     )
     await application.bot.set_my_commands(PREVERIFY_COMMANDS)
 

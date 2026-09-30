@@ -247,6 +247,9 @@ def install(reports):
         )
 
     def automation_menu():
+        def b(text, action):
+            return Button(text, callback_data="reports:" + action)
+
         import fantzo_reminders as reminders
         auto = reminders.automation_status()
         reminder_button = (

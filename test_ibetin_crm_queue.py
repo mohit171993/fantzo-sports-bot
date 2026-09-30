@@ -3,6 +3,7 @@ import gc
 import json
 import os
 import sqlite3
+import sys
 import tempfile
 import unittest
 from contextlib import contextmanager
@@ -11,7 +12,7 @@ from types import SimpleNamespace
 from unittest import mock
 
 from ibetin_crm_audit import snapshot
-from ibetin_crm_queue_start import TEST_USER_ID, force_test_unverified_once, queue_sql
+from ibetin_crm_queue_start import TEST_USER_ID, force_test_unverified_once, install, queue_sql
 
 
 class AuditTests(unittest.TestCase):
@@ -253,6 +254,62 @@ CREATE TABLE liveline_verified_users(user_id INTEGER PRIMARY KEY, phone_number T
 
     def test_unknown_queue_rejected(self):
         self.assertIsNone(queue_sql("new' OR 1=1"))
+
+
+class AutomationMenuTests(unittest.IsolatedAsyncioTestCase):
+    async def test_open_and_toggle_render_the_admin_menu(self):
+        class Button:
+            def __init__(self, text, callback_data):
+                self.text = text
+                self.callback_data = callback_data
+
+        class Markup:
+            def __init__(self, rows):
+                self.inline_keyboard = rows
+
+        state = {"reminders_enabled": True, "channel_enabled": True}
+        delivery = {"sent": 0, "failed": 0, "bad_request": 0, "blocked": 0}
+
+        def status():
+            return {**state, "reminder_sent_24h": 0,
+                    "reminder_delivery_24h": {"bot": delivery, "business_dm": delivery},
+                    "last_channel": None, "channel_time": "12:00"}
+
+        def toggle(kind, enabled):
+            state["reminders_enabled" if kind == "reminders" else "channel_enabled"] = enabled
+
+        reminders = SimpleNamespace(automation_status=status, set_automation_enabled=toggle)
+        reports = SimpleNamespace(
+            InlineKeyboardButton=Button, InlineKeyboardMarkup=Markup,
+            handle_callback=mock.AsyncMock(return_value=False),
+            lead_status_keyboard=lambda uid: Markup([]),
+            _lead_card_text=lambda lead: "", _queue_title=lambda queue: queue,
+            _fmt_admin_time=lambda value: value,
+            is_authorized_admin=lambda uid: uid == 42,
+        )
+        install(reports)
+
+        def update_for(data):
+            message = SimpleNamespace(chat_id=42, message_id=1, reply_text=mock.AsyncMock())
+            query = SimpleNamespace(data=data, message=message, answer=mock.AsyncMock(),
+                                    edit_message_text=mock.AsyncMock())
+            return SimpleNamespace(callback_query=query, effective_user=SimpleNamespace(id=42))
+
+        expected = ["reports:auto:reminders:toggle", "reports:auto:channel:toggle",
+                    "reports:automation", "reports:crm"]
+        with mock.patch.dict(sys.modules, {"fantzo_reminders": reminders}):
+            opened = update_for("reports:automation")
+            self.assertTrue(await reports.handle_callback(opened, SimpleNamespace(user_data={})))
+            markup = opened.callback_query.message.reply_text.await_args.kwargs["reply_markup"]
+            self.assertEqual([b.callback_data for row in markup.inline_keyboard for b in row], expected)
+
+            for kind in ("reminders", "channel"):
+                with self.subTest(kind=kind):
+                    switched = update_for(f"reports:auto:{kind}:toggle")
+                    self.assertTrue(await reports.handle_callback(switched, SimpleNamespace(user_data={})))
+                    self.assertFalse(state[f"{kind}_enabled"])
+                    markup = switched.callback_query.edit_message_text.await_args.kwargs["reply_markup"]
+                    self.assertEqual([b.callback_data for row in markup.inline_keyboard for b in row], expected)
 
 
 if __name__ == '__main__':

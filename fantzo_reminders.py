@@ -23,6 +23,10 @@ RETRY_BACKOFF_MINUTES = 30
 MAX_ATTEMPTS_PER_RUN = 40
 
 
+class ModeChangedBeforeSend(Exception):
+    """The reminder was not attempted because Live TV mode became active."""
+
+
 def ensure_tables() -> None:
     with core.db() as conn:
         conn.execute(
@@ -553,6 +557,11 @@ async def _send_with_retry(bot, row, stage: int) -> bool:
         kwargs["business_connection_id"] = str(row["business_connection_id"])
 
     for attempt in range(3):
+        # A RetryAfter sleep yields to /mode. Check immediately before every
+        # Telegram call so the prepared Full-mode copy cannot leak afterward.
+        import fantzo_mode
+        if fantzo_mode.is_livetv():
+            raise ModeChangedBeforeSend
         try:
             await bot.send_message(**kwargs)
             if source == "business_dm" and not verified:
@@ -611,6 +620,9 @@ async def run_due_reminders(application) -> None:
             if ok:
                 sent_count += 1
                 await asyncio.sleep(1.2)
+        except ModeChangedBeforeSend:
+            # Leave the campaign untouched so Full mode can resume it later.
+            break
         except Forbidden as exc:
             _disable_delivery(str(row["source"]), int(row["user_id"]), "blocked")
             _mark_send(str(row["source"]), int(row["user_id"]), stage, campaign_key, "blocked")

@@ -10,6 +10,8 @@ from unittest import mock
 import bot as core
 import fantzo_account_reverify as reverify
 import fantzo_banner_queue as banners
+import fantzo_reminders as reminders
+from telegram.error import BadRequest, RetryAfter
 
 
 class FakeBot:
@@ -35,7 +37,7 @@ class FantzoDailyDeliveryTests(unittest.TestCase):
         # This fixture has no persistent mode table; select Full explicitly so
         # it exercises the existing banner delivery path instead of fail-closed mode.
         self.full_mode = mock.patch("fantzo_mode.is_livetv", return_value=False)
-        self.full_mode.start()
+        self.mode_is_livetv = self.full_mode.start()
 
     def tearDown(self):
         self.full_mode.stop()
@@ -77,6 +79,114 @@ class FantzoDailyDeliveryTests(unittest.TestCase):
             (datetime.now(timezone.utc) - timedelta(minutes=16)).isoformat(),
         )
         self.assertFalse(banners._failure_backoff_active())
+
+    def test_mode_flip_during_media_download_keeps_banner_queued(self):
+        self.conn.execute(
+            "INSERT INTO live_tv_banners(file_id,status,brand,media_type,created_at) "
+            "VALUES('approved-document','queued','fantzo','document','2026-09-29')"
+        )
+
+        class DownloadingFile:
+            async def download_as_bytearray(inner_self):
+                self.mode_is_livetv.return_value = True
+                return bytearray(b"image bytes")
+
+        class DownloadingBot(FakeBot):
+            async def get_file(inner_self, file_id):
+                self.assertEqual(file_id, "approved-document")
+                return DownloadingFile()
+
+        bot = DownloadingBot()
+        self.assertFalse(asyncio.run(banners._post_next(bot)))
+        self.assertEqual(bot.photos, [])
+        self.assertEqual(banners.queue_count(), 1)
+        self.assertEqual(banners.delivery_status()["last_failure_kind"], "")
+        self.assertEqual(banners.delivery_status()["last_post_date"], "")
+        self.mode_is_livetv.return_value = False
+
+        class ReadyFile:
+            async def download_as_bytearray(inner_self):
+                return bytearray(b"image bytes")
+
+        class ReadyBot(FakeBot):
+            async def get_file(inner_self, file_id):
+                return ReadyFile()
+
+        self.assertTrue(asyncio.run(banners._post_next(ReadyBot())))
+        self.assertEqual(banners.queue_count(), 0)
+
+    def test_mode_flip_during_invalid_caption_retry_does_not_post_daily(self):
+        self.conn.execute(
+            "INSERT INTO live_tv_banners(file_id,status,brand,media_type,created_at) "
+            "VALUES('approved-photo','queued','fantzo','photo','2026-09-29')"
+        )
+
+        class InvalidCaptionBot(FakeBot):
+            def __init__(inner_self):
+                super().__init__()
+                inner_self.calls = 0
+
+            async def send_photo(inner_self, **kwargs):
+                inner_self.calls += 1
+                self.mode_is_livetv.return_value = True
+                raise BadRequest("Can't parse entities")
+
+        bot = InvalidCaptionBot()
+        self.assertFalse(asyncio.run(banners._post_daily(bot)))
+        self.assertEqual(bot.calls, 1)
+        self.assertEqual(bot.photos, [])
+        self.assertEqual(banners.queue_count(), 1)
+        self.assertEqual(banners.delivery_status()["last_failure_kind"], "")
+        self.assertEqual(banners.delivery_status()["last_post_date"], "")
+
+    def test_mode_flip_during_reminder_retry_does_not_mark_campaign(self):
+        reminders.ensure_tables()
+        then = (datetime.now(timezone.utc) - timedelta(days=2)).isoformat()
+        self.conn.execute(
+            "INSERT INTO reminder_users(source,user_id,business_connection_id,interest,"
+            "last_activity,updated_at) VALUES(?,?,?,?,?,?)",
+            ("bot", 101, "", "cricket", then, then),
+        )
+
+        class RetryingBot:
+            def __init__(inner_self):
+                inner_self.calls = 0
+
+            async def send_message(inner_self, **kwargs):
+                inner_self.calls += 1
+                raise RetryAfter(1)
+
+        async def flip_during_retry(_delay):
+            self.mode_is_livetv.return_value = True
+
+        bot = RetryingBot()
+        application = SimpleNamespace(bot=bot)
+        with mock.patch.object(reminders, "_is_mobile_verified", return_value=True), \
+                mock.patch.object(reminders, "_is_quiet_hours", return_value=False), \
+                mock.patch.object(reminders.asyncio, "sleep", side_effect=flip_during_retry):
+            asyncio.run(reminders.run_due_reminders(application))
+        self.assertEqual(bot.calls, 1)
+        self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM reminder_sends").fetchone()[0], 0)
+        self.assertEqual(
+            self.conn.execute("SELECT reminder_stage FROM reminder_users WHERE user_id=101").fetchone()[0],
+            0,
+        )
+        self.mode_is_livetv.return_value = False
+
+        class DeliveringBot:
+            def __init__(inner_self):
+                inner_self.calls = 0
+
+            async def send_message(inner_self, **kwargs):
+                inner_self.calls += 1
+
+        resumed_bot = DeliveringBot()
+        with mock.patch.object(reminders, "_is_mobile_verified", return_value=True), \
+                mock.patch.object(reminders, "_is_quiet_hours", return_value=False), \
+                mock.patch.object(reminders.asyncio, "sleep", return_value=None):
+            asyncio.run(reminders.run_due_reminders(SimpleNamespace(bot=resumed_bot)))
+        self.assertEqual(resumed_bot.calls, 1)
+        self.assertEqual(self.conn.execute("SELECT status FROM reminder_sends").fetchone()[0], "sent")
 
 
 class FantzoAccountReverifyTests(unittest.TestCase):

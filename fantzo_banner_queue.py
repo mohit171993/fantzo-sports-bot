@@ -43,6 +43,18 @@ DEFAULT_CAPTION = (
 )
 
 
+class ModeChangedBeforeSend(Exception):
+    """The banner was not sent because Live TV mode became active."""
+
+
+def _require_full_mode_for_send() -> None:
+    # Keep this check adjacent to each Telegram send. A media download or
+    # parse-error retry can yield long after the scheduler chose the banner.
+    import fantzo_mode
+    if fantzo_mode.is_livetv():
+        raise ModeChangedBeforeSend
+
+
 def ensure_tables():
     with core.db() as conn:
         conn.execute("""
@@ -377,6 +389,7 @@ async def send_banner(bot, chat_id, row, caption_prefix=""):
 
     async def _send(caption_value: str, parse_mode):
         if str(row["media_type"] or "document") == "photo":
+            _require_full_mode_for_send()
             return await bot.send_photo(
                 chat_id=chat_id,
                 photo=file_id,
@@ -387,6 +400,7 @@ async def send_banner(bot, chat_id, row, caption_prefix=""):
         tg_file = await bot.get_file(file_id)
         data = await tg_file.download_as_bytearray()
         photo = InputFile(BytesIO(bytes(data)), filename="fantzo-live-tv.png")
+        _require_full_mode_for_send()
         return await bot.send_photo(
             chat_id=chat_id,
             photo=photo,
@@ -414,6 +428,7 @@ async def send_daily_fallback(bot):
         )
     ]])
     with DAILY_FALLBACK_IMAGE.open("rb") as image:
+        _require_full_mode_for_send()
         return await bot.send_photo(
             chat_id=CHANNEL_ID,
             photo=image,
@@ -434,6 +449,9 @@ async def _post_next(bot):
             return False
         try:
             message = await send_banner(bot, CHANNEL_ID, row)
+        except ModeChangedBeforeSend:
+            # The queued banner can be posted when Full mode returns.
+            return False
         except Exception:
             _record_failure("approved_banner")
             raise
@@ -460,6 +478,9 @@ async def _post_daily(bot):
                 message = await send_banner(bot, CHANNEL_ID, row)
             else:
                 message = await send_daily_fallback(bot)
+        except ModeChangedBeforeSend:
+            # Do not consume the queue or day's slot on a mode transition.
+            return False
         except Exception:
             _record_failure(kind)
             raise

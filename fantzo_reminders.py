@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -21,6 +22,8 @@ QUIET_END_HOUR = 8
 MAX_SENDS_PER_RUN = 20
 RETRY_BACKOFF_MINUTES = 30
 MAX_ATTEMPTS_PER_RUN = 40
+REMINDER_IMAGE = Path(__file__).resolve().parent / "assets" / "fantzo_reminder.jpg"
+CAPTION_LIMIT = 1024
 
 
 def ensure_tables() -> None:
@@ -552,9 +555,27 @@ async def _send_with_retry(bot, row, stage: int) -> bool:
     if source == "business_dm" and row["business_connection_id"]:
         kwargs["business_connection_id"] = str(row["business_connection_id"])
 
+    # Sports reminders lead with the reminder image. Text and buttons are unchanged.
+    use_image = verified and REMINDER_IMAGE.is_file()
+    photo_sent = False
+
     for attempt in range(3):
         try:
-            await bot.send_message(**kwargs)
+            if use_image and len(text) <= CAPTION_LIMIT:
+                photo_kwargs = {k: v for k, v in kwargs.items() if k not in ("text", "disable_web_page_preview")}
+                with REMINDER_IMAGE.open("rb") as photo:
+                    await bot.send_photo(photo=photo, caption=text, **photo_kwargs)
+            elif use_image:
+                if not photo_sent:
+                    photo_kwargs = {"chat_id": kwargs["chat_id"]}
+                    if "business_connection_id" in kwargs:
+                        photo_kwargs["business_connection_id"] = kwargs["business_connection_id"]
+                    with REMINDER_IMAGE.open("rb") as photo:
+                        await bot.send_photo(photo=photo, **photo_kwargs)
+                    photo_sent = True
+                await bot.send_message(**kwargs)
+            else:
+                await bot.send_message(**kwargs)
             if source == "business_dm" and not verified:
                 _mark_business_verification_pending(user_id)
             return True

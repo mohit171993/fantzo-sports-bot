@@ -46,6 +46,9 @@ IBETIN_LIVE_LINE_MINI_APP_URL = os.getenv(
 LIVELINE_CHANNEL_CAMPAIGN_KEY = "liveline-v40-launch-20260918"
 SPORTS_BOT_URL = os.getenv("IBETIN_SPORTS_BOT_URL", IBETIN_HOME_URL).strip()
 CHANNEL_AUTOPOST_ENABLED = os.getenv("IBETIN_CHANNEL_AUTOPOST_ENABLED", "false").strip().lower() in {"1", "true", "yes", "on"}
+# The one-time launch post is independent of daily autopost. Isolated staging
+# must be able to prevent its hard-coded production channel send.
+CHANNEL_LAUNCH_ENABLED = os.getenv("IBETIN_CHANNEL_LAUNCH_ENABLED", "true").strip().lower() in {"1", "true", "yes", "on"}
 CHANNEL_AUTOPOST_HOUR = max(0, min(23, int(os.getenv("IBETIN_CHANNEL_AUTOPOST_HOUR", "12"))))
 CHANNEL_AUTOPOST_MINUTE = max(0, min(59, int(os.getenv("IBETIN_CHANNEL_AUTOPOST_MINUTE", "0"))))
 CHANNEL_RETRY_MINUTES = max(5, int(os.getenv("IBETIN_CHANNEL_RETRY_MINUTES", "15")))
@@ -915,6 +918,8 @@ async def channel_autopost_loop(application) -> None:
 
 async def send_liveline_channel_launch(application) -> bool:
     """Send the V40 Live Line launch post once to the IBETIN channel."""
+    if not CHANNEL_LAUNCH_ENABLED:
+        return False
     ensure_tables()
     with core.db() as conn:
         existing = conn.execute(

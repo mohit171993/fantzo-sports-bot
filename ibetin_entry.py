@@ -50,7 +50,7 @@ def _news_redirect_page() -> str:
 <meta name=\"viewport\" content=\"width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no\">
 <title>IBETIN · News</title>
 <script src=\"https://telegram.org/js/telegram-web-app.js\"></script>
-<style>html,body{{margin:0;background:#07101c;color:#fff;font-family:Arial,sans-serif}}.w{{padding:28px 18px}}.muted{{color:#91a5bc}}</style>
+<style>html,body{{margin:0;background:#100f0e;color:#fff;font-family:'Inter',Arial,Helvetica,sans-serif}}.w{{padding:28px 18px}}.muted{{color:#a9a6a4}}</style>
 </head>
 <body><div class=\"w\"><b>IBETIN Sports News</b><p class=\"muted\">Opening news…</p></div>
 <script>
@@ -217,13 +217,13 @@ def _business_alert_page(token: str) -> str:
 <title>IBETIN · My Match Alerts</title>
 <script src=\"https://telegram.org/js/telegram-web-app.js\"></script>
 <style>
-*{{box-sizing:border-box}}:root{{--bg:#07101c;--card:#0e1b2b;--line:#20334b;--text:#f7f9fc;--muted:#91a5bc;--soft:#b8c6d6}}
-html,body{{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:Inter,Arial,Helvetica,sans-serif}}
+*{{box-sizing:border-box}}:root{{--bg:#100f0e;--card:#1a1817;--line:#383633;--text:#f7f9fc;--muted:#a9a6a4;--soft:#c9c7c5}}
+html,body{{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:'Inter',Arial,Helvetica,sans-serif}}
 body{{padding-bottom:82px}}.wrap{{max-width:760px;margin:0 auto;padding:15px 14px 28px}}.top{{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}}.brand{{font-size:18px;font-weight:950;letter-spacing:.8px}}.pill{{border:1px solid var(--line);border-radius:999px;padding:6px 9px;color:var(--muted);font-size:10px;font-weight:900}}
-.hero{{background:linear-gradient(145deg,#13253a,#0b1726);border:1px solid #29415e;border-radius:24px;padding:21px 18px}}.eyebrow{{font-size:11px;font-weight:900;letter-spacing:1.2px;color:#9fb5ca;margin-bottom:8px}}h1{{font-size:26px;line-height:1.08;margin:0 0 8px}}.hero p,.section p{{color:var(--soft);font-size:13px;line-height:1.5;margin:0}}
+.hero{{background:linear-gradient(145deg,#23211f,#161513);border:1px solid #474440;border-radius:24px;padding:21px 18px}}.eyebrow{{font-size:11px;font-weight:900;letter-spacing:1.2px;color:#b7b4b2;margin-bottom:8px}}h1{{font-size:26px;line-height:1.08;margin:0 0 8px}}.hero p,.section p{{color:var(--soft);font-size:13px;line-height:1.5;margin:0}}
 .section{{margin-top:14px;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:16px}}.section h2{{font-size:17px;margin:0 0 7px}}.row{{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:15px;padding-top:15px;border-top:1px solid var(--line)}}.status{{margin-top:6px;font-size:12px;color:var(--muted)}}
-.switch{{position:relative;width:58px;height:32px}}.switch input{{opacity:0;width:0;height:0}}.slider{{position:absolute;inset:0;border-radius:999px;background:#31445a;transition:.18s}}.slider:before{{content:'';position:absolute;width:24px;height:24px;left:4px;top:4px;background:#fff;border-radius:50%;transition:.18s}}.switch input:checked + .slider{{background:#2d7d5a}}.switch input:checked + .slider:before{{transform:translateX(26px)}}.note{{font-size:11px!important;color:#7e93aa!important;margin-top:12px!important}}
-.nav{{position:fixed;left:0;right:0;bottom:0;background:rgba(7,16,28,.97);border-top:1px solid #1e3046;padding:10px 14px;display:flex;gap:8px;justify-content:center}}.nav a{{flex:1;max-width:240px;text-align:center;text-decoration:none;color:#eef3f8;background:#0e1b2b;border:1px solid #20334b;border-radius:12px;padding:11px;font-size:12px;font-weight:900}}
+.switch{{position:relative;width:58px;height:32px}}.switch input{{opacity:0;width:0;height:0}}.slider{{position:absolute;inset:0;border-radius:999px;background:#484643;transition:.18s}}.slider:before{{content:'';position:absolute;width:24px;height:24px;left:4px;top:4px;background:#fff;border-radius:50%;transition:.18s}}.switch input:checked + .slider{{background:#2d7d5a}}.switch input:checked + .slider:before{{transform:translateX(26px)}}.note{{font-size:11px!important;color:#979491!important;margin-top:12px!important}}
+.nav{{position:fixed;left:0;right:0;bottom:0;background:rgba(16,15,14,.97);border-top:1px solid #2d2b28;padding:10px 14px;display:flex;gap:8px;justify-content:center}}.nav a{{flex:1;max-width:240px;text-align:center;text-decoration:none;color:#f4f3f2;background:#1a1817;border:1px solid #383633;border-radius:12px;padding:11px;font-size:12px;font-weight:900}}
 </style>
 </head>
 <body>
@@ -235,7 +235,7 @@ body{{padding-bottom:82px}}.wrap{{max-width:760px;margin:0 auto;padding:15px 14p
 <nav class=\"nav\"><a id=\"home\" href=\"#\">⌂ Home</a><a id=\"support\" href=\"#\">🛟 Support</a></nav>
 <script>
 const tg = window.Telegram && window.Telegram.WebApp;
-if (tg) {{ tg.ready(); tg.expand(); try {{ tg.setHeaderColor('#07101c'); tg.setBackgroundColor('#07101c'); }} catch(e) {{}} }}
+if (tg) {{ tg.ready(); tg.expand(); try {{ tg.setHeaderColor('#100f0e'); tg.setBackgroundColor('#100f0e'); }} catch(e) {{}} }}
 const token = {token_json};
 const toggle = document.getElementById('toggle');
 const status = document.getElementById('status');
@@ -293,7 +293,7 @@ def install_business_alerts_router() -> None:
                     _verify_business_alert_token(token)
                     hub._send_html(self, 200, _business_alert_page(token))
                 except ValueError as exc:
-                    hub._send_html(self, 401, f"<html><body style='background:#07101c;color:white;font-family:Arial;padding:24px'><h3>IBETIN Alerts</h3><p>{str(exc)}</p></body></html>")
+                    hub._send_html(self, 401, f"<html><body style='background:#100f0e;color:white;font-family:'Inter',Arial,Helvetica,sans-serif;padding:24px'><h3>IBETIN Alerts</h3><p>{str(exc)}</p></body></html>")
                 return
         previous_get(self)
 

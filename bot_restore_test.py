@@ -24,10 +24,9 @@ import fantzo_native_ui
 import fantzo_account_reverify
 
 logger = logging.getLogger(__name__)
-PUBLIC_SHORT_DESCRIPTION = "Fantzo account access and support. Verify in the bot to continue."
+PUBLIC_SHORT_DESCRIPTION = "📺 Live TV, live line and live scores for cricket and football, all in one place."
 PUBLIC_DESCRIPTION = (
-    "Welcome to Fantzo. Verify the mobile number linked to your Telegram "
-    "account to continue. For assistance, use official support."
+    "🏆 Your all-in-one live sports hub.\n📺 Watch live sports TV\n🏏 Ball-by-ball live line\n⚽ Live scores and results\n🔔 Match alerts the second it happens\nTap START and watch the action live!"
 )
 
 # Preserve the restored first-message Business DM behaviour, but make the

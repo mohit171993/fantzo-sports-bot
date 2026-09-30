@@ -569,10 +569,10 @@ async def _prompt_mobile_verification(update, context, source: str = "bot_start"
     # ask again; continue directly to the requested destination.
     if phone_verify.is_verified(user.id):
         await _set_user_menu_button(context.bot, user.id, True)
-        await message.reply_text("✅ Your quick access buttons are ready below.", reply_markup=app.QUICK_MENU)
+        await message.reply_text("✅ <b>Your quick access buttons are ready below.</b>", parse_mode="HTML", reply_markup=app.QUICK_MENU)
         if source == "liveline":
             await message.reply_text(
-                "🏏 <b>IBETIN LIVE LINE</b>\n\nOpen Live Line below.",
+                "🏏 <b>IBETIN LIVE LINE</b>\n\n👇 Open Live Line below.",
                 parse_mode="HTML",
                 reply_markup=InlineKeyboardMarkup(
                     [[InlineKeyboardButton(
@@ -589,7 +589,7 @@ async def _prompt_mobile_verification(update, context, source: str = "bot_start"
             import fantzo_business
             await message.reply_text(
                 "✅ <b>Your Telegram mobile is already verified.</b>\n\n"
-                "Choose what you want to do next.",
+                "👇 Choose what you want to do next.",
                 parse_mode="HTML",
                 reply_markup=fantzo_business.business_keyboard(user.id),
             )
@@ -612,9 +612,9 @@ async def _prompt_mobile_verification(update, context, source: str = "bot_start"
 
     await message.reply_text(
         "📱 <b>VERIFY MOBILE TO CONTINUE</b>\n\n"
-        f"{detail}\n\n"
-        "Tap <b>📱 VERIFY & CONTINUE</b> below. Telegram will share your linked mobile number.\n\n"
-        "By continuing, you agree that the IBETIN team may contact you by "
+        f"🔐 {detail}\n\n"
+        "👇 Tap <b>📱 VERIFY &amp; CONTINUE</b> below. Telegram will share your linked mobile number.\n\n"
+        "📞 By continuing, you agree that the IBETIN team may contact you by "
         "<b>phone call or WhatsApp</b>. You can opt out anytime.",
         parse_mode="HTML",
         reply_markup=_verification_reply_keyboard(),
@@ -926,9 +926,9 @@ async def smart_start(update, context) -> None:
         return
 
     await _set_user_menu_button(context.bot, user.id, True)
-    await message.reply_text("✅ Your quick access buttons are ready below.", reply_markup=app.QUICK_MENU)
+    await message.reply_text("✅ <b>Your quick access buttons are ready below.</b>", parse_mode="HTML", reply_markup=app.QUICK_MENU)
     await message.reply_text(
-        "👋 <b>Welcome back to IBETIN</b>\n\nChoose what you want to do next.",
+        "👋 <b>Welcome back to IBETIN</b>\n\n👇 Choose what you want to do next.",
         parse_mode="HTML",
         reply_markup=conversion_keyboard(user.id),
         disable_web_page_preview=True,

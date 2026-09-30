@@ -33,8 +33,8 @@ def _hub_page_without_home_shell(section: str):
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"><title>IBETIN</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<style>html,body{{margin:0;background:#020A14;color:#F6FBFF;font-family:Arial,sans-serif}}main{{display:flex;min-height:70vh;align-items:center;justify-content:center;text-align:center;padding:28px}}.logo{{font-size:22px;font-weight:900;letter-spacing:.6px}}.spin{{width:28px;height:28px;margin:16px auto 0;border:3px solid #16365C;border-top-color:#1094FF;border-radius:50%;animation:s .7s linear infinite}}@keyframes s{{to{{transform:rotate(360deg)}}}}</style>
-</head><body><main><div><b class="logo">IBETIN</b><div style="margin-top:8px;color:#B7D4EE;font-size:14px">Opening IBETIN…</div><div class="spin"></div></div></main>
+<style>html,body{{margin:0;background:#fff;color:#172033;font-family:Arial,sans-serif}}main{{display:flex;min-height:70vh;align-items:center;justify-content:center;text-align:center;padding:24px}}.spin{{width:28px;height:28px;margin:16px auto 0;border:3px solid #e5e7eb;border-top-color:#172033;border-radius:50%;animation:s .7s linear infinite}}@keyframes s{{to{{transform:rotate(360deg)}}}}</style>
+</head><body><main><div><b>IBETIN</b><div style="margin-top:8px;color:#64748b;font-size:13px">Opening IBETIN…</div><div class="spin"></div></div></main>
 <script>const tg=window.Telegram&&window.Telegram.WebApp;if(tg){{try{{tg.ready();tg.expand();}}catch(e){{}}}}window.location.replace({target});</script></body></html>"""
     return _original_hub_page(requested)
 

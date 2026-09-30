@@ -69,7 +69,7 @@ QUICK_MENU = ReplyKeyboardMarkup(
 BANNER_ENV = "IBETIN_BANNER_FILE_ID"
 BANNER_KEY = "ibetin_home_banner_file_id"
 PENDING_BANNER_KEY = "ibetin_pending_home_banner_file_id"
-DEFAULT_BANNER = Path(__file__).with_name("ibetin_home_welcome.jpg")
+DEFAULT_BANNER = Path(__file__).with_name("ibetin_live_casino_sports.jpg")
 MINI_APP_URL = os.getenv(
     "IBETIN_MINI_APP_URL",
     os.getenv("FANTZO_MINI_APP_URL", "https://ibetin.com"),

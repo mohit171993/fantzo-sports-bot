@@ -193,26 +193,26 @@ def _news_page(category: str, items: list[dict]) -> str:
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
 *{{box-sizing:border-box}}
-html,body{{margin:0;background:#020A14;color:#F6FBFF;font-family:Arial,Helvetica,sans-serif}}
+html,body{{margin:0;background:#07111f;color:#f4f7fb;font-family:Arial,Helvetica,sans-serif}}
 body{{min-height:100%;padding-bottom:28px}}
-.top{{position:sticky;top:0;z-index:5;background:#07182C;border-bottom:1px solid #16365C;padding:16px 16px 12px}}
+.top{{position:sticky;top:0;z-index:5;background:#0a1626;border-bottom:1px solid #1d3148;padding:14px 14px 10px}}
 .brand{{display:flex;align-items:center;justify-content:space-between;gap:10px}}
-.brand h1{{font-size:18px;margin:0;font-weight:900;letter-spacing:.3px;color:#F6FBFF}}
-.badge{{font-size:12px;border:1px solid #16365C;border-radius:999px;padding:6px 9px;color:#F6FBFF;background:#1094FF;font-weight:800}}
-.sub{{margin-top:6px;color:#B7D4EE;font-size:12px}}
-.tabs{{display:flex;gap:8px;overflow-x:auto;padding:14px 16px 2px;scrollbar-width:none}}
+.brand h1{{font-size:18px;margin:0;font-weight:900;letter-spacing:.3px}}
+.badge{{font-size:11px;border:1px solid #2b425d;border-radius:999px;padding:6px 9px;color:#9fb2c8;font-weight:800}}
+.sub{{margin-top:6px;color:#91a6bd;font-size:12px}}
+.tabs{{display:flex;gap:8px;overflow-x:auto;padding:12px 14px 2px;scrollbar-width:none}}
 .tabs::-webkit-scrollbar{{display:none}}
-.tab{{white-space:nowrap;text-decoration:none;color:#D6E8F8;border:1px solid #16365C;background:#0B1E36;border-radius:999px;padding:9px 12px;font-size:12px;font-weight:800}}
-.tab.active{{background:#1094FF;color:#F6FBFF;border-color:#1094FF}}
-.wrap{{padding:14px 16px}}
-.card{{background:#0B1E36;border:1px solid #16365C;border-radius:18px;padding:16px;margin-bottom:12px}}
-.meta{{display:flex;justify-content:space-between;gap:10px;color:#B7D4EE;font-size:12px;font-weight:700}}
-.card h2{{font-size:16px;line-height:1.35;margin:9px 0 8px;color:#F6FBFF}}
-.card p{{font-size:13px;line-height:1.5;margin:0;color:#D6E8F8}}
-.empty{{padding:28px 18px;text-align:center;border:1px dashed #16365C;border-radius:18px;color:#B7D4EE}}
-.bottom{{padding:0 16px 8px}}
-.refresh{{display:block;text-align:center;text-decoration:none;background:#1094FF;color:#F6FBFF;border-radius:14px;padding:14px 16px;font-weight:900}}
-.note{{font-size:12px;color:#B7D4EE;line-height:1.45;text-align:center;margin-top:12px}}
+.tab{{white-space:nowrap;text-decoration:none;color:#b8c7d8;border:1px solid #263c55;background:#0b192a;border-radius:999px;padding:9px 12px;font-size:12px;font-weight:800}}
+.tab.active{{background:#f4f7fb;color:#07111f;border-color:#f4f7fb}}
+.wrap{{padding:12px 14px}}
+.card{{background:#0d1b2e;border:1px solid #1d334c;border-radius:16px;padding:14px;margin-bottom:12px}}
+.meta{{display:flex;justify-content:space-between;gap:10px;color:#85a0bb;font-size:11px;font-weight:700}}
+.card h2{{font-size:16px;line-height:1.35;margin:9px 0 8px;color:#fff}}
+.card p{{font-size:13px;line-height:1.5;margin:0;color:#afc0d1}}
+.empty{{padding:28px 18px;text-align:center;border:1px dashed #2a4059;border-radius:16px;color:#9db0c4}}
+.bottom{{padding:0 14px}}
+.refresh{{display:block;text-align:center;text-decoration:none;background:#f4f7fb;color:#07111f;border-radius:14px;padding:13px 16px;font-weight:900}}
+.note{{font-size:11px;color:#7189a2;line-height:1.45;text-align:center;margin-top:12px}}
 </style>
 </head>
 <body>
@@ -231,7 +231,7 @@ const tg = window.Telegram && window.Telegram.WebApp;
 if (tg) {{
   tg.ready();
   tg.expand();
-  try {{ tg.setHeaderColor('#020A14'); tg.setBackgroundColor('#020A14'); }} catch (e) {{}}
+  try {{ tg.setHeaderColor('#0a1626'); tg.setBackgroundColor('#07111f'); }} catch (e) {{}}
 }}
 </script>
 </body>

@@ -25,8 +25,8 @@ LIVE_LINE_MINI_APP_URL = os.getenv(
 TEST_CAMPAIGN_KEY = "liveline-direct-v40-test-mohit-97saxena-20260918-v3"
 CREATIVE_UNLOCK_CODE = os.getenv("IBETIN_CREATIVE_UNLOCK_CODE", "").strip()
 BRAND = "ibetin"
-FALLBACK_BANNER = Path(__file__).with_name("ibetin_home_welcome.jpg")
-REMINDER_BANNER = Path(__file__).with_name("ibetin_reminder_banner.jpg")
+FALLBACK_BANNER = Path(__file__).with_name("ibetin_live_casino_sports.jpg")
+REMINDER_BANNER = Path(__file__).with_name("ibetin_reminder_live_line.jpg")
 OTHER_BRAND = re.compile(r"fantzo|dura(?:bet|sports)?|betroxy", re.I)
 
 
@@ -77,8 +77,8 @@ def ensure_tables() -> None:
 def _seed_bundled_creatives() -> None:
     """Register approved local variants without reactivating rejected rows."""
     bundles = {
-        "channel": (FALLBACK_BANNER, Path(__file__).with_name("ibetin_channel_banner.jpg")),
-        "reminder": (REMINDER_BANNER, Path(__file__).with_name("ibetin_reminder_square.jpg")),
+        "channel": (FALLBACK_BANNER, Path(__file__).with_name("ibetin_channel_v2.jpg")),
+        "reminder": (REMINDER_BANNER, Path(__file__).with_name("ibetin_reminder_v2.jpg")),
     }
     with core.db() as conn:
         for pool, files in bundles.items():
@@ -660,7 +660,7 @@ async def _send_test_to_business_target(bot, target, creative) -> bool:
     )
     caption = (
         "🏏 <b>IBETIN LIVE LINE</b>\n\n"
-        "Scores, fixtures, and results inside Telegram."
+        "Live cricket scores, Match Pulse, scorecards, fixtures and results — inside Telegram."
     )
     kwargs = {
         "chat_id": int(target["user_id"]),
@@ -692,7 +692,7 @@ async def _send_test_to_bot_target(bot, target, creative) -> bool:
     markup = InlineKeyboardMarkup([[live_line_button]])
     caption = (
         "🏏 <b>IBETIN LIVE LINE</b>\n\n"
-        "Scores, fixtures, and results inside Telegram."
+        "Live cricket scores, Match Pulse, scorecards, fixtures and results — inside Telegram."
     )
     kwargs = {
         "chat_id": int(target["user_id"]),

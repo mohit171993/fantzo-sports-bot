@@ -33,8 +33,8 @@ def _hub_page_without_home_shell(section: str):
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"><title>IBETIN</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<style>html,body{{margin:0;background:#fff;color:#172033;font-family:Arial,sans-serif}}main{{display:flex;min-height:70vh;align-items:center;justify-content:center;text-align:center;padding:24px}}.spin{{width:28px;height:28px;margin:16px auto 0;border:3px solid #e5e7eb;border-top-color:#172033;border-radius:50%;animation:s .7s linear infinite}}@keyframes s{{to{{transform:rotate(360deg)}}}}</style>
-</head><body><main><div><b>IBETIN</b><div style="margin-top:8px;color:#64748b;font-size:13px">Opening IBETIN…</div><div class="spin"></div></div></main>
+<style>html,body{{margin:0;background:#fff;color:#211f1e;font-family:'Inter',Arial,Helvetica,sans-serif}}main{{display:flex;min-height:70vh;align-items:center;justify-content:center;text-align:center;padding:24px}}.spin{{width:28px;height:28px;margin:16px auto 0;border:3px solid #e8e8e8;border-top-color:#211f1e;border-radius:50%;animation:s .7s linear infinite}}@keyframes s{{to{{transform:rotate(360deg)}}}}</style>
+</head><body><main><div><b>IBETIN</b><div style="margin-top:8px;color:#7a7875;font-size:13px">Opening IBETIN…</div><div class="spin"></div></div></main>
 <script>const tg=window.Telegram&&window.Telegram.WebApp;if(tg){{try{{tg.ready();tg.expand();}}catch(e){{}}}}window.location.replace({target});</script></body></html>"""
     return _original_hub_page(requested)
 
@@ -159,26 +159,26 @@ def _mazza_mirror_page() -> str:
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
 *{{box-sizing:border-box}}
-html,body{{margin:0;min-height:100%;background:#07101c;color:#f8fafc;font-family:Arial,Helvetica,sans-serif}}
+html,body{{margin:0;min-height:100%;background:#100f0e;color:#f8fafc;font-family:'Inter',Arial,Helvetica,sans-serif}}
 body{{padding:14px}}
 .wrap{{max-width:760px;margin:0 auto}}
 .top{{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}}
 .brand{{font-size:18px;font-weight:900;letter-spacing:.4px}}
-.badge{{font-size:10px;font-weight:900;padding:7px 9px;border:1px solid #334155;border-radius:999px;color:#cbd5e1}}
-.card{{background:#0f1d2e;border:1px solid #24364d;border-radius:20px;padding:16px;margin-bottom:12px}}
+.badge{{font-size:10px;font-weight:900;padding:7px 9px;border:1px solid #464442;border-radius:999px;color:#d7d6d5}}
+.card{{background:#1c1a18;border:1px solid #3b3836;border-radius:20px;padding:16px;margin-bottom:12px}}
 h1{{font-size:23px;margin:0 0 7px}}
-p{{margin:0;color:#a9b9ca;font-size:13px;line-height:1.5}}
-.preview{{position:relative;width:100%;aspect-ratio:9/16;max-height:68vh;background:#000;border-radius:18px;overflow:hidden;border:1px solid #26384d;margin-top:14px}}
+p{{margin:0;color:#bbbab8;font-size:13px;line-height:1.5}}
+.preview{{position:relative;width:100%;aspect-ratio:9/16;max-height:68vh;background:#000;border-radius:18px;overflow:hidden;border:1px solid #3c3937;margin-top:14px}}
 .mirror,.preview video{{width:100%;height:100%;border:0;object-fit:contain;background:#000}}
-.empty{{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:28px;color:#e2e8f0}}
-.empty span{{display:block;margin-top:8px;color:#8fa3b8;font-size:12px;line-height:1.5}}
-.status{{margin-top:10px;padding:10px 12px;border-radius:12px;background:#0a1523;color:#9fb0c2;font-size:12px;line-height:1.4}}
+.empty{{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:28px;color:#eae9e8}}
+.empty span{{display:block;margin-top:8px;color:#a6a3a1;font-size:12px;line-height:1.5}}
+.status{{margin-top:10px;padding:10px 12px;border-radius:12px;background:#141312;color:#b3b0ae;font-size:12px;line-height:1.4}}
 .actions{{display:grid;grid-template-columns:1fr;gap:9px;margin-top:12px}}
 .btn{{display:block;width:100%;border:0;border-radius:13px;padding:14px 15px;text-align:center;text-decoration:none;font-weight:900;font-size:13px;cursor:pointer}}
-.primary{{background:#fff;color:#07101c}}
+.primary{{background:#fff;color:#100f0e}}
 .green{{background:#17834f;color:#fff}}
-.soft{{background:#1a2b40;color:#eef5fb;border:1px solid #30455f}}
-.small{{font-size:11px;color:#7f94aa;margin-top:10px;line-height:1.45}}
+.soft{{background:#282624;color:#f5f4f4;border:1px solid #4a4845}}
+.small{{font-size:11px;color:#979492;margin-top:10px;line-height:1.45}}
 </style>
 </head>
 <body>
@@ -199,7 +199,7 @@ p{{margin:0;color:#a9b9ca;font-size:13px;line-height:1.5}}
 </div>
 <script>
 const tg = window.Telegram && window.Telegram.WebApp;
-if (tg) {{ try {{ tg.ready(); tg.expand(); tg.setHeaderColor('#07101c'); tg.setBackgroundColor('#07101c'); }} catch(e) {{}} }}
+if (tg) {{ try {{ tg.ready(); tg.expand(); tg.setHeaderColor('#100f0e'); tg.setBackgroundColor('#100f0e'); }} catch(e) {{}} }}
 const local = document.getElementById('local');
 const status = document.getElementById('status');
 const capture = document.getElementById('capture');

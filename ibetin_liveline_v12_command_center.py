@@ -130,63 +130,63 @@ def _v12_page() -> str:
     css = r'''
 /* V12 — IBETIN Sports Command Center */
 :root{
-  --v12-navy:#061f46;--v12-blue:#073b83;--v12-blue2:#0b5fc5;
+  --v12-navy:#24201d;--v12-blue:#7b0f15;--v12-blue2:#b9171f;
   --v12-gold:#ffc928;--v12-goldSoft:#fff7d6;--v12-surface:#ffffff;
-  --v12-bg:#edf3f9;--v12-line:#d5e1ee;--v12-ink:#102f55;--v12-muted:#6d8299;
+  --v12-bg:#f4f3f2;--v12-line:#e3e2e0;--v12-ink:#2e2b27;--v12-muted:#868380;
   --v12-green:#11855d;--v12-red:#e6384f;
 }
 html,body{background:var(--v12-bg)!important}
-.topShell{background:linear-gradient(120deg,#061f46 0%,#073b83 60%,#0b55ad 100%)!important;border-top:3px solid var(--v12-gold)!important}
+.topShell{background:linear-gradient(120deg,#24201d 0%,#7b0f15 60%,#a4141b 100%)!important;border-top:3px solid var(--v12-gold)!important}
 .brandRow{height:62px!important}
 .brandMark{border-radius:11px!important;transform:rotate(-2deg)}
 .brandText b{letter-spacing:1px!important}.brandText span{opacity:.88!important}
 .liveChip:after{content:'V12 TEST'!important}
 
 /* Sports command bar */
-.v12Command{margin:0 0 12px;background:linear-gradient(145deg,#fff,#f7fbff);border:1px solid #cbdbea;border-radius:16px;box-shadow:0 8px 22px rgba(9,48,100,.08);overflow:hidden}
+.v12Command{margin:0 0 12px;background:linear-gradient(145deg,#fff,#f7fbff);border:1px solid #dcdad9;border-radius:16px;box-shadow:0 8px 22px rgba(97,12,16,.08);overflow:hidden}
 .v12Sports{display:flex;gap:7px;overflow:auto;padding:10px 10px 8px;scrollbar-width:none}.v12Sports::-webkit-scrollbar{display:none}
-.v12Sport{border:1px solid #d6e1ed;background:#f8fbff;color:#58718d;border-radius:999px;padding:8px 11px;font-size:9px;font-weight:950;white-space:nowrap;display:flex;align-items:center;gap:5px}
-.v12Sport.active{background:linear-gradient(180deg,#0b55ad,#073b83);border-color:#073b83;color:#fff;box-shadow:0 4px 10px rgba(7,59,131,.16)}
-.v12Sport .soon{font-size:6px;background:#e8eef6;color:#7890aa;border-radius:999px;padding:2px 4px}.v12Sport.active .soon{display:none}
+.v12Sport{border:1px solid #e3e2e0;background:#f8fbff;color:#76726f;border-radius:999px;padding:8px 11px;font-size:9px;font-weight:950;white-space:nowrap;display:flex;align-items:center;gap:5px}
+.v12Sport.active{background:linear-gradient(180deg,#a4141b,#7b0f15);border-color:#7b0f15;color:#fff;box-shadow:0 4px 10px rgba(123,15,21,.16)}
+.v12Sport .soon{font-size:6px;background:#f0efee;color:#94918e;border-radius:999px;padding:2px 4px}.v12Sport.active .soon{display:none}
 .v12SearchRow{display:grid;grid-template-columns:1fr auto;gap:8px;padding:0 10px 9px}
-.v12SearchBox{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #cfdeec;border-radius:11px;padding:0 10px;min-height:40px;box-shadow:inset 0 1px 2px rgba(15,55,100,.02)}
-.v12SearchBox span{font-size:14px}.v12SearchBox input{width:100%;border:0;outline:0;background:transparent;color:#153b68;font-size:11px;font-weight:750}
-.v12SearchBox input::placeholder{color:#94a5b7;font-weight:650}
-.v12Clear{border:1px solid #d1dfec;background:#fff;color:#315b87;border-radius:11px;padding:0 11px;font-size:9px;font-weight:950}
+.v12SearchBox{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #dfdedc;border-radius:11px;padding:0 10px;min-height:40px;box-shadow:inset 0 1px 2px rgba(100,15,19,.02)}
+.v12SearchBox span{font-size:14px}.v12SearchBox input{width:100%;border:0;outline:0;background:transparent;color:#681519;font-size:11px;font-weight:750}
+.v12SearchBox input::placeholder{color:#a8a6a3;font-weight:650}
+.v12Clear{border:1px solid #e0dedd;background:#fff;color:#873135;border-radius:11px;padding:0 11px;font-size:9px;font-weight:950}
 .v12Filters{display:flex;gap:6px;overflow:auto;padding:0 10px 10px;scrollbar-width:none}.v12Filters::-webkit-scrollbar{display:none}
-.v12Filter{border:1px solid #d4e0ec;background:#fff;color:#607892;border-radius:9px;padding:7px 10px;font-size:8px;font-weight:950;white-space:nowrap}
+.v12Filter{border:1px solid #e1e0df;background:#fff;color:#7c7976;border-radius:9px;padding:7px 10px;font-size:8px;font-weight:950;white-space:nowrap}
 .v12Filter.active{background:var(--v12-goldSoft);border-color:#f1c538;color:#634a00;box-shadow:0 3px 8px rgba(255,193,25,.12)}
-.v12QuickStat{display:flex;align-items:center;justify-content:space-between;gap:8px;border-top:1px solid #e0e8f1;padding:8px 10px;background:#f8fbff;color:#72869d;font-size:8px;font-weight:800}
-.v12QuickStat strong{color:#174b83}.v12FeedDot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#1b9d6b;margin-right:5px}
+.v12QuickStat{display:flex;align-items:center;justify-content:space-between;gap:8px;border-top:1px solid #eae8e7;padding:8px 10px;background:#f8fbff;color:#8a8885;font-size:8px;font-weight:800}
+.v12QuickStat strong{color:#83171c}.v12FeedDot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#1b9d6b;margin-right:5px}
 
 /* Make hierarchy calmer and easier to scan */
-.dayHead{margin-top:5px!important}.dayTitle{font-size:11px!important}.dayDot{background:#0a55b3!important;box-shadow:0 0 0 4px rgba(10,85,179,.10)!important}
-.leagueBlock{border-radius:15px!important;border-color:#cfdeeb!important;box-shadow:0 5px 16px rgba(13,53,98,.055)!important}
-.leagueSectionHead{background:#fff!important;color:#133f72!important;border-bottom:1px solid #d8e3ee!important;padding:10px 11px!important}
-.leagueIcon{background:#eaf3ff!important;color:#0a4f9f!important;box-shadow:none!important;border:1px solid #cfe1f4!important}
-.leagueSectionName{font-size:10px!important}.leagueSectionMeta{color:#8296aa!important}.leagueCount{background:#f0f5fb!important;border-color:#d8e3ee!important;color:#5d7690!important}
+.dayHead{margin-top:5px!important}.dayTitle{font-size:11px!important}.dayDot{background:#a8151c!important;box-shadow:0 0 0 4px rgba(168,21,28,.10)!important}
+.leagueBlock{border-radius:15px!important;border-color:#dfdddb!important;box-shadow:0 5px 16px rgba(98,13,17,.055)!important}
+.leagueSectionHead{background:#fff!important;color:#721318!important;border-bottom:1px solid #e4e3e2!important;padding:10px 11px!important}
+.leagueIcon{background:#f6f4f3!important;color:#961319!important;box-shadow:none!important;border:1px solid #e4e2df!important}
+.leagueSectionName{font-size:10px!important}.leagueSectionMeta{color:#989694!important}.leagueCount{background:#f6f5f5!important;border-color:#e4e3e2!important;color:#7a7673!important}
 .leagueMatches{background:#f8fbfe!important;padding:8px!important}
-.leagueMatches .match{border:1px solid #d5e1ed!important;border-radius:12px!important;box-shadow:0 3px 9px rgba(10,48,96,.045)!important}
-.leagueMatches .match:before{width:3px!important}.leagueMatches .matchHead{background:#fff!important}.leagueMatches .format{color:#315f8e!important}
+.leagueMatches .match{border:1px solid #e2e1e0!important;border-radius:12px!important;box-shadow:0 3px 9px rgba(94,12,16,.045)!important}
+.leagueMatches .match:before{width:3px!important}.leagueMatches .matchHead{background:#fff!important}.leagueMatches .format{color:#8e3136!important}
 .leagueMatches .matchFoot{background:#f8fbff!important}.leagueMatches .arrow{border-radius:8px!important}
 .v12Hidden{display:none!important}
-.v12NoResults{background:#fff;border:1px solid #d3e0ec;border-radius:14px;padding:22px 14px;text-align:center;color:#73869b;font-size:10px;margin:8px 0}
+.v12NoResults{background:#fff;border:1px solid #e1e0de;border-radius:14px;padding:22px 14px;text-align:center;color:#898785;font-size:10px;margin:8px 0}
 
 /* Live Pulse */
-.v12Pulse{margin:0 0 10px;border-radius:14px;overflow:hidden;background:linear-gradient(135deg,#061f46,#0a4d9f);color:#fff;box-shadow:0 10px 24px rgba(8,48,102,.16);border:1px solid #174f8f}
+.v12Pulse{margin:0 0 10px;border-radius:14px;overflow:hidden;background:linear-gradient(135deg,#24201d,#961319);color:#fff;box-shadow:0 10px 24px rgba(98,12,16,.16);border:1px solid #8f171d}
 .v12PulseTop{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.12)}
 .v12PulseTop b{font-size:9px;letter-spacing:.65px}.v12PulseBadge{background:#e6384f;border-radius:999px;padding:4px 7px;font-size:7px;font-weight:1000}
-.v12PulseBody{padding:12px}.v12PulseMain{font-size:13px;font-weight:1000;line-height:1.45}.v12PulseSub{margin-top:5px;color:#c9dcf4;font-size:9px;line-height:1.45}
-.v12PulseGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:10px}.v12PulseStat{background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.12);border-radius:9px;padding:8px;text-align:center}.v12PulseStat b{display:block;color:#ffdf74;font-size:10px}.v12PulseStat span{display:block;color:#bcd0e9;font-size:7px;margin-top:3px}
+.v12PulseBody{padding:12px}.v12PulseMain{font-size:13px;font-weight:1000;line-height:1.45}.v12PulseSub{margin-top:5px;color:#e1dedc;font-size:9px;line-height:1.45}
+.v12PulseGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:10px}.v12PulseStat{background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.12);border-radius:9px;padding:8px;text-align:center}.v12PulseStat b{display:block;color:#ffdf74;font-size:10px}.v12PulseStat span{display:block;color:#e9bcbe;font-size:7px;margin-top:3px}
 
 /* BHAV */
-.v12BhavHead{padding:13px 12px;background:linear-gradient(135deg,#062958,#084a98);color:#fff}.v12BhavHeadLine{display:flex;align-items:center;justify-content:space-between;gap:8px}.v12BhavHead b{font-size:12px}.v12BhavHead small{display:block;margin-top:5px;color:#c9dcf3;font-size:8px}.v12MarketTag{background:var(--v12-gold);color:#17345a;border-radius:999px;padding:5px 8px;font-size:7px;font-weight:1000}
-.v12BhavTeams{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 11px 4px}.v12BhavTeam{background:#f5f9fe;border:1px solid #d7e4f0;border-radius:10px;padding:9px;text-align:center;color:#193f6d;font-size:9px;font-weight:950}
-.v12Book{display:grid;grid-template-columns:minmax(78px,1.3fr) 1fr 1fr;align-items:center;gap:7px;padding:9px 11px;border-top:1px solid #e2eaf2}.v12BookName{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#4e6680;font-size:8px;font-weight:900}.v12Odd{background:#edf5ff;border:1px solid #cee0f4;border-radius:9px;padding:8px 5px;text-align:center;color:#0b4e9d;font-size:11px;font-weight:1000}.v12Odd span{display:block;color:#7790a9;font-size:6px;margin-bottom:3px;text-transform:uppercase}.v12BhavNote{padding:9px 11px;background:#fff9e4;color:#745e16;border-top:1px solid #f4e3a1;font-size:7px;line-height:1.45}
+.v12BhavHead{padding:13px 12px;background:linear-gradient(135deg,#2c2824,#8e1218);color:#fff}.v12BhavHeadLine{display:flex;align-items:center;justify-content:space-between;gap:8px}.v12BhavHead b{font-size:12px}.v12BhavHead small{display:block;margin-top:5px;color:#e1dedb;font-size:8px}.v12MarketTag{background:var(--v12-gold);color:#5a171a;border-radius:999px;padding:5px 8px;font-size:7px;font-weight:1000}
+.v12BhavTeams{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 11px 4px}.v12BhavTeam{background:#f5f9fe;border:1px solid #e5e3e2;border-radius:10px;padding:9px;text-align:center;color:#6d191d;font-size:9px;font-weight:950}
+.v12Book{display:grid;grid-template-columns:minmax(78px,1.3fr) 1fr 1fr;align-items:center;gap:7px;padding:9px 11px;border-top:1px solid #ebeae9}.v12BookName{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#6a6764;font-size:8px;font-weight:900}.v12Odd{background:#f7f6f5;border:1px solid #e3e1df;border-radius:9px;padding:8px 5px;text-align:center;color:#961219;font-size:11px;font-weight:1000}.v12Odd span{display:block;color:#93908d;font-size:6px;margin-bottom:3px;text-transform:uppercase}.v12BhavNote{padding:9px 11px;background:#fff9e4;color:#745e16;border-top:1px solid #f4e3a1;font-size:7px;line-height:1.45}
 
 /* Better detail tabs */
 .detailTabs{position:sticky;top:0;z-index:8;background:var(--v12-bg)!important;padding-top:4px!important}
-.detailTab{font-size:8px!important;padding:9px 10px!important}.detailTab.active{background:#073b83!important;border-color:#073b83!important}
+.detailTab{font-size:8px!important;padding:9px 10px!important}.detailTab.active{background:#7b0f15!important;border-color:#7b0f15!important}
 
 /* Bottom nav: all five controls functional in V12 */
 .bottomInner{grid-template-columns:repeat(5,1fr)!important}.bottomItem:last-child{cursor:pointer}

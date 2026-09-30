@@ -25,6 +25,7 @@ import fantzo_live_tv
 import fantzo_reminders as reminders
 import ibetin_hub as hub
 import ibetin_creatives
+import public_start_banner
 import ibetin_leads
 import ibetin_news as news
 import ibetin_phone_verify as phone_verify
@@ -1261,6 +1262,7 @@ async def _set_active_bot_username(bot) -> str:
 
 
 async def configure_telegram_ui(application) -> None:
+    public_start_banner.install(application)
     await _set_active_bot_username(application.bot)
     # Telegram shows these before a new user verifies their account.
     await application.bot.set_my_short_description(

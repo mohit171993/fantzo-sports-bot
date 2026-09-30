@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import sys
+from unittest.mock import patch
 from urllib.parse import parse_qs, urlparse
 
 from telegram import Bot
@@ -34,17 +35,18 @@ def _expect_webapps(name: str, markup, errors: list[str]) -> int:
     return len(buttons)
 
 
-def _expect_score_link(name: str, markup, expected_url: str, errors: list[str]) -> int:
+def _expect_score_link(name: str, markup, expected_url: str,
+                       expected_label: str, errors: list[str]) -> int:
     buttons = _buttons(markup)
     if len(buttons) != 1:
-        errors.append(f"{name}: expected one score link, got {len(buttons)}")
+        errors.append(f"{name}: expected one score Mini App button, got {len(buttons)}")
     for button in buttons:
-        if button.text != "Open Match Scores":
-            errors.append(f"{name}: wrong score link label")
-        if button.url != expected_url:
-            errors.append(f"{name}: wrong score URL")
-        if button.web_app is not None or button.callback_data is not None:
-            errors.append(f"{name}: expected URL-only score button")
+        if button.text != expected_label:
+            errors.append(f"{name}: wrong score button label")
+        if button.web_app is None or button.web_app.url != expected_url:
+            errors.append(f"{name}: wrong score Mini App URL")
+        if button.url is not None or button.callback_data is not None:
+            errors.append(f"{name}: expected score Mini App button")
     return len(buttons)
 
 
@@ -258,8 +260,22 @@ def run_navigation_self_test() -> None:
     main_buttons = _buttons(main_markup)
     main_count = len(main_buttons)
     main_texts = [button.text for button in main_buttons]
-    if not any("OPEN IBETIN LIVE LINE" in (text or "") for text in main_texts):
-        errors.append("main bot missing OPEN IBETIN LIVE LINE")
+    live_line_buttons = [button for button in main_buttons
+                         if "OPEN " in (button.text or "") and " LIVE LINE" in (button.text or "")]
+    if len(live_line_buttons) != 1:
+        errors.append("main bot missing OPEN LIVE LINE")
+    else:
+        with patch.object(ibetin_entry.runtime.phone_verify, "is_verified", return_value=True), \
+             patch.object(ibetin_entry.runtime.phone_verify, "live_line_url",
+                          return_value="https://example.invalid/liveline?access=signed"), \
+             patch.object(ibetin_entry.runtime.fantzo_live_tv, "minitv_url", return_value=""):
+            verified_buttons = _buttons(ibetin_entry.runtime.premium_main_keyboard(123456789))
+        verified_live = next((button for button in verified_buttons
+                              if button.text == live_line_buttons[0].text), None)
+        if not verified_live or not verified_live.web_app or verified_live.url:
+            errors.append("main-bot/OPEN LIVE LINE: verified button must be a Mini App")
+        elif "/liveline" not in verified_live.web_app.url:
+            errors.append("main-bot/OPEN LIVE LINE: wrong verified destination")
     if not any("JOIN CHANNEL" in (text or "") for text in main_texts):
         errors.append("main bot missing JOIN CHANNEL")
     for button in main_buttons:
@@ -269,7 +285,7 @@ def run_navigation_self_test() -> None:
                 errors.append("main-bot/JOIN CHANNEL: wrong Telegram channel URL")
             if button.web_app is not None:
                 errors.append("main-bot/JOIN CHANNEL: must be normal Telegram URL")
-        elif "OPEN IBETIN LIVE LINE" in text:
+        elif button in live_line_buttons:
             if button.callback_data != "liveline_access":
                 errors.append("main-bot/OPEN LIVE LINE: unverified menu must use liveline_access gate")
             if button.web_app is not None or button.url:
@@ -373,15 +389,17 @@ def run_navigation_self_test() -> None:
     alert_count = 0
     mode_runtime = sys.modules.get("bot_mode_runtime")
     if mode_runtime is not None and mode_runtime._installed and mode_runtime._mode() == "liveline":
-        # The mode controller replaces match-alert Mini App buttons with a
-        # scores-only URL. Read its persisted mode at startup, not a release
-        # default: the previous switch survives a Railway restart.
+        # Mode persists across Railway restarts; validate the clean Mini App
+        # button instead of expecting Full match-alert destinations.
         expected_url = mode_runtime._scores_url()
+        expected_label = mode_runtime._score_button_label()
         alert_count += _expect_score_link(
-            "match-alert-live", match_alerts._markup("started"), expected_url, errors,
+            "match-alert-live", match_alerts._markup("started"),
+            expected_url, expected_label, errors,
         )
         alert_count += _expect_score_link(
-            "match-alert-final", match_alerts._markup("final"), expected_url, errors,
+            "match-alert-final", match_alerts._markup("final"),
+            expected_url, expected_label, errors,
         )
     else:
         alert_count += _expect_webapps("match-alert-live", match_alerts._markup("started"), errors)

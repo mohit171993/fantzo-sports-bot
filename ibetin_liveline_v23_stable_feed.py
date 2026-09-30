@@ -837,6 +837,7 @@ def _fast_matches(mode: str):
     source = "Roanuz V5 primary"
 
     if mode == "live":
+        provider_available = False
         pushed = _webhook_live_rows()
         if pushed:
             _schedule_live_discovery()
@@ -848,6 +849,7 @@ def _fast_matches(mode: str):
         _WEBHOOK_REST_FALLBACK_COUNT += 1
         try:
             raw = v20._roanuz_featured_raw()
+            provider_available = True
             selected_raw = _webhook_live_rows()
             featured_live = [x for x in raw if isinstance(x, dict) and _is_live_coverage_match(x)]
             for item in featured_live:
@@ -874,6 +876,7 @@ def _fast_matches(mode: str):
 
         try:
             raw_live = _fallback_live_candidates()
+            provider_available = True
             live = [
                 m for m in (liveline._normalize_match(x) for x in raw_live)
                 if v21._display_ok(m)
@@ -890,6 +893,7 @@ def _fast_matches(mode: str):
             # raw live-state classifier yields nothing, reuse the already proven
             # Highlightly display list used by V21 instead of rendering an empty V40.
             display_fallback = v20._OLD_MATCHES_MODE("live")
+            provider_available = True
             display_fallback = [m for m in display_fallback if v21._display_ok(m)]
             if display_fallback:
                 logger.warning(
@@ -900,10 +904,12 @@ def _fast_matches(mode: str):
             logger.info("IBETIN V23 live coverage fallback has no live/tossed matches")
         except Exception as exc:
             logger.warning("IBETIN V23 live coverage fallback failed: %s", str(exc)[:160])
-        return [], source
+        return [], source if provider_available else "Feed unavailable"
 
+    provider_available = False
     try:
         rows = v20._roanuz_matches_mode(mode)
+        provider_available = True
     except Exception as exc:
         logger.warning("IBETIN V23 Roanuz %s list failed: %s", mode, str(exc)[:160])
         rows = []
@@ -921,12 +927,13 @@ def _fast_matches(mode: str):
 
     try:
         fallback = v20._OLD_MATCHES_MODE(mode)
+        provider_available = True
         if fallback:
             logger.warning("IBETIN V23 display fallback mode=%s matches=%s", mode, len(fallback))
             return fallback[:40], "Highlightly display fallback"
     except Exception as exc:
         logger.warning("IBETIN V23 fallback failed mode=%s: %s", mode, str(exc)[:160])
-    return [], source
+    return [], source if provider_available else "Feed unavailable"
 
 
 def _match_payload(key: str):

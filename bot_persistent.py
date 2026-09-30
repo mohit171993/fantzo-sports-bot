@@ -2,7 +2,6 @@ import logging
 import os
 import re
 import secrets
-from pathlib import Path
 
 from telegram import (
     BotCommand,
@@ -42,7 +41,6 @@ QUICK_MENU = ReplyKeyboardMarkup(
 )
 
 BANNER_ENV = "FANTZO_BANNER_FILE_ID"
-WELCOME_BANNER = Path(__file__).resolve().parent / "assets" / "fantzo_home_welcome.jpg"
 MINI_APP_URL = os.getenv("FANTZO_MINI_APP_URL", "https://www.fantzo.com").strip()
 
 
@@ -155,39 +153,24 @@ async def configure_telegram_ui(application: Application) -> None:
 async def show_home(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     core.touch_user(update)
     lang = core.get_user_lang(update.effective_user.id)
-    caption = core.TEXT[lang]["welcome"]
-    markup = core.main_keyboard()
     banner_file_id = get_banner_file_id()
 
     if banner_file_id:
         try:
             await update.effective_message.reply_photo(
                 photo=banner_file_id,
-                caption=caption,
+                caption=core.TEXT[lang]["welcome"],
                 parse_mode="HTML",
-                reply_markup=markup,
+                reply_markup=core.main_keyboard(),
             )
             return
         except Exception as exc:
             logger.warning("Fantzo banner send failed, falling back to text: %s", exc)
 
-    if WELCOME_BANNER.is_file():
-        try:
-            with WELCOME_BANNER.open("rb") as image:
-                await update.effective_message.reply_photo(
-                    photo=image,
-                    caption=caption,
-                    parse_mode="HTML",
-                    reply_markup=markup,
-                )
-            return
-        except Exception as exc:
-            logger.warning("Fantzo welcome image skipped, falling back to text: %s", exc)
-
     await update.effective_message.reply_text(
-        caption,
+        core.TEXT[lang]["welcome"],
         parse_mode="HTML",
-        reply_markup=markup,
+        reply_markup=core.main_keyboard(),
         disable_web_page_preview=True,
     )
 

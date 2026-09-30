@@ -14,40 +14,40 @@ def page_html() -> str:
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<meta name="theme-color" content="#09172c">
+<meta name="theme-color" content="#0b1012">
 <meta name="description" content="IBETIN Live Line - cricket match updates, fixtures, results and match details.">
 <title>IBETIN</title>
 <link rel="canonical" href="https://ibtn.me/shiko">
-<style>@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700;800;900&display=swap');
-:root{--navy:#09172c;--blue:#0b5ab4;--gold:#4b9bf6;--ink:#122440;--muted:#728095;--bg:#eff2f7;--card:#fff}
+<style>@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Sora:wght@500;600;700;800&display=swap');
+:root{--navy:#0b1012;--blue:#00ddff;--gold:#42e6ff;--ink:#11181c;--muted:#728f95;--bg:#f1f4f5;--card:#fff}
 *{box-sizing:border-box}
-html,body{margin:0;min-height:100%;font-family:'Inter',Arial,Helvetica,sans-serif;background:var(--bg);color:var(--ink)}
+html,body{margin:0;min-height:100%;font-family:'Space Grotesk','Sora',Arial,sans-serif;background:var(--bg);color:var(--ink)}
 body{background:
-radial-gradient(circle at 90% 0%,rgba(11,90,180,.16),transparent 34%),
-linear-gradient(180deg,#f8fbff 0%,#eff2f7 58%,#e9eef5 100%)}
+radial-gradient(circle at 90% 0%,rgba(0,221,255,.16),transparent 34%),
+linear-gradient(180deg,#fbfcfc 0%,#f1f4f5 58%,#ecf1f2 100%)}
 .shell{width:min(100%,620px);margin:0 auto;padding:20px 16px 30px}
-.hero{background:linear-gradient(135deg,#061020,#0a325f 70%,#0b488e);border-radius:26px;padding:24px 20px;color:#fff;box-shadow:0 18px 44px rgba(9,28,58,.18);overflow:hidden;position:relative}
-.hero:after{content:"";position:absolute;width:180px;height:180px;border-radius:50%;background:rgba(75,155,246,.12);right:-70px;top:-70px}
+.hero{background:linear-gradient(135deg,#080b0d,#161f24 70%,#00ddff);border-radius:26px;padding:24px 20px;color:#fff;box-shadow:0 18px 44px rgba(14,20,23,.18);overflow:hidden;position:relative}
+.hero:after{content:"";position:absolute;width:180px;height:180px;border-radius:50%;background:rgba(66,230,255,.12);right:-70px;top:-70px}
 .brand{display:flex;align-items:center;gap:11px;position:relative;z-index:1}
-.mark{width:50px;height:50px;border-radius:15px;background:var(--gold);display:grid;place-items:center;color:#182942;font-weight:1000;font-size:25px}
-.brand b{font-size:23px;letter-spacing:1px}.brand small{display:block;color:#c7d8eb;font-size:11px;margin-top:2px;letter-spacing:.7px}
-.pill{display:inline-flex;margin-top:24px;padding:7px 10px;border-radius:999px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.12);font-size:11px;font-weight:800;color:#e1e9f4;position:relative;z-index:1}
+.mark{width:50px;height:50px;border-radius:15px;background:var(--gold);display:grid;place-items:center;color:#131b1f;font-weight:1000;font-size:25px}
+.brand b{font-size:23px;letter-spacing:1px}.brand small{display:block;color:#d2dee0;font-size:11px;margin-top:2px;letter-spacing:.7px}
+.pill{display:inline-flex;margin-top:24px;padding:7px 10px;border-radius:999px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.12);font-size:11px;font-weight:800;color:#e7edee;position:relative;z-index:1}
 h1{font-size:36px;line-height:1.02;margin:15px 0 10px;letter-spacing:-1px;position:relative;z-index:1}
 h1 span{color:var(--gold)}
-.sub{margin:0;color:#d9e1ee;font-size:14px;line-height:1.55;max-width:480px;position:relative;z-index:1}
-.cta{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:22px;padding:16px;border-radius:16px;background:var(--gold);color:#182942;text-decoration:none;font-weight:1000;box-shadow:0 10px 22px rgba(75,155,246,.22);position:relative;z-index:1}
+.sub{margin:0;color:#dfe7e8;font-size:14px;line-height:1.55;max-width:480px;position:relative;z-index:1}
+.cta{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:22px;padding:16px;border-radius:16px;background:var(--gold);color:#131b1f;text-decoration:none;font-weight:1000;box-shadow:0 10px 22px rgba(66,230,255,.22);position:relative;z-index:1}
 .cta small{display:block;font-size:10px;font-weight:700;opacity:.72;margin-top:2px}.arrow{font-size:23px}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
-.card{background:var(--card);border:1px solid #e2e8f0;border-radius:17px;padding:15px;box-shadow:0 7px 20px rgba(9,28,58,.06)}
-.icon{width:38px;height:38px;border-radius:12px;background:#eef4fc;display:grid;place-items:center;font-size:19px;margin-bottom:10px}
+.card{background:var(--card);border:1px solid #e5eced;border-radius:17px;padding:15px;box-shadow:0 7px 20px rgba(14,20,23,.06)}
+.icon{width:38px;height:38px;border-radius:12px;background:#f3f6f7;display:grid;place-items:center;font-size:19px;margin-bottom:10px}
 .card b{display:block;font-size:13px}.card small{display:block;color:var(--muted);font-size:10px;line-height:1.45;margin-top:3px}
-.section{margin-top:17px;background:#fff;border:1px solid #e2e8f0;border-radius:20px;padding:17px}
+.section{margin-top:17px;background:#fff;border:1px solid #e5eced;border-radius:20px;padding:17px}
 .section h2{font-size:17px;margin:0 0 12px}
 .step{display:flex;gap:11px;align-items:flex-start;padding:9px 0}
-.num{width:28px;height:28px;flex:0 0 28px;border-radius:9px;background:#ebf1fb;color:#0b5ab4;display:grid;place-items:center;font-size:11px;font-weight:1000}
+.num{width:28px;height:28px;flex:0 0 28px;border-radius:9px;background:#f1f4f5;color:#00ddff;display:grid;place-items:center;font-size:11px;font-weight:1000}
 .step b{font-size:12px}.step p{margin:2px 0 0;color:var(--muted);font-size:10px;line-height:1.45}
-.bottom{margin-top:16px;text-align:center;color:#808da0;font-size:10px;line-height:1.5}
-.bottom strong{color:#425674}
+.bottom{margin-top:16px;text-align:center;color:#809ba0;font-size:10px;line-height:1.5}
+.bottom strong{color:#4b666b}
 @media(max-width:390px){h1{font-size:31px}.grid{grid-template-columns:1fr 1fr}.hero{padding:21px 17px}.shell{padding:14px 12px 24px}}
 </style>
 </head>

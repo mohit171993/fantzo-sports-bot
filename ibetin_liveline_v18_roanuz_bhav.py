@@ -328,8 +328,8 @@ def _v18_page() -> str:
     html = v17._v17_page()
     css = r'''
 .liveChip:after{content:'V18'!important}
-.v18SourceNote{display:inline-flex;align-items:center;gap:4px;margin-left:5px;padding:3px 6px;border-radius:999px;border:1px solid #cfe5d9;background:#edf9f2;color:#23704b;font-size:5px;font-weight:1000;letter-spacing:.35px}
-html[data-v16-theme="dark"] .v18SourceNote{background:#153225;border-color:#28553d;color:#8bdeb1}
+.v18SourceNote{display:inline-flex;align-items:center;gap:4px;margin-left:5px;padding:3px 6px;border-radius:999px;border:1px solid #d3dee1;background:#edf9f2;color:#23704b;font-size:5px;font-weight:1000;letter-spacing:.35px}
+html[data-v16-theme="dark"] .v18SourceNote{background:#0f1518;border-color:#1a252b;color:#8bdeb1}
 '''
     html = html.replace("</style>", css + "\n</style>", 1)
     js = r'''

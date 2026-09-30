@@ -23,27 +23,27 @@ def _sections_page() -> str:
 .dayBlock{margin:0 0 16px}
 .dayHead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:2px 1px 8px;padding:0 2px}
 .dayHeadLeft{display:flex;align-items:center;gap:8px;min-width:0}
-.dayDot{width:8px;height:8px;border-radius:50%;background:var(--ibt-gold);box-shadow:0 0 0 4px rgba(255,201,40,.18);flex:none}
-.dayTitle{font-size:12px;font-weight:1000;color:#123f75;letter-spacing:.2px;text-transform:uppercase}
-.dayCount{font-size:8px;font-weight:900;color:#778aa1;background:#e7eef7;border:1px solid #d1deeb;padding:5px 7px;border-radius:999px;white-space:nowrap}
-.leagueBlock{background:#fff;border:1px solid #cbd9e8;border-radius:14px;overflow:hidden;box-shadow:0 5px 16px rgba(15,57,112,.07);margin-bottom:10px}
-.leagueSectionHead{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;background:linear-gradient(90deg,#082f68,#0a4c9d);color:#fff}
+.dayDot{width:8px;height:8px;border-radius:50%;background:var(--ibt-gold);box-shadow:0 0 0 4px rgba(40,226,255,.18);flex:none}
+.dayTitle{font-size:12px;font-weight:1000;color:#00ddff;letter-spacing:.2px;text-transform:uppercase}
+.dayCount{font-size:8px;font-weight:900;color:#779aa1;background:#ecf1f2;border:1px solid #d8e2e4;padding:5px 7px;border-radius:999px;white-space:nowrap}
+.leagueBlock{background:#fff;border:1px solid #d3dee0;border-radius:14px;overflow:hidden;box-shadow:0 5px 16px rgba(26,38,44,.07);margin-bottom:10px}
+.leagueSectionHead{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;background:linear-gradient(90deg,#172127,#00ddff);color:#fff}
 .leagueSectionLeft{display:flex;align-items:center;gap:9px;min-width:0}
-.leagueIcon{width:28px;height:28px;border-radius:8px;background:#ffc928;color:#082d63;display:grid;place-items:center;font-size:12px;font-weight:1000;flex:none;box-shadow:0 3px 8px rgba(0,0,0,.12)}
+.leagueIcon{width:28px;height:28px;border-radius:8px;background:#28e2ff;color:#162025;display:grid;place-items:center;font-size:12px;font-weight:1000;flex:none;box-shadow:0 3px 8px rgba(0,0,0,.12)}
 .leagueSectionText{min-width:0}
 .leagueSectionName{font-size:10px;font-weight:1000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.15px}
-.leagueSectionMeta{font-size:7px;color:#c9ddfa;margin-top:3px;text-transform:uppercase;letter-spacing:.5px}
+.leagueSectionMeta{font-size:7px;color:#dce5e7;margin-top:3px;text-transform:uppercase;letter-spacing:.5px}
 .leagueCount{font-size:8px;font-weight:1000;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);padding:5px 7px;border-radius:999px;white-space:nowrap}
-.leagueMatches{padding:9px;background:#f5f8fc;display:grid;gap:9px}
-.leagueMatches .match{box-shadow:0 3px 10px rgba(15,57,112,.06)!important;border-radius:11px!important;margin:0!important}
-.leagueMatches .matchHead{background:#eaf2fb!important;border-bottom:1px solid #d4e0ec!important;padding:8px 10px 8px 12px!important}
-.leagueMatches .league{display:none!important}.leagueMatches .format{color:#597797!important;margin-top:0!important;font-weight:900!important;text-transform:uppercase!important}
+.leagueMatches{padding:9px;background:#f7f9fa;display:grid;gap:9px}
+.leagueMatches .match{box-shadow:0 3px 10px rgba(26,38,44,.06)!important;border-radius:11px!important;margin:0!important}
+.leagueMatches .matchHead{background:#f0f4f5!important;border-bottom:1px solid #dae4e6!important;padding:8px 10px 8px 12px!important}
+.leagueMatches .league{display:none!important}.leagueMatches .format{color:#62868e!important;margin-top:0!important;font-weight:900!important;text-transform:uppercase!important}
 .leagueMatches .badgeLive{font-size:7px!important}.leagueMatches .badgeState{font-size:7px!important}
 .leagueMatches .matchBody{padding:7px 10px 6px 12px!important}.leagueMatches .team{min-height:45px!important}.leagueMatches .teamBadge{width:34px!important;height:34px!important}
 .leagueMatches .score{font-size:17px!important}.leagueMatches .matchFoot{padding:8px 10px 8px 12px!important}.leagueMatches .arrow{width:23px!important;height:23px!important}
 .sectionGuide{display:flex;align-items:center;gap:6px;overflow:auto;margin:0 0 10px;padding-bottom:2px;scrollbar-width:none}.sectionGuide::-webkit-scrollbar{display:none}
-.guideChip{white-space:nowrap;background:#fff;border:1px solid #cedbe9;border-radius:999px;padding:6px 9px;color:#5e7691;font-size:8px;font-weight:900}
-.guideChip strong{color:#0a4a99}
+.guideChip{white-space:nowrap;background:#fff;border:1px solid #d5e0e2;border-radius:999px;padding:6px 9px;color:#62868d;font-size:8px;font-weight:900}
+.guideChip strong{color:#00ddff}
 @media(min-width:600px){.leagueMatches{grid-template-columns:1fr 1fr}.leagueMatches .match{min-height:185px!important}}
 '''
     html = html.replace("</style>", css + "\n</style>", 1)

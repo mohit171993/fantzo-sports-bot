@@ -1212,11 +1212,10 @@ async def admin_crm_text_handler(update, context) -> None:
 async def configure_telegram_ui(application) -> None:
     # Telegram shows these before a new user presses START.
     await application.bot.set_my_short_description(
-        "IBTN LIVE LINE • Live cricket scores and updates"
+        "⚡ The fastest live line: ball by ball, run rates and scorecards."
     )
     await application.bot.set_my_description(
-        "IBTN LIVE LINE shows live cricket scores, fixtures and results. "
-        "Verify your Telegram-linked mobile in chat to continue to account support."
+        "⚡ Faster than the TV. Sharper than the rest.\n🏏 Ball-by-ball live line\n📊 Run rate, required rate and full scorecards\n⚽ Live football scores\n🔔 Alerts for every big moment\nTap START for the fastest live updates!"
     )
 
     await application.bot.set_my_commands(

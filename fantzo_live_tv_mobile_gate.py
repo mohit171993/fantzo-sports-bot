@@ -347,12 +347,12 @@ async def _prompt_mobile(update: Update, context, source: str) -> None:
     await message.reply_text(
         f"{title}\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
-        f"{detail}\n\n"
-        "Tap <b>📱 VERIFY & CONTINUE</b> below. Telegram will share the "
+        f"🔐 {detail}\n\n"
+        "👇 Tap <b>📱 VERIFY &amp; CONTINUE</b> below. Telegram will share the "
         "mobile number linked to your own Telegram account.\n\n"
-        "Numbers from <b>any country</b> are accepted. "
+        "🌍 Numbers from <b>any country</b> are accepted. "
         "Typed numbers are not accepted.\n\n"
-        "By sharing your Telegram-linked number, you agree that Fantzo may "
+        "📞 By sharing your Telegram-linked number, you agree that Fantzo may "
         "contact you about your enquiry. You can ask us to stop at any time.",
         parse_mode="HTML",
         reply_markup=_verify_keyboard(),

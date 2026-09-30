@@ -146,15 +146,15 @@ def _liveline_verification_page(token: str = "") -> str:
 <title>Verify account</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
-*{{box-sizing:border-box}}html,body{{margin:0;min-height:100%;font-family:Inter,Arial,sans-serif;background:#eef3f8;color:#102c4b}}
+*{{box-sizing:border-box}}html,body{{margin:0;min-height:100%;font-family:Inter,Arial,sans-serif;background:#071A34;color:#F6FBFF}}
 .wrap{{max-width:560px;margin:0 auto;padding:28px 18px}}
-.card{{margin-top:42px;background:#fff;border-radius:22px;padding:26px 20px;box-shadow:0 10px 32px rgba(5,34,69,.10);text-align:center}}
-.mark{{width:60px;height:60px;border-radius:18px;margin:0 auto 16px;display:grid;place-items:center;background:#f6c84b;font-size:30px}}
-h1{{margin:0;font-size:24px}}p{{color:#6d8297;line-height:1.55;font-size:14px}}
-.btn{{display:block;margin-top:20px;padding:15px 16px;border-radius:14px;background:#0b5cb4;color:#fff;text-decoration:none;font-weight:900;box-shadow:0 8px 18px rgba(11,92,180,.18)}}
+.card{{margin-top:42px;background:#0B2748;border:1px solid #1A4E86;border-radius:22px;padding:26px 20px;box-shadow:0 10px 32px rgba(0,0,0,.28);text-align:center}}
+.mark{{width:60px;height:60px;border-radius:18px;margin:0 auto 16px;display:grid;place-items:center;background:#F6C84B;font-size:30px}}
+h1{{margin:0;font-size:24px;color:#F6FBFF}}p{{color:#A9C7E8;line-height:1.55;font-size:14px}}
+.btn{{display:block;margin-top:20px;padding:15px 16px;border-radius:14px;background:#0B5CB4;color:#F6FBFF;text-decoration:none;font-weight:900;box-shadow:0 8px 18px rgba(11,92,180,.28)}}
 .benefits{{display:flex;justify-content:center;flex-wrap:wrap;gap:7px;margin:16px 0 2px}}
-.benefits span{{background:#f3f7fb;border:1px solid #e3ebf3;border-radius:999px;padding:7px 9px;font-size:11px;font-weight:800;color:#41627f}}
-.note{{font-size:12px;color:#8a9bad;margin-top:14px;line-height:1.45}}
+.benefits span{{background:#0E3258;border:1px solid #1A4E86;border-radius:999px;padding:7px 9px;font-size:12px;font-weight:800;color:#F6FBFF}}
+.note{{font-size:12px;color:#A9C7E8;margin-top:14px;line-height:1.45}}
 </style>
 </head>
 <body><div class="wrap"><div class="card">
@@ -431,7 +431,7 @@ def _page_v30() -> str:
 .chaseBox{margin-top:9px;background:linear-gradient(135deg,#edf6ff,#f8fbff);border:1px solid #d8e9f8;border-radius:12px;padding:11px 12px}.chaseBox b{display:block;font-size:14px;color:#164a79}.chaseBox span{font-size:10px;color:#6f8498}.lastSix{display:flex;align-items:center;gap:6px;overflow:auto;margin-top:10px;scrollbar-width:none}.lastSix::-webkit-scrollbar{display:none}.lastSixTitle{font-size:9px;font-weight:1000;color:#8194a7;letter-spacing:.4px;margin-right:2px;white-space:nowrap}.ballChip{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:#eaf1f8;color:#294d70;font-size:10px;font-weight:1000;flex:none}.ballChip.boundary{background:#e6f4ff;color:#0968b7}.ballChip.six{background:#efe9ff;color:#6943b5}.ballChip.wicket{background:#fff0f2;color:#d02f47}.ballChip.extra{background:#fff6db;color:#856200}
 .dtabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin:11px 0}.dtab{height:43px;border:1px solid #e4ebf2;border-radius:12px;background:#fff;color:#687f96;font-size:9px;font-weight:1000;padding:0 3px}.dtab.on{background:#0a315f;color:#fff;border-color:#0a315f}.panel{background:#fff;border-radius:16px;padding:13px;box-shadow:var(--shadow);margin-bottom:14px}.ptitle{margin-bottom:10px}.ptitle b{font-size:13px}.notice{background:#f7f9fb;border-radius:12px;padding:11px;font-size:11px;color:#647c92;line-height:1.5;margin-bottom:8px}.metricRow{display:flex;gap:7px;flex-wrap:wrap}.metric{display:inline-flex;gap:4px;align-items:center;background:#edf4fb;border-radius:999px;padding:7px 9px;color:#58728b;font-size:10px}.playerStrip{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.playerCard{background:#f7f9fc;border:1px solid #e8edf3;border-radius:12px;padding:10px;min-width:0}.playerRole{font-size:8px;font-weight:1000;color:#8b9caf;letter-spacing:.6px;margin-bottom:4px}.playerName{font-size:11px;font-weight:900;color:#173a5e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.playerStat{font-size:10px;color:#617b93;margin-top:3px}
 .innings{display:grid;gap:8px}.inning{border:1px solid #e7edf3;background:#f9fbfd;border-radius:12px;padding:11px}.inningTop{display:flex;align-items:center;justify-content:space-between;gap:8px}.inningTeam{font-size:12px;font-weight:900}.inningScore{font-size:18px;font-weight:1000;color:#083f7f}.inningMeta{font-size:10px;color:#8091a2;margin-top:4px}.balls{display:grid;gap:7px}.ball{background:#f8fafc;border-radius:10px;padding:9px;font-size:10px;line-height:1.45}.moreGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.moreItem{border:1px solid #e5ebf2;background:#f8fafc;border-radius:13px;padding:14px 11px;text-align:left;color:#234766;font-size:11px;font-weight:900}.moreItem span{display:block;font-size:9px;font-weight:600;color:#7d90a3;margin-top:4px}.kv{display:grid;grid-template-columns:1fr auto;gap:8px;padding:9px 0;border-bottom:1px solid #edf1f4;font-size:10px}.kv b{color:#244867}
-.bottom{position:fixed;left:14px;right:14px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:40;max-width:732px;margin:auto;display:grid;grid-template-columns:repeat(4,1fr);gap:4px;background:rgba(5,22,45,.98);border-radius:20px;padding:8px;box-shadow:0 12px 30px rgba(4,23,48,.25)}.bottom button{border:0;background:transparent;color:#9fb2c8;height:54px;border-radius:13px;font-size:9px;font-weight:1000}.bottom b{display:block;font-size:18px;margin-bottom:2px}.bottom .on{background:rgba(255,255,255,.1);color:#fff}
+.bottom{position:fixed;left:14px;right:14px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:40;max-width:732px;margin:auto;display:grid;grid-template-columns:repeat(4,1fr);gap:4px;background:rgba(5,22,45,.98);border-radius:20px;padding:8px;box-shadow:0 12px 30px rgba(4,23,48,.25)}.bottom button{border:0;background:transparent;color:#D5E6F7;height:54px;border-radius:13px;font-size:12px;font-weight:1000}.bottom b{display:block;font-size:18px;margin-bottom:2px}.bottom .on{background:rgba(255,255,255,.1);color:#fff}
 @media(min-width:620px){.list{grid-template-columns:1fr 1fr}.league{grid-column:1/-1}}@media(max-width:390px){.brand b{font-size:20px}.mark{width:42px;height:42px}.tab{font-size:12px}.tn{font-size:15px}.sc{font-size:24px}.sval{font-size:27px}.playerStrip{grid-template-columns:1fr}.oddsRow{grid-template-columns:1fr 1fr}.oddsTitle{grid-column:1/-1}.dtab{font-size:8px}.quickOdds{grid-template-columns:1fr 1fr}}
 </style><link rel="icon" href="data:">
 </head>
@@ -604,7 +604,7 @@ body{padding-bottom:calc(105px + env(safe-area-inset-bottom))!important}
 .main{padding-bottom:calc(185px + env(safe-area-inset-bottom))!important}
 .detail{padding-bottom:calc(185px + env(safe-area-inset-bottom))!important}
 .bottom{left:16px!important;right:16px!important;bottom:calc(8px + env(safe-area-inset-bottom))!important;padding:6px!important;border-radius:18px!important}
-.bottom button{height:48px!important;font-size:8px!important}
+.bottom button{height:48px!important;font-size:12px!important}
 .bottom b{font-size:17px!important;margin-bottom:1px!important}
 body:before{content:"PREVIEW";position:fixed;right:10px;top:8px;z-index:9999;background:#7b43f6;color:#fff;font-size:8px;font-weight:1000;letter-spacing:1px;padding:5px 8px;border-radius:999px;pointer-events:none}
 .previewHomeOdds{padding:12px 13px 13px;border-top:1px solid #153d5d;background:#051522}
@@ -1289,7 +1289,7 @@ button:active{opacity:.86}
 
 /* Bottom nav stays clean on home, hidden by V38 on detail */
 .bottom{left:18px!important;right:18px!important;border-radius:16px!important;padding:5px!important;box-shadow:0 12px 30px rgba(0,0,0,.34)!important}
-.bottom button{height:44px!important;font-size:7px!important}
+.bottom button{height:44px!important;font-size:12px!important}
 .bottom b{font-size:15px!important}
 
 /* Empty-live state with useful upcoming matches */
@@ -1348,7 +1348,7 @@ button:active{opacity:.86}
 .ibQuickPromo button{font-size:9px!important}
 .dtab{height:39px!important;font-size:9px!important}
 .ptitle b{font-size:11px!important}
-.bottom button{height:48px!important;font-size:9px!important}
+.bottom button{height:48px!important;font-size:12px!important}
 .bottom b{font-size:17px!important}
 .v40LiveEmpty b{font-size:15px!important}
 .v40LiveEmpty span{font-size:10px!important;line-height:1.45!important}
@@ -1584,7 +1584,7 @@ body:before{display:none!important}
 .ibQuickPromo span{font-size:8px!important;line-height:1.35!important}
 .ibQuickPromo button{font-size:8.5px!important;padding:8px 10px!important}
 .bottom{left:12px!important;right:12px!important;padding:6px!important}
-.bottom button{height:48px!important;font-size:9px!important}
+.bottom button{height:48px!important;font-size:12px!important}
 .bottom b{font-size:17px!important}
 .v40LiveEmpty b{font-size:15px!important}
 .v40LiveEmpty span{font-size:10px!important;line-height:1.45!important}
@@ -1595,7 +1595,7 @@ body:before{display:none!important}
   .tab{font-size:10px!important}
   .tn{font-size:12px!important}
   .sc{font-size:21px!important}
-  .bottom button{font-size:8.5px!important}
+  .bottom button{font-size:12px!important}
 }
 @media(prefers-reduced-motion:reduce){
   .match,.scorehero,.v38Pulse,.quickMarket{animation:none!important}

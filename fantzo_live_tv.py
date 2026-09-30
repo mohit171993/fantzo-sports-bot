@@ -55,19 +55,20 @@ def _page() -> str:
 <title>Fantzo MiniTV</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700;800;900&display=swap');
 *{{box-sizing:border-box}}
-html,body{{margin:0;width:100%;height:100%;background:#050b14;color:#fff;font-family:Arial,Helvetica,sans-serif;overflow:hidden}}
-.shell{{height:100%;display:flex;flex-direction:column;background:#050b14}}
-.top{{height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;background:#0b1320;border-bottom:1px solid #1b2a3d;flex:0 0 auto}}
-.brand{{font-size:15px;font-weight:900;letter-spacing:.5px}}
-.badge{{font-size:11px;font-weight:800;color:#8ea2bb;border:1px solid #27384e;border-radius:999px;padding:6px 9px}}
+html,body{{margin:0;width:100%;height:100%;background:#060d1f;color:#fff;font-family:'Inter',Arial,Helvetica,sans-serif;overflow:hidden}}
+.shell{{height:100%;display:flex;flex-direction:column;background:#060d1f}}
+.top{{height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;background:#0a1630;border-bottom:1px solid #6e5a2c;flex:0 0 auto}}
+.brand{{font-size:15px;font-weight:900;letter-spacing:.5px;font-family:'Barlow Condensed','Arial Narrow',Arial,sans-serif;color:#d6b05c}}
+.badge{{font-size:11px;font-weight:800;color:#d6b05c;border:1px solid #6e5a2c;border-radius:999px;padding:6px 9px}}
 .frame-wrap{{position:relative;flex:1;min-height:0;background:#000}}
 iframe{{width:100%;height:100%;border:0;background:#000}}
-.fallback{{position:absolute;inset:0;display:none;align-items:center;justify-content:center;padding:24px;background:#07101c;text-align:center}}
+.fallback{{position:absolute;inset:0;display:none;align-items:center;justify-content:center;padding:24px;background:#07122a;text-align:center}}
 .card{{max-width:360px}}
-.card h2{{margin:0 0 10px;font-size:23px}}
-.card p{{color:#9cadc2;line-height:1.5;font-size:14px}}
-.btn{{display:block;margin-top:16px;padding:15px 18px;border-radius:14px;background:#fff;color:#07101c;text-decoration:none;font-weight:900}}
+.card h2{{margin:0 0 10px;font-size:23px;font-family:'Barlow Condensed','Arial Narrow',Arial,sans-serif}}
+.card p{{color:#a9b6cc;line-height:1.5;font-size:14px}}
+.btn{{display:block;margin-top:16px;padding:15px 18px;border-radius:14px;background:#d6b05c;color:#07122a;text-decoration:none;font-weight:900}}
 </style>
 </head>
 <body>

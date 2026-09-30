@@ -67,6 +67,7 @@ class MenuTransitionTests(unittest.TestCase):
             "_brand": "dura", "asyncio": asyncio,
             "phone_verify": SimpleNamespace(is_verified=lambda uid: uid == 456),
             "_scores_url": lambda uid: f"https://dura.example/scores?access=signed-{uid}",
+            "_score_button_label": lambda: "🏏 OPEN DURASPORTS LIVE LINE",
             "_brand_label": lambda: "DURA",
             "tracked": SimpleNamespace(VERIFIED_COMMANDS=full_commands),
             "hub": SimpleNamespace(hub_url=lambda _section:
@@ -82,6 +83,8 @@ class MenuTransitionTests(unittest.TestCase):
         self.assertEqual([item.command for item in bot.calls[0][1]], ["start", "help"])
         self.assertEqual(bot.calls[1][1]["menu_button"].web_app.url,
                          "https://dura.example/scores?access=signed-456")
+        self.assertEqual(bot.calls[1][1]["menu_button"].text,
+                         "🏏 OPEN DURASPORTS LIVE LINE")
         self.assertNotIn("hub", bot.calls[1][1]["menu_button"].web_app.url)
         bot.calls.clear()
         asyncio.run(scope["_set_verified_chat_ui"](bot, 999, LIVE_LINE))

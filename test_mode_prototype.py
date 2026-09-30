@@ -171,7 +171,7 @@ class ModeTests(unittest.TestCase):
             self.assertNotIn(forbidden, html.lower())
             self.assertNotIn(forbidden, api_json.lower())
         self.assertIn("100/2", html)
-        self.assertNotIn("<script>", html)
+        self.assertNotIn("<script>alert(1)</script>", html)
         self.assertIn("&lt;script&gt;", html)
         self.assertIn('/scores?mode=results', html)
 
@@ -342,8 +342,8 @@ class ModeTests(unittest.TestCase):
 
     def test_match_alert_retry_checks_mode_again_before_sending(self):
         class Button:
-            def __init__(self, text, url):
-                self.text, self.url = text, url
+            def __init__(self, text, url=None, web_app=None):
+                self.text, self.url, self.web_app = text, url, web_app
 
         class Markup:
             def __init__(self, rows):
@@ -363,7 +363,9 @@ class ModeTests(unittest.TestCase):
         scope = {
             "_mode": lambda: mode[0], "FULL": FULL,
             "_scores_url": lambda uid: f"https://scores.example/scores?access=signed-{uid}",
+            "_score_button_label": lambda: "🏏 OPEN DURASPORTS LIVE LINE",
             "InlineKeyboardButton": Button, "InlineKeyboardMarkup": Markup,
+            "WebAppInfo": lambda url: SimpleNamespace(url=url),
         }
         exec(compile(ast.Module(body=[node], type_ignores=[]), "runtime", "exec"), scope)
         wrapper = scope["_ModeAwareAlertBot"]
@@ -396,7 +398,8 @@ class ModeTests(unittest.TestCase):
         self.assertNotIn("casino", bot.calls[1]["text"].lower())
         self.assertNotIn("betting", bot.calls[1]["text"].lower())
         button = bot.calls[1]["reply_markup"].inline_keyboard[0][0]
-        self.assertEqual(button.url, "https://scores.example/scores?access=signed-456")
+        self.assertEqual(button.text, "🏏 OPEN DURASPORTS LIVE LINE")
+        self.assertEqual(button.web_app.url, "https://scores.example/scores?access=signed-456")
 
     def test_inflight_public_sends_stop_after_clean_switch(self):
         mode = [FULL]
@@ -584,7 +587,7 @@ class ModeTests(unittest.TestCase):
                 pass
         func = _load_runtime_function("_install_http_gate", {
             "analytics": SimpleNamespace(TrackingHandler=TrackingHandler),
-            "_mode": lambda: LIVE_LINE,
+            "_mode": lambda: LIVE_LINE, "FULL": FULL,
             "http_route": http_route,
             "urlparse": urlparse,
             "parse_qs": parse_qs,

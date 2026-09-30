@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
+from unittest.mock import patch
 
 from mode_control import FULL, LIVE_LINE, ModeStore
 
@@ -64,6 +65,19 @@ class NavigationRestartTests(unittest.TestCase):
             Button("📢 JOIN CHANNEL", url=channel),
             Button("🚀 OPEN IBETIN", web_app=web_app),
         ]])
+        phone_verify = SimpleNamespace(
+            is_verified=lambda _user_id: False,
+            live_line_url=lambda _user_id, _base_url: "https://example.invalid/liveline?access=signed",
+        )
+
+        def premium_main_keyboard(user_id=0):
+            if user_id and phone_verify.is_verified(user_id):
+                return Markup([[
+                    Button("🏏 OPEN IBETIN LIVE LINE", web_app=SimpleNamespace(
+                        url=phone_verify.live_line_url(user_id, "https://example.invalid/liveline"),
+                    )),
+                ]])
+            return main
         autoreply = Markup([[
             Button("📢 JOIN CHANNEL", url=channel),
             Button("🚀 OPEN IBETIN", web_app=web_app),
@@ -114,7 +128,9 @@ class NavigationRestartTests(unittest.TestCase):
             "log": SimpleNamespace(info=lambda *_args: None, exception=lambda *_args: None),
             "FULL": FULL, "LIVE_LINE": LIVE_LINE,
             "InlineKeyboardButton": Button, "InlineKeyboardMarkup": Markup,
+            "WebAppInfo": lambda url: SimpleNamespace(url=url),
             "_scores_url": lambda: SCORES_URL,
+            "_score_button_label": lambda: "🏏 OPEN DURASPORTS LIVE LINE",
         })
         _load_functions("bot_mode_runtime.py", {"_mode", "install"}, runtime.__dict__)
         runtime.install("dura")  # Reopens the switched SQLite mode as startup does.
@@ -126,7 +142,9 @@ class NavigationRestartTests(unittest.TestCase):
         start_scope = {
             "sys": SimpleNamespace(modules={"bot_mode_runtime": runtime}),
             "ibetin_entry": SimpleNamespace(runtime=SimpleNamespace(
-                premium_main_keyboard=lambda: main,
+                premium_main_keyboard=premium_main_keyboard,
+                phone_verify=phone_verify,
+                fantzo_live_tv=SimpleNamespace(minitv_url=lambda _user_id: ""),
                 app=SimpleNamespace(fantzo_autoreply=SimpleNamespace(
                     standard_keyboard=lambda: autoreply)))),
             "business": business, "reminders": reminders, "match_alerts": self.alerts,
@@ -137,6 +155,7 @@ class NavigationRestartTests(unittest.TestCase):
                 "support": hub.IBETIN_SUPPORT_URL,
             }[section],
             "logger": SimpleNamespace(info=lambda *_args: None),
+            "patch": patch,
         }
         _load_functions("ibetin_start.py", {
             "_buttons", "_expect_webapps", "_expect_score_link",
@@ -149,20 +168,22 @@ class NavigationRestartTests(unittest.TestCase):
         self.self_test()
         for event in ("started", "final"):
             button = self.alerts._markup(event).inline_keyboard[0][0]
-            self.assertEqual(button.url, SCORES_URL)
-            self.assertIsNone(button.web_app)
+            self.assertEqual(button.text, "🏏 OPEN DURASPORTS LIVE LINE")
+            self.assertEqual(button.web_app.url, SCORES_URL)
+            self.assertIsNone(button.url)
             self.assertIsNone(button.callback_data)
 
         self.alerts._markup = lambda _event: Markup([[
-            Button("Open Match Scores", web_app=SimpleNamespace(url=SCORES_URL)),
+            Button("🏏 OPEN DURASPORTS LIVE LINE", url=SCORES_URL),
         ]])
-        with self.assertRaisesRegex(RuntimeError, "URL-only score button"):
+        with self.assertRaisesRegex(RuntimeError, "wrong score Mini App URL"):
             self.self_test()
 
         self.alerts._markup = lambda _event: Markup([[
-            Button("Open Match Scores", url="https://wrong.example/scores"),
+            Button("🏏 OPEN DURASPORTS LIVE LINE", web_app=SimpleNamespace(
+                url="https://wrong.example/scores")),
         ]])
-        with self.assertRaisesRegex(RuntimeError, "wrong score URL"):
+        with self.assertRaisesRegex(RuntimeError, "wrong score Mini App URL"):
             self.self_test()
 
     def test_full_mode_still_requires_webapp_match_alerts(self):

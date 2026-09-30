@@ -12,6 +12,8 @@ import json
 import logging
 import os
 import sqlite3
+import threading
+import time
 from contextlib import closing
 from html import escape
 from urllib.parse import parse_qs, urlencode, urlparse
@@ -48,7 +50,10 @@ from mode_control import (
     is_persistent_mode_path, is_persistent_volume_mounted,
     parse_admin_mode_request,
 )
-from scores_only import alert_score_match, score_matches, score_page
+from scores_only import (
+    alert_score_match, merge_score_match, score_detail, score_match,
+    score_matches, score_page,
+)
 
 
 log = logging.getLogger(__name__)
@@ -57,6 +62,10 @@ _store: ModeStore | None = None
 _brand = ""
 _menu_reconciliation_task: asyncio.Task | None = None
 _default_menu_lock = asyncio.Lock()
+_score_view_lock = threading.RLock()
+_score_view_cache: dict[tuple[str, str], tuple[float, dict]] = {}
+_score_view_key_locks: dict[tuple[str, str], threading.Lock] = {}
+SCORE_VIEW_DETAIL_SECONDS = 30
 # Two Telegram writes per chat at five chats per second stays below the normal
 # bot-wide request budget while old per-chat settings are replaced.
 MENU_RECONCILE_BATCH = 50
@@ -71,6 +80,11 @@ ADMIN_PRIVATE_STATUS_COMMANDS = frozenset({"/admin", "/reports"})
 
 def _brand_label() -> str:
     return {"ibetin": "iBetin", "dura": "DURA"}.get(_brand, _brand.title())
+
+
+def _score_button_label() -> str:
+    return ("🏏 OPEN DURASPORTS LIVE LINE" if _brand == "dura"
+            else f"🏏 OPEN {_brand_label().upper()} LIVE LINE")
 
 
 def _admin_id() -> int:
@@ -140,7 +154,9 @@ class _ModeAwareAlertBot:
             # Never reuse its old copy or Mini App link after a clean switch.
             kwargs["text"] = "📊 Match update\n\nOpen match scores for the latest result."
             kwargs["reply_markup"] = InlineKeyboardMarkup([[
-                InlineKeyboardButton("Open Match Scores", url=_scores_url(self.user_id)),
+                InlineKeyboardButton(
+                    _score_button_label(), web_app=WebAppInfo(url=_scores_url(self.user_id)),
+                ),
             ]])
         return await self.bot.send_message(**kwargs)
 
@@ -251,7 +267,7 @@ async def _set_verified_chat_ui(bot, user_id: int, mode: str) -> bool:
                 BotCommand("help", "Verification help"),
             ]
             menu_url = _scores_url(user_id)
-            menu_text = f"Open {_brand_label()} Scores"
+            menu_text = _score_button_label()
         else:
             commands = tracked.VERIFIED_COMMANDS
             menu_url = hub.hub_url("home")
@@ -445,7 +461,7 @@ async def _send_verified_scores(message, context, user_id: int) -> None:
     await message.reply_text(
         f"📊 {_brand_label()} match scores and updates are here.",
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(
-            "Open Match Scores", url=url,
+            _score_button_label(), web_app=WebAppInfo(url=url),
         )]]),
     )
 
@@ -566,8 +582,82 @@ def _safe_rows(mode: str):
         mode = "live"
     # V25 has already patched this accessor to use its warm, stale-while-refresh
     # cache; only our allowlisted score fields leave the server.
-    rows, _source = live_runtime.v23._fast_matches(mode)
+    rows, source = live_runtime.v25._fast_matches_cached(mode)
+    if not rows and source == "Feed unavailable":
+        raise RuntimeError("Score feed unavailable")
     return score_matches(rows or [])
+
+
+def _score_key(raw: str) -> str:
+    key = str(raw or "").strip()
+    numeric = key.isascii() and key.isdecimal() and len(key) <= 30
+    if not key or len(key) > 100 or not (numeric or live_runtime.v25._roanuz_key(key)):
+        raise ValueError("Invalid match key")
+    return key
+
+
+def _listed_score_match(raw_key: str, mode: str) -> dict:
+    key = _score_key(raw_key)
+    if mode not in {"live", "upcoming", "results"}:
+        raise ValueError("Invalid match view")
+    for row in _safe_rows(mode):
+        if row["id"] == key:
+            return row
+    raise ValueError("Match is not in this score view")
+
+
+def _cached_score_view(key: str, kind: str, build) -> dict:
+    """Share one safe detail refresh across viewers for at least 30 seconds."""
+    cache_key = (kind, key)
+    with _score_view_lock:
+        now = time.monotonic()
+        cached = _score_view_cache.get(cache_key)
+        if cached and now - cached[0] < SCORE_VIEW_DETAIL_SECONDS:
+            return cached[1]
+        key_lock = _score_view_key_locks.setdefault(cache_key, threading.Lock())
+    # The network call is serialized per match, without blocking other matches.
+    with key_lock:
+        with _score_view_lock:
+            now = time.monotonic()
+            cached = _score_view_cache.get(cache_key)
+            if cached and now - cached[0] < SCORE_VIEW_DETAIL_SECONDS:
+                return cached[1]
+        result = build()
+        if not isinstance(result, dict):
+            raise RuntimeError("Score detail unavailable")
+        with _score_view_lock:
+            if len(_score_view_cache) >= 256:
+                _score_view_cache.clear()
+            _score_view_cache[cache_key] = (time.monotonic(), result)
+        return result
+
+
+def _safe_score_match(raw_key: str, mode: str) -> dict:
+    row = _listed_score_match(raw_key, mode)
+    key = row["id"]
+    def build():
+        summary = live_runtime.v25._score_summary_cached(key)
+        if not isinstance(summary, dict):
+            raise RuntimeError("Score detail unavailable")
+        if not summary.get("roanuzMatchKey") and not summary.get("id"):
+            summary = {**summary, "id": key}
+        return score_match(summary)
+    return merge_score_match(row, _cached_score_view(key, "score", build))
+
+
+def _safe_score_detail(raw_key: str, mode: str) -> dict:
+    row = _listed_score_match(raw_key, mode)
+    key = row["id"]
+    def build():
+        detail, _source = live_runtime.v25._match_detail_cached(key)
+        if not isinstance(detail, dict) or not isinstance(detail.get("match"), dict):
+            raise RuntimeError("Score detail unavailable")
+        match = detail["match"]
+        if not match.get("roanuzMatchKey") and not match.get("id"):
+            detail = {**detail, "match": {**match, "id": key}}
+        return score_detail(detail)
+    safe = _cached_score_view(key, "match", build)
+    return {**safe, "match": merge_score_match(row, safe["match"])}
 
 
 def _send_bytes(handler, status: int, body: bytes, content_type: str,
@@ -604,7 +694,19 @@ def _install_http_gate() -> None:
 
     def gated_get(self):
         parsed = urlparse(self.path)
-        decision = http_route(_mode(), "GET", parsed.path)
+        current_mode = _mode()
+        if current_mode == FULL and parsed.path == "/scores":
+            # Old clean-mode Mini App buttons should work after switching back.
+            supplied = (parse_qs(parsed.query).get("access") or [""])[0]
+            access = supplied if phone_verify.verify_access_token(supplied) else ""
+            target = "/liveline" + ("?" + urlencode({"access": access}) if access else "")
+            self.send_response(302)
+            self.send_header("Location", target)
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        decision = http_route(current_mode, "GET", parsed.path)
         if decision == "pass":
             return original_get(self)
         if decision == "scores":
@@ -637,21 +739,39 @@ def _install_http_gate() -> None:
                 rows = _safe_rows(mode)
             except Exception:
                 log.exception("Score feed unavailable")
-                rows = []
+                body = score_page([], _brand_label(), mode, feed_error=True).encode("utf-8")
+                return _send_bytes(self, 503, body, "text/html; charset=utf-8", token)
             body = score_page(rows, _brand_label(), mode).encode("utf-8")
             return _send_bytes(self, 200, body, "text/html; charset=utf-8", token)
         if decision == "scores_api":
             _user_id, token, verified = _verified_scores_identity(self, parsed)
             if not verified:
                 return _send_bytes(self, 401, b'{"ok":false}', "application/json; charset=utf-8")
-            mode = (parse_qs(parsed.query).get("mode") or ["live"])[0]
+            query = parse_qs(parsed.query)
+            action = (query.get("action") or ["matches"])[0]
             try:
-                rows = _safe_rows(mode)
-                body = json.dumps({"ok": True, "matches": rows}).encode("utf-8")
+                if action == "matches":
+                    mode = (query.get("mode") or ["live"])[0]
+                    payload = {"ok": True, "matches": _safe_rows(mode)}
+                elif action == "score":
+                    key = (query.get("id") or [""])[0]
+                    mode = (query.get("mode") or ["live"])[0]
+                    payload = {"ok": True, "match": _safe_score_match(key, mode)}
+                elif action == "match":
+                    key = (query.get("id") or [""])[0]
+                    mode = (query.get("mode") or ["live"])[0]
+                    payload = {"ok": True, "detail": _safe_score_detail(key, mode)}
+                else:
+                    raise ValueError("Invalid score action")
+                body = json.dumps(payload).encode("utf-8")
                 return _send_bytes(self, 200, body, "application/json; charset=utf-8", token)
+            except ValueError:
+                return _send_bytes(self, 400, b'{"ok":false,"error":"invalid_request"}',
+                                   "application/json; charset=utf-8")
             except Exception:
                 log.exception("Score API unavailable")
-                return _send_bytes(self, 503, b'{"ok":false}', "application/json; charset=utf-8")
+                return _send_bytes(self, 503, b'{"ok":false,"error":"feed_unavailable"}',
+                                   "application/json; charset=utf-8")
         if decision == "redirect":
             # Preserve first-touch open counts for existing /go ad links while
             # routing the visitor to scores instead of the external site.
@@ -765,7 +885,7 @@ def install(brand: str) -> None:
         if _mode() == FULL:
             return original_alert_markup(event_key)
         return InlineKeyboardMarkup([[InlineKeyboardButton(
-            "Open Match Scores", url=_scores_url(),
+            _score_button_label(), web_app=WebAppInfo(url=_scores_url()),
         )]])
 
     async def alert_send_by_mode(bot, user_id, text, markup):

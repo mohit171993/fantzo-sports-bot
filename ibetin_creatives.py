@@ -26,8 +26,8 @@ TEST_CAMPAIGN_KEY = "liveline-direct-v40-test-mohit-97saxena-20260918-v3"
 CREATIVE_UNLOCK_CODE = os.getenv("IBETIN_CREATIVE_UNLOCK_CODE", "").strip()
 APPROVED_BRAND = "dura"
 FALLBACK_FILES = {
-    "channel": Path(__file__).resolve().parent / "assets" / "dura-channel-banner.png",
-    "reminder": Path(__file__).resolve().parent / "assets" / "dura-reminder-banner.png",
+    "channel": Path(__file__).resolve().parent / "assets" / "dura-channel-banner.jpg",
+    "reminder": Path(__file__).resolve().parent / "assets" / "dura-reminder-banner.jpg",
 }
 OTHER_BRAND = re.compile(r"(?i)(?:fantzo|ibetin|ibtn|betroxy)")
 
@@ -71,8 +71,8 @@ def ensure_tables() -> None:
 def _seed_bundled_creatives() -> None:
     """Register approved local variants without reactivating rejected rows."""
     bundles = {
-        "channel": (FALLBACK_FILES["channel"], Path(__file__).resolve().parent / "assets" / "dura-channel-v2.jpg"),
-        "reminder": (FALLBACK_FILES["reminder"], Path(__file__).resolve().parent / "assets" / "dura-reminder-v2.jpg"),
+        "channel": (FALLBACK_FILES["channel"], Path(__file__).resolve().parent / "assets" / "dura-home-welcome.jpg"),
+        "reminder": (FALLBACK_FILES["reminder"], Path(__file__).resolve().parent / "assets" / "dura-reminder-square.jpg"),
     }
     with core.db() as conn:
         for pool, files in bundles.items():
@@ -716,13 +716,13 @@ async def _send_test_to_business_target(bot, target, creative) -> bool:
         return False
     markup = InlineKeyboardMarkup(
         [[InlineKeyboardButton(
-            "🏏 OPEN IBETIN LIVE LINE",
+            "🏏 OPEN DURASPORTS LIVE LINE",
             url=phone_verify.live_line_url(int(target["user_id"]), LIVE_LINE_URL),
         )]]
     )
     caption = (
-        "🏏 <b>IBETIN LIVE LINE</b>\n\n"
-        "Live cricket scores, Match Pulse, scorecards, fixtures and results — inside Telegram."
+        "🏏 <b>DURASPORTS LIVE LINE</b>\n\n"
+        "Scores, fixtures, and results inside Telegram."
     )
     kwargs = {
         "chat_id": int(target["user_id"]),
@@ -742,15 +742,15 @@ async def _send_test_to_bot_target(bot, target, creative) -> bool:
     if not phone_verify.is_verified(target_user_id):
         return False
     live_line_button = InlineKeyboardButton(
-        "🏏 OPEN IBETIN LIVE LINE",
+        "🏏 OPEN DURASPORTS LIVE LINE",
         web_app=WebAppInfo(
             url=phone_verify.live_line_url(target_user_id, LIVE_LINE_URL)
         ),
     )
     markup = InlineKeyboardMarkup([[live_line_button]])
     caption = (
-        "🏏 <b>IBETIN LIVE LINE</b>\n\n"
-        "Live cricket scores, Match Pulse, scorecards, fixtures and results — inside Telegram."
+        "🏏 <b>DURASPORTS LIVE LINE</b>\n\n"
+        "Scores, fixtures, and results inside Telegram."
     )
     kwargs = {
         "chat_id": int(target["user_id"]),
@@ -1000,24 +1000,20 @@ async def _startup_channel_preview_test(application) -> None:
         target_user_id = int(target["user_id"])
         if phone_verify.is_verified(target_user_id):
             live_button = InlineKeyboardButton(
-                "🏏 OPEN IBETIN LIVE LINE",
+                "🏏 OPEN DURASPORTS LIVE LINE",
                 web_app=WebAppInfo(
                     url=phone_verify.live_line_url(target_user_id, LIVE_LINE_URL)
                 ),
             )
         else:
             live_button = InlineKeyboardButton(
-                "🏏 OPEN IBETIN LIVE LINE",
+                "🏏 OPEN DURASPORTS LIVE LINE",
                 callback_data="liveline_access",
             )
 
         caption = (
-            "🏏 <b>IBETIN LIVE LINE</b>\n\n"
-            "Live cricket scores, Match Pulse, scorecards, fixtures and results — "
-            "inside Telegram.\n\n"
-            "⚡ Fast live updates\n"
-            "📊 Match Pulse & scorecards\n"
-            "🗓 Fixtures & results\n\n"
+            "🏏 <b>DURASPORTS LIVE LINE</b>\n\n"
+            "Scores, fixtures, and results inside Telegram.\n\n"
             "Tap below to open Live Line."
         )
 

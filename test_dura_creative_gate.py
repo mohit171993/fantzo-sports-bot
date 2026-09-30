@@ -98,7 +98,7 @@ class DuraCreativeGateTests(unittest.TestCase):
             self.assertEqual((row["active"], row["brand"]), (1, ""))
         fallback = module.pick_creative("reminder")
         self.assertEqual(fallback["media_type"], "bundled_photo")
-        self.assertIn("dura-reminder-banner.png", fallback["file_id"])
+        self.assertIn("dura-reminder-banner.jpg", fallback["file_id"])
         self.assertEqual(module.counts()["reminder"], 0)
         with module.core.db() as conn:
             conn.execute("UPDATE creative_assets SET brand='dura' WHERE id=1")

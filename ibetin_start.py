@@ -171,18 +171,18 @@ def _launcher_page() -> str:
 <meta charset=\"utf-8\">
 <meta name=\"viewport\" content=\"width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no\">
 <meta http-equiv=\"Cache-Control\" content=\"no-store, no-cache, must-revalidate\">
-<title>IBETIN</title>
+<title>DURASPORTS</title>
 <script src=\"https://telegram.org/js/telegram-web-app.js\"></script>
 <style>
-html,body{{margin:0;min-height:100%;background:#fff;color:#142033;font-family:Arial,sans-serif}}
-main{{display:flex;min-height:70vh;align-items:center;justify-content:center;padding:24px;text-align:center}}
-.logo{{font-size:24px;font-weight:900;letter-spacing:.8px}}
-.status{{margin-top:10px;color:#718096;font-size:13px}}
-.spin{{width:26px;height:26px;margin:18px auto 0;border:3px solid #e6eaf0;border-top-color:#1d5fd0;border-radius:50%;animation:s .75s linear infinite}}
+html,body{{margin:0;min-height:100%;background:#020A14;color:#F6FBFF;font-family:Arial,sans-serif}}
+main{{display:flex;min-height:70vh;align-items:center;justify-content:center;padding:28px;text-align:center}}
+.logo{{font-size:24px;font-weight:900;letter-spacing:.8px;color:#F6FBFF}}
+.status{{margin-top:10px;color:#B7D4EE;font-size:14px}}
+.spin{{width:26px;height:26px;margin:18px auto 0;border:3px solid #16365C;border-top-color:#1094FF;border-radius:50%;animation:s .75s linear infinite}}
 @keyframes s{{to{{transform:rotate(360deg)}}}}
 </style>
 </head>
-<body><main><div><div class=\"logo\">IBETIN</div><div class=\"status\">Opening inside Telegram…</div><div class=\"spin\"></div></div></main>
+<body><main><div><div class=\"logo\">DURASPORTS</div><div class=\"status\">Opening inside Telegram…</div><div class=\"spin\"></div></div></main>
 <script>
 (function() {{
   const tg = window.Telegram && window.Telegram.WebApp;

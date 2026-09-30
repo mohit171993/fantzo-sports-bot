@@ -43,7 +43,8 @@ def _private_update(user_id, text, replies):
     message = SimpleNamespace(text=text, contact=None, reply_text=reply_text)
     return SimpleNamespace(effective_user=SimpleNamespace(id=user_id),
                            effective_chat=SimpleNamespace(type="private"),
-                           effective_message=message, business_message=None,
+                           effective_message=message, message=message,
+                           business_message=None,
                            callback_query=None)
 
 
@@ -277,6 +278,7 @@ class ModeTests(unittest.TestCase):
             "_mode": lambda: LIVE_LINE,
             "FULL": FULL,
             "_admin_id": lambda: 123,
+            "ADMIN_PRIVATE_STATUS_COMMANDS": frozenset({"/admin", "/reports"}),
             "tracked": SimpleNamespace(_is_stop_text=lambda text: text.lower() == "stop",
                                        _prompt_mobile_verification=prompt),
             "phone_verify": SimpleNamespace(is_verified=lambda _uid: False),
@@ -295,9 +297,138 @@ class ModeTests(unittest.TestCase):
         self.assertNotIn("scores", effects)
         self.assertEqual(replies, [])
         # The owner can still use existing private reporting commands.
-        result = asyncio.run(func(_private_update(123, "/report", replies), context))
+        result = asyncio.run(func(_private_update(123, "/reports", replies), context))
         self.assertIsNone(result)
         self.assertEqual(replies, [])
+
+    def test_clean_mode_blocks_admin_broadcast_but_preserves_private_status(self):
+        replies = []
+        func = _load_runtime_function("_guard_update", {
+            "_mode": lambda: LIVE_LINE,
+            "FULL": FULL,
+            "_admin_id": lambda: 123,
+            "ADMIN_PRIVATE_STATUS_COMMANDS": frozenset({"/admin", "/reports"}),
+            "ApplicationHandlerStop": StopUpdate,
+        })
+        context = SimpleNamespace()
+        for command in ("/broadcast promo", "/broadcast@BrandBot promo",
+                        "/setbanner promo", "/senddmtest promo"):
+            with self.subTest(command=command), self.assertRaises(StopUpdate):
+                asyncio.run(func(_private_update(123, command, replies), context))
+            self.assertIn("unavailable in Live Line", replies[-1][0][0])
+        for command in ("/admin", "/reports"):
+            with self.subTest(command=command):
+                self.assertIsNone(asyncio.run(func(_private_update(123, command, replies),
+                                                   context)))
+        self.assertEqual(len(replies), 4)
+
+        callback_update = _private_update(123, "/reports", replies)
+        callback_update.message = None
+        # A callback has no ordinary message and cannot enter the status allowlist.
+        async def answer():
+            return None
+        callback_update.callback_query = SimpleNamespace(answer=answer)
+        with self.assertRaises(StopUpdate):
+            asyncio.run(func(callback_update, context))
+        self.assertEqual(len(replies), 5)
+        self.assertIn("unavailable in Live Line", replies[-1][0][0])
+
+        full_guard = _load_runtime_function("_guard_update", {
+            "_mode": lambda: FULL, "FULL": FULL,
+        })
+        self.assertIsNone(asyncio.run(full_guard(
+            _private_update(123, "/broadcast promo", replies), context)))
+        self.assertEqual(len(replies), 5)
+
+    def test_match_alert_retry_checks_mode_again_before_sending(self):
+        class Button:
+            def __init__(self, text, url):
+                self.text, self.url = text, url
+
+        class Markup:
+            def __init__(self, rows):
+                self.inline_keyboard = rows
+
+        class RetryRate(Exception):
+            retry_after = 0
+
+        mode = [FULL]
+        async def sleep(_seconds):
+            mode[0] = LIVE_LINE
+
+        source = Path(__file__).with_name("bot_mode_runtime.py").read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        node = next(n for n in tree.body if isinstance(n, ast.ClassDef)
+                    and n.name == "_ModeAwareAlertBot")
+        scope = {
+            "_mode": lambda: mode[0], "FULL": FULL,
+            "_scores_url": lambda uid: f"https://scores.example/scores?access=signed-{uid}",
+            "InlineKeyboardButton": Button, "InlineKeyboardMarkup": Markup,
+        }
+        exec(compile(ast.Module(body=[node], type_ignores=[]), "runtime", "exec"), scope)
+        wrapper = scope["_ModeAwareAlertBot"]
+        alert_source = Path(__file__).with_name("ibetin_match_alerts.py").read_text(encoding="utf-8")
+        alert_tree = ast.parse(alert_source)
+        send_node = next(n for n in alert_tree.body if isinstance(n, ast.AsyncFunctionDef)
+                         and n.name == "_send")
+        send_scope = {
+            "RetryAfter": RetryRate, "InlineKeyboardMarkup": Markup,
+            "asyncio": SimpleNamespace(sleep=sleep),
+        }
+        exec(compile(ast.Module(body=[send_node], type_ignores=[]), "alerts", "exec"),
+             send_scope)
+
+        class Bot:
+            def __init__(self):
+                self.calls = []
+
+            async def send_message(self, **kwargs):
+                self.calls.append(kwargs)
+                if len(self.calls) == 1:
+                    raise RetryRate()
+
+        bot = Bot()
+        unsafe = "Open casino and betting odds"
+        asyncio.run(send_scope["_send"](
+            wrapper(bot, 456), 456, unsafe, Markup([[Button("Casino", "https://bad.example")]]),
+        ))
+        self.assertEqual(bot.calls[0]["text"], unsafe)
+        self.assertNotIn("casino", bot.calls[1]["text"].lower())
+        self.assertNotIn("betting", bot.calls[1]["text"].lower())
+        button = bot.calls[1]["reply_markup"].inline_keyboard[0][0]
+        self.assertEqual(button.url, "https://scores.example/scores?access=signed-456")
+
+    def test_inflight_public_sends_stop_after_clean_switch(self):
+        mode = [FULL]
+        source = Path(__file__).with_name("bot_mode_runtime.py").read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        nodes = [n for n in tree.body if isinstance(n, ast.ClassDef)
+                 and n.name in {"_GuardedPublicBot", "_GuardedPublicApplication"}]
+        scope = {"_mode": lambda: mode[0], "FULL": FULL}
+        exec(compile(ast.Module(body=nodes, type_ignores=[]), "runtime", "exec"), scope)
+        protected = scope["_GuardedPublicApplication"]
+
+        class Bot:
+            def __init__(self):
+                self.calls = []
+
+            async def send_message(self, **kwargs):
+                self.calls.append(("message", kwargs))
+
+            async def send_photo(self, **kwargs):
+                self.calls.append(("photo", kwargs))
+
+        bot = Bot()
+        application = protected(SimpleNamespace(bot=bot, bot_data={"ready": True}))
+        self.assertTrue(application.bot_data["ready"])
+        asyncio.run(application.bot.send_message(chat_id=10, text="Full message"))
+        self.assertEqual(len(bot.calls), 1)
+        mode[0] = LIVE_LINE
+        with self.assertRaisesRegex(RuntimeError, "Public send canceled"):
+            asyncio.run(application.bot.send_message(chat_id=10, text="Old campaign"))
+        with self.assertRaisesRegex(RuntimeError, "Public send canceled"):
+            asyncio.run(application.bot.send_photo(chat_id=10, photo="old-banner"))
+        self.assertEqual(len(bot.calls), 1)
 
     def test_clean_contact_verifies_then_only_shows_scores(self):
         effects = []

@@ -292,6 +292,9 @@ VERIFIED_COMMANDS = (
     BotCommand("website", "Open DURASPORTS Mini App"),
     BotCommand("live", "Open Live Mini App"),
     BotCommand("liveline", "Open DURASPORTS Live Line"),
+    BotCommand("follow", "Follow a team for score alerts"),
+    BotCommand("myteams", "Teams and players you follow"),
+    BotCommand("unfollow", "Stop team or player alerts"),
     BotCommand("sports", "Open Sports Mini App"),
     BotCommand("team", "Open team search"),
     BotCommand("support", "Open Support Mini App"),
@@ -383,6 +386,12 @@ def premium_main_keyboard(user_id: int = 0) -> InlineKeyboardMarkup:
                 [InlineKeyboardButton("📺 WATCH LIVE TV", web_app=WebAppInfo(url=url))],
             )
 
+    if user_id and phone_verify.is_verified(user_id):
+        rows.insert(
+            2,
+            [InlineKeyboardButton("⭐ FOLLOW TEAMS", callback_data="durafollow:menu")],
+        )
+
     return InlineKeyboardMarkup(rows)
 
 
@@ -394,6 +403,7 @@ def conversion_keyboard(user_id: int) -> InlineKeyboardMarkup:
             [hub_button("🚀 JOIN DURASPORTS", "home")],
             [site_button("🏏 OPEN DURASPORTS LIVE LINE", live_url)],
             [InlineKeyboardButton("📢 JOIN CHANNEL", url=IBETIN_CHANNEL_URL)],
+            [InlineKeyboardButton("⭐ FOLLOW TEAMS", callback_data="durafollow:menu")],
         ]
     )
 
@@ -1135,6 +1145,12 @@ async def smart_callback_router(update, context) -> None:
         await _prompt_mobile_verification(update, context, "bot_start")
         return
 
+    if query and str(query.data or "").startswith("durafollow:"):
+        import dura_match_alerts
+
+        await dura_match_alerts.handle_callback(update, context)
+        return
+
     if await ibetin_reports.handle_callback(update, context):
         return
 
@@ -1362,6 +1378,9 @@ async def configure_telegram_ui(application) -> None:
         )
     reminders.ensure_tables()
     reminders.start_background_loop(application)
+    import dura_match_alerts
+
+    dura_match_alerts.install(application)
     ibetin_creatives.install(application)
 
 

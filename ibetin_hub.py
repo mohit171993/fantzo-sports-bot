@@ -260,17 +260,17 @@ PAGE_TEMPLATE = Template(
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
 <title>$title</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<style>
+<style>@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700;800;900&display=swap');
 *{box-sizing:border-box}
-:root{--bg:#07101c;--card:#0e1b2b;--card2:#101f31;--line:#20334b;--text:#f7f9fc;--muted:#91a5bc;--soft:#b8c6d6}
-html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:Inter,Arial,Helvetica,sans-serif}
+:root{--bg:#080e18;--card:#0f1725;--card2:#111b2a;--line:#233248;--text:#f7f9fc;--muted:#94a3b9;--soft:#bac4d4}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:'Inter',Arial,Helvetica,sans-serif}
 body{padding-bottom:84px}
 .wrap{max-width:760px;margin:0 auto;padding:15px 14px 28px}
 .top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
 .brand{font-size:18px;font-weight:950;letter-spacing:.8px}
 .pill{border:1px solid var(--line);border-radius:999px;padding:6px 9px;color:var(--muted);font-size:10px;font-weight:900}
-.hero{background:linear-gradient(145deg,#13253a,#0b1726);border:1px solid #29415e;border-radius:24px;padding:21px 18px;box-shadow:0 14px 40px rgba(0,0,0,.22)}
-.hero .eyebrow{font-size:11px;font-weight:900;letter-spacing:1.2px;color:#9fb5ca;margin-bottom:8px}
+.hero{background:linear-gradient(145deg,#142032,#0c1420);border:1px solid #2d3f5a;border-radius:24px;padding:21px 18px;box-shadow:0 14px 40px rgba(0,0,0,.22)}
+.hero .eyebrow{font-size:11px;font-weight:900;letter-spacing:1.2px;color:#a2b1c7;margin-bottom:8px}
 .hero h1{font-size:26px;line-height:1.08;margin:0 0 8px}
 .hero p{margin:0;color:var(--soft);font-size:14px;line-height:1.5}
 .quick{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
@@ -286,21 +286,21 @@ body{padding-bottom:84px}
 .row{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:15px;padding-top:15px;border-top:1px solid var(--line)}
 .switch{position:relative;width:58px;height:32px}
 .switch input{opacity:0;width:0;height:0}
-.slider{position:absolute;inset:0;border-radius:999px;background:#31445a;transition:.18s}
+.slider{position:absolute;inset:0;border-radius:999px;background:#344257;transition:.18s}
 .slider:before{content:"";position:absolute;width:24px;height:24px;left:4px;top:4px;background:white;border-radius:50%;transition:.18s}
 .switch input:checked + .slider{background:#2d7d5a}
 .switch input:checked + .slider:before{transform:translateX(26px)}
 .status{margin-top:10px;font-size:12px;color:var(--muted)}
-select{width:100%;margin-top:12px;padding:13px 12px;border-radius:13px;background:var(--card2);color:var(--text);border:1px solid #2b425e;font-size:15px}
-.primary{display:block;width:100%;border:0;border-radius:14px;padding:14px 16px;margin-top:14px;background:#f7f9fc;color:#07101c;font-weight:950;text-align:center;text-decoration:none;font-size:14px}
+select{width:100%;margin-top:12px;padding:13px 12px;border-radius:13px;background:var(--card2);color:var(--text);border:1px solid #2f405a;font-size:15px}
+.primary{display:block;width:100%;border:0;border-radius:14px;padding:14px 16px;margin-top:14px;background:#f7f9fc;color:#080e18;font-weight:950;text-align:center;text-decoration:none;font-size:14px}
 .loading{display:flex;align-items:center;gap:10px;color:var(--soft)}
 .dot{width:10px;height:10px;border-radius:50%;background:#f7f9fc;animation:pulse 1s infinite alternate}
 @keyframes pulse{to{opacity:.25}}
-.note{font-size:11px!important;color:#7e93aa!important;margin-top:10px!important}
-.nav{position:fixed;left:0;right:0;bottom:0;background:rgba(7,16,28,.96);backdrop-filter:blur(14px);border-top:1px solid #1e3046;padding:9px 12px max(9px,env(safe-area-inset-bottom));display:flex;justify-content:center;gap:6px;z-index:20}
-.nav a{flex:1;max-width:160px;text-align:center;text-decoration:none;color:#94a8bd;font-size:10px;font-weight:900;padding:7px 4px;border-radius:11px}
-.nav a strong{display:block;color:#eef3f8;font-size:17px;margin-bottom:2px}
-.toast{position:fixed;left:50%;bottom:92px;transform:translate(-50%,16px);opacity:0;pointer-events:none;background:#f7f9fc;color:#07101c;border-radius:999px;padding:9px 13px;font-size:11px;font-weight:900;transition:.2s;z-index:30}
+.note{font-size:11px!important;color:#8190a7!important;margin-top:10px!important}
+.nav{position:fixed;left:0;right:0;bottom:0;background:rgba(8,14,24,.96);backdrop-filter:blur(14px);border-top:1px solid #1e2a3c;padding:9px 12px max(9px,env(safe-area-inset-bottom));display:flex;justify-content:center;gap:6px;z-index:20}
+.nav a{flex:1;max-width:160px;text-align:center;text-decoration:none;color:#97a5ba;font-size:10px;font-weight:900;padding:7px 4px;border-radius:11px}
+.nav a strong{display:block;color:#eff2f7;font-size:17px;margin-bottom:2px}
+.toast{position:fixed;left:50%;bottom:92px;transform:translate(-50%,16px);opacity:0;pointer-events:none;background:#f7f9fc;color:#080e18;border-radius:999px;padding:9px 13px;font-size:11px;font-weight:900;transition:.2s;z-index:30}
 .toast.show{opacity:1;transform:translate(-50%,0)}
 @media(max-width:390px){.quick{gap:8px}.tile{padding:11px;min-height:74px}.tile-copy b{font-size:12px}}
 </style>
@@ -322,7 +322,7 @@ const tg = window.Telegram && window.Telegram.WebApp;
 if (tg) {
   tg.ready();
   tg.expand();
-  try { tg.setHeaderColor('#07101c'); tg.setBackgroundColor('#07101c'); } catch (e) {}
+  try { tg.setHeaderColor('#080e18'); tg.setBackgroundColor('#080e18'); } catch (e) {}
 }
 const initData = tg ? (tg.initData || '') : '';
 function toast(message) {

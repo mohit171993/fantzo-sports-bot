@@ -144,15 +144,15 @@ def _liveline_verification_page(token: str = "") -> str:
 <title>Verify Mobile · IBETIN Live Line</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
-*{{box-sizing:border-box}}html,body{{margin:0;min-height:100%;font-family:Inter,Arial,sans-serif;background:#eef3f8;color:#102c4b}}
+*{{box-sizing:border-box}}html,body{{margin:0;min-height:100%;font-family:'Inter',Arial,Helvetica,sans-serif;background:#eff2f7;color:#122440}}
 .wrap{{max-width:560px;margin:0 auto;padding:28px 18px}}
-.card{{margin-top:42px;background:#fff;border-radius:22px;padding:26px 20px;box-shadow:0 10px 32px rgba(5,34,69,.10);text-align:center}}
-.mark{{width:60px;height:60px;border-radius:18px;margin:0 auto 16px;display:grid;place-items:center;background:#f6c84b;font-size:30px}}
-h1{{margin:0;font-size:24px}}p{{color:#6d8297;line-height:1.55;font-size:14px}}
-.btn{{display:block;margin-top:20px;padding:15px 16px;border-radius:14px;background:#0b5cb4;color:#fff;text-decoration:none;font-weight:900;box-shadow:0 8px 18px rgba(11,92,180,.18)}}
+.card{{margin-top:42px;background:#fff;border-radius:22px;padding:26px 20px;box-shadow:0 10px 32px rgba(9,28,58,.10);text-align:center}}
+.mark{{width:60px;height:60px;border-radius:18px;margin:0 auto 16px;display:grid;place-items:center;background:#4b9bf6;font-size:30px}}
+h1{{margin:0;font-size:24px}}p{{color:#707e94;line-height:1.55;font-size:14px}}
+.btn{{display:block;margin-top:20px;padding:15px 16px;border-radius:14px;background:#0b5ab4;color:#fff;text-decoration:none;font-weight:900;box-shadow:0 8px 18px rgba(11,90,180,.18)}}
 .benefits{{display:flex;justify-content:center;flex-wrap:wrap;gap:7px;margin:16px 0 2px}}
-.benefits span{{background:#f3f7fb;border:1px solid #e3ebf3;border-radius:999px;padding:7px 9px;font-size:11px;font-weight:800;color:#41627f}}
-.note{{font-size:12px;color:#8a9bad;margin-top:14px;line-height:1.45}}
+.benefits span{{background:#f4f6fa;border:1px solid #e4eaf2;border-radius:999px;padding:7px 9px;font-size:11px;font-weight:800;color:#465b7a}}
+.note{{font-size:12px;color:#8d99aa;margin-top:14px;line-height:1.45}}
 </style>
 </head>
 <body><div class="wrap"><div class="card">
@@ -538,23 +538,23 @@ def _page_v30() -> str:
 <meta name="referrer" content="no-referrer">
 <title>IBETIN Live Cricket</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<style>
-:root{--bg:#eef3f8;--navy:#071a34;--blue:#0b5cb4;--gold:#f6c84b;--ink:#102c4b;--muted:#7b8ea2;--card:#fff;--live:#ef4763;--green:#0c9a68;--shadow:0 8px 24px rgba(5,34,69,.08)}
-*{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:Inter,Arial,sans-serif;background:var(--bg);color:var(--ink);-webkit-tap-highlight-color:transparent}body{padding-bottom:calc(145px + env(safe-area-inset-bottom));scroll-padding-bottom:calc(145px + env(safe-area-inset-bottom))}
-.shell{max-width:760px;margin:auto}.top{position:sticky;top:0;z-index:30;background:linear-gradient(118deg,#041326,#0a315f 74%,#0b4d8e);color:#fff;padding:14px 16px 12px;box-shadow:0 5px 18px rgba(4,23,47,.18)}
-.toprow{display:flex;align-items:center;justify-content:space-between}.brand{display:flex;align-items:center;gap:11px}.mark{width:46px;height:46px;border-radius:14px;background:var(--gold);color:#17314e;display:grid;place-items:center;font-weight:1000;font-size:23px}.brand b{display:block;font-size:22px;letter-spacing:1px}.brand span{display:block;font-size:11px;color:#c7d8eb;margin-top:2px}.liveDot{font-size:11px;font-weight:900;padding:7px 10px;border-radius:999px;background:rgba(14,160,105,.19);border:1px solid rgba(81,220,162,.3);color:#fff}
-.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:14px}.tab{height:48px;border:0;border-radius:13px;background:rgba(255,255,255,.08);color:#c5d6e9;font-size:14px;font-weight:900}.tab.on{background:#fff;color:#0a315f}
-.main{padding:16px 16px calc(145px + env(safe-area-inset-bottom))}.tools{display:flex;gap:10px;margin-bottom:8px}.search{flex:1;height:52px;border:1px solid #e7edf3;border-radius:15px;background:#fff;padding:0 16px;font-size:15px;outline:none;box-shadow:var(--shadow)}.refresh{width:52px;border:1px solid #e7edf3;border-radius:15px;background:#fff;color:#0a4f98;font-size:23px;box-shadow:var(--shadow)}.status{font-size:12px;color:#8293a5;margin:10px 3px 12px}.list{display:grid;gap:12px}.league{font-size:14px;font-weight:900;color:#46627f;margin:8px 3px 1px}
-.match{background:#fff;border-radius:18px;overflow:hidden;box-shadow:var(--shadow);border-left:4px solid #dbe5ef;cursor:pointer}.match.live{border-left-color:var(--live)}.mh{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:13px 14px 5px}.fmt{font-size:11px;color:#8697a8;font-weight:800}.badge{font-size:10px;font-weight:1000;padding:6px 8px;border-radius:999px;background:#eef4fb;color:#51718f}.badge.live{background:#fff0f2;color:#d72d45}
-.team{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:10px 14px}.miniMark,.teamMark{border-radius:50%;display:grid;place-items:center;background:#edf4fb;color:#0b4f94;font-weight:1000;border:1px solid #dbe7f2;overflow:hidden}.miniMark{width:34px;height:34px;font-size:10px}.teamMark{width:40px;height:40px;font-size:11px}.miniMark img,.teamMark img{width:100%;height:100%;object-fit:cover}.tn{font-size:17px;font-weight:1000}.ta{font-size:10px;color:#96a5b4;margin-top:2px}.sc{text-align:right;font-size:27px;font-weight:1000;color:#083f7f;letter-spacing:-.5px}.si{text-align:right;font-size:11px;color:#8b9bad;margin-top:2px}
-.oddsRow{display:grid;grid-template-columns:auto 1fr 1fr;gap:7px;align-items:center;padding:9px 14px;border-top:1px solid #f0f3f6;background:#fbfdff}.oddsTitle{font-size:9px;font-weight:1000;color:#7d91a5;letter-spacing:.35px;white-space:nowrap}.oddBox{min-width:0;background:#edf5fd;border:1px solid #dbe9f6;border-radius:10px;padding:8px 9px;display:flex;align-items:center;justify-content:space-between;gap:6px}.oddLabel{font-size:9px;font-weight:800;color:#5e7891;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.oddValue{font-size:13px;font-weight:1000;color:#0a579e;white-space:nowrap}.foot{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:11px 14px;border-top:1px solid #f0f3f6;font-size:12px;color:#6f8499}
-.empty,.err,.loading{background:#fff;border-radius:16px;padding:30px 16px;text-align:center;color:#73879a;font-size:13px;box-shadow:var(--shadow)}.spin{width:24px;height:24px;border:3px solid #dce5ed;border-top-color:#0b5cb4;border-radius:50%;animation:s .7s linear infinite;margin:0 auto 10px}@keyframes s{to{transform:rotate(360deg)}}
-.detail{display:none;padding:16px 16px calc(175px + env(safe-area-inset-bottom))}.back{height:44px;border:0;border-radius:13px;background:#fff;color:#24578d;font-size:14px;font-weight:1000;padding:0 14px;box-shadow:0 2px 10px rgba(6,37,70,.04)}.scorehero{margin-top:10px;border-radius:20px;background:#fff;overflow:hidden;border:1px solid #e6edf4;box-shadow:var(--shadow)}.scoretop{padding:12px 14px;border-bottom:1px solid #edf1f5;font-size:11px;color:#6f8397;display:flex;justify-content:space-between;gap:10px}.scoremain{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;padding:20px 14px}.side.right{text-align:right}.teamIdentity{display:flex;align-items:center;gap:8px;margin-bottom:6px}.side.right .teamIdentity{justify-content:flex-end}.sname{font-size:13px;font-weight:1000;color:#294662}.sval{font-size:31px;font-weight:1000;color:#083f7f;margin-top:4px;letter-spacing:-.6px}.vs{width:38px;height:38px;border-radius:50%;background:#fff5cf;color:#765700;display:grid;place-items:center;font-size:10px;font-weight:1000}.report{padding:12px 14px;background:#fbfdff;border-top:1px solid #edf1f5;font-size:11px;color:#637b91}
-.quickMarket{margin-top:11px;background:#fff;border-radius:16px;padding:13px;box-shadow:var(--shadow);border:1px solid #e6edf4}.quickHead{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}.quickHead b{font-size:13px}.quickHead span{font-size:9px;color:#6c8297;font-weight:900}.quickOdds{display:grid;grid-template-columns:1fr 1fr;gap:8px}.quickOdd{background:#edf5fd;border:1px solid #dbe9f6;border-radius:12px;padding:10px}.quickOdd small{display:block;color:#6d8297;font-size:9px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.quickOdd strong{display:block;color:#084f94;font-size:20px;margin-top:3px}.sessionTitle{font-size:10px;font-weight:1000;color:#73889c;margin:12px 0 6px}.sessionGrid{display:grid;gap:7px}.sessionCard{background:#f8fafc;border:1px solid #e7edf3;border-radius:11px;padding:9px}.sessionCard b{font-size:10px;color:#284d70}.sessionVals{display:flex;gap:8px;flex-wrap:wrap;margin-top:5px;font-size:10px;color:#637b92}.sessionVals strong{color:#0a579e}.quickLoading{font-size:11px;color:#758a9f;padding:4px 0}
-.chaseBox{margin-top:9px;background:linear-gradient(135deg,#edf6ff,#f8fbff);border:1px solid #d8e9f8;border-radius:12px;padding:11px 12px}.chaseBox b{display:block;font-size:14px;color:#164a79}.chaseBox span{font-size:10px;color:#6f8498}.lastSix{display:flex;align-items:center;gap:6px;overflow:auto;margin-top:10px;scrollbar-width:none}.lastSix::-webkit-scrollbar{display:none}.lastSixTitle{font-size:9px;font-weight:1000;color:#8194a7;letter-spacing:.4px;margin-right:2px;white-space:nowrap}.ballChip{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:#eaf1f8;color:#294d70;font-size:10px;font-weight:1000;flex:none}.ballChip.boundary{background:#e6f4ff;color:#0968b7}.ballChip.six{background:#efe9ff;color:#6943b5}.ballChip.wicket{background:#fff0f2;color:#d02f47}.ballChip.extra{background:#fff6db;color:#856200}
-.dtabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin:11px 0}.dtab{height:43px;border:1px solid #e4ebf2;border-radius:12px;background:#fff;color:#687f96;font-size:9px;font-weight:1000;padding:0 3px}.dtab.on{background:#0a315f;color:#fff;border-color:#0a315f}.panel{background:#fff;border-radius:16px;padding:13px;box-shadow:var(--shadow);margin-bottom:14px}.ptitle{margin-bottom:10px}.ptitle b{font-size:13px}.notice{background:#f7f9fb;border-radius:12px;padding:11px;font-size:11px;color:#647c92;line-height:1.5;margin-bottom:8px}.metricRow{display:flex;gap:7px;flex-wrap:wrap}.metric{display:inline-flex;gap:4px;align-items:center;background:#edf4fb;border-radius:999px;padding:7px 9px;color:#58728b;font-size:10px}.playerStrip{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.playerCard{background:#f7f9fc;border:1px solid #e8edf3;border-radius:12px;padding:10px;min-width:0}.playerRole{font-size:8px;font-weight:1000;color:#8b9caf;letter-spacing:.6px;margin-bottom:4px}.playerName{font-size:11px;font-weight:900;color:#173a5e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.playerStat{font-size:10px;color:#617b93;margin-top:3px}
-.innings{display:grid;gap:8px}.inning{border:1px solid #e7edf3;background:#f9fbfd;border-radius:12px;padding:11px}.inningTop{display:flex;align-items:center;justify-content:space-between;gap:8px}.inningTeam{font-size:12px;font-weight:900}.inningScore{font-size:18px;font-weight:1000;color:#083f7f}.inningMeta{font-size:10px;color:#8091a2;margin-top:4px}.balls{display:grid;gap:7px}.ball{background:#f8fafc;border-radius:10px;padding:9px;font-size:10px;line-height:1.45}.moreGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.moreItem{border:1px solid #e5ebf2;background:#f8fafc;border-radius:13px;padding:14px 11px;text-align:left;color:#234766;font-size:11px;font-weight:900}.moreItem span{display:block;font-size:9px;font-weight:600;color:#7d90a3;margin-top:4px}.kv{display:grid;grid-template-columns:1fr auto;gap:8px;padding:9px 0;border-bottom:1px solid #edf1f4;font-size:10px}.kv b{color:#244867}
-.bottom{position:fixed;left:14px;right:14px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:40;max-width:732px;margin:auto;display:grid;grid-template-columns:repeat(4,1fr);gap:4px;background:rgba(5,22,45,.98);border-radius:20px;padding:8px;box-shadow:0 12px 30px rgba(4,23,48,.25)}.bottom button{border:0;background:transparent;color:#9fb2c8;height:54px;border-radius:13px;font-size:9px;font-weight:1000}.bottom b{display:block;font-size:18px;margin-bottom:2px}.bottom .on{background:rgba(255,255,255,.1);color:#fff}
+<style>@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700;800;900&display=swap');
+:root{--bg:#eff2f7;--navy:#09172c;--blue:#0b5ab4;--gold:#4b9bf6;--ink:#122440;--muted:#7e8b9f;--card:#fff;--live:#ef4763;--green:#0c9a68;--shadow:0 8px 24px rgba(9,28,58,.08)}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:'Inter',Arial,Helvetica,sans-serif;background:var(--bg);color:var(--ink);-webkit-tap-highlight-color:transparent}body{padding-bottom:calc(145px + env(safe-area-inset-bottom));scroll-padding-bottom:calc(145px + env(safe-area-inset-bottom))}
+.shell{max-width:760px;margin:auto}.top{position:sticky;top:0;z-index:30;background:linear-gradient(118deg,#061020,#0a325f 74%,#0b488e);color:#fff;padding:14px 16px 12px;box-shadow:0 5px 18px rgba(7,20,39,.18)}
+.toprow{display:flex;align-items:center;justify-content:space-between}.brand{display:flex;align-items:center;gap:11px}.mark{width:46px;height:46px;border-radius:14px;background:var(--gold);color:#182942;display:grid;place-items:center;font-weight:1000;font-size:23px}.brand b{display:block;font-size:22px;letter-spacing:1px}.brand span{display:block;font-size:11px;color:#c7d8eb;margin-top:2px}.liveDot{font-size:11px;font-weight:900;padding:7px 10px;border-radius:999px;background:rgba(14,160,105,.19);border:1px solid rgba(81,220,162,.3);color:#fff}
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:14px}.tab{height:48px;border:0;border-radius:13px;background:rgba(255,255,255,.08);color:#c8d4e6;font-size:14px;font-weight:900}.tab.on{background:#fff;color:#0a325f}
+.main{padding:16px 16px calc(145px + env(safe-area-inset-bottom))}.tools{display:flex;gap:10px;margin-bottom:8px}.search{flex:1;height:52px;border:1px solid #e8ecf2;border-radius:15px;background:#fff;padding:0 16px;font-size:15px;outline:none;box-shadow:var(--shadow)}.refresh{width:52px;border:1px solid #e8ecf2;border-radius:15px;background:#fff;color:#0a4c98;font-size:23px;box-shadow:var(--shadow)}.status{font-size:12px;color:#8591a2;margin:10px 3px 12px}.list{display:grid;gap:12px}.league{font-size:14px;font-weight:900;color:#4a5e7b;margin:8px 3px 1px}
+.match{background:#fff;border-radius:18px;overflow:hidden;box-shadow:var(--shadow);border-left:4px solid #dce3ee;cursor:pointer}.match.live{border-left-color:var(--live)}.mh{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:13px 14px 5px}.fmt{font-size:11px;color:#8994a5;font-weight:800}.badge{font-size:10px;font-weight:1000;padding:6px 8px;border-radius:999px;background:#eff3fa;color:#566b8a}.badge.live{background:#fff0f2;color:#d72d45}
+.team{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:10px 14px}.miniMark,.teamMark{border-radius:50%;display:grid;place-items:center;background:#eef3fa;color:#0b4b94;font-weight:1000;border:1px solid #dde5f0;overflow:hidden}.miniMark{width:34px;height:34px;font-size:10px}.teamMark{width:40px;height:40px;font-size:11px}.miniMark img,.teamMark img{width:100%;height:100%;object-fit:cover}.tn{font-size:17px;font-weight:1000}.ta{font-size:10px;color:#98a2b2;margin-top:2px}.sc{text-align:right;font-size:27px;font-weight:1000;color:#08407f;letter-spacing:-.5px}.si{text-align:right;font-size:11px;color:#8e99aa;margin-top:2px}
+.oddsRow{display:grid;grid-template-columns:auto 1fr 1fr;gap:7px;align-items:center;padding:9px 14px;border-top:1px solid #f0f2f6;background:#fbfdff}.oddsTitle{font-size:9px;font-weight:1000;color:#808ea2;letter-spacing:.35px;white-space:nowrap}.oddBox{min-width:0;background:#eef4fc;border:1px solid #dde6f4;border-radius:10px;padding:8px 9px;display:flex;align-items:center;justify-content:space-between;gap:6px}.oddLabel{font-size:9px;font-weight:800;color:#62738d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.oddValue{font-size:13px;font-weight:1000;color:#0a4f9e;white-space:nowrap}.foot{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:11px 14px;border-top:1px solid #f0f2f6;font-size:12px;color:#728096}
+.empty,.err,.loading{background:#fff;border-radius:16px;padding:30px 16px;text-align:center;color:#768397;font-size:13px;box-shadow:var(--shadow)}.spin{width:24px;height:24px;border:3px solid #dde3ec;border-top-color:#0b5ab4;border-radius:50%;animation:s .7s linear infinite;margin:0 auto 10px}@keyframes s{to{transform:rotate(360deg)}}
+.detail{display:none;padding:16px 16px calc(175px + env(safe-area-inset-bottom))}.back{height:44px;border:0;border-radius:13px;background:#fff;color:#24558d;font-size:14px;font-weight:1000;padding:0 14px;box-shadow:0 2px 10px rgba(10,29,59,.04)}.scorehero{margin-top:10px;border-radius:20px;background:#fff;overflow:hidden;border:1px solid #e7ecf3;box-shadow:var(--shadow)}.scoretop{padding:12px 14px;border-bottom:1px solid #eef0f4;font-size:11px;color:#728094;display:flex;justify-content:space-between;gap:10px}.scoremain{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;padding:20px 14px}.side.right{text-align:right}.teamIdentity{display:flex;align-items:center;gap:8px;margin-bottom:6px}.side.right .teamIdentity{justify-content:flex-end}.sname{font-size:13px;font-weight:1000;color:#2d415e}.sval{font-size:31px;font-weight:1000;color:#08407f;margin-top:4px;letter-spacing:-.6px}.vs{width:38px;height:38px;border-radius:50%;background:#fff5cf;color:#003776;display:grid;place-items:center;font-size:10px;font-weight:1000}.report{padding:12px 14px;background:#fbfdff;border-top:1px solid #eef0f4;font-size:11px;color:#66768e}
+.quickMarket{margin-top:11px;background:#fff;border-radius:16px;padding:13px;box-shadow:var(--shadow);border:1px solid #e7ecf3}.quickHead{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}.quickHead b{font-size:13px}.quickHead span{font-size:9px;color:#6f7e94;font-weight:900}.quickOdds{display:grid;grid-template-columns:1fr 1fr;gap:8px}.quickOdd{background:#eef4fc;border:1px solid #dde6f4;border-radius:12px;padding:10px}.quickOdd small{display:block;color:#707e94;font-size:9px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.quickOdd strong{display:block;color:#084994;font-size:20px;margin-top:3px}.sessionTitle{font-size:10px;font-weight:1000;color:#768499;margin:12px 0 6px}.sessionGrid{display:grid;gap:7px}.sessionCard{background:#f8fafc;border:1px solid #e8ecf2;border-radius:11px;padding:9px}.sessionCard b{font-size:10px;color:#284a70}.sessionVals{display:flex;gap:8px;flex-wrap:wrap;margin-top:5px;font-size:10px;color:#67778e}.sessionVals strong{color:#0a4f9e}.quickLoading{font-size:11px;color:#78869c;padding:4px 0}
+.chaseBox{margin-top:9px;background:linear-gradient(135deg,#eef4fe,#f8fbff);border:1px solid #dae5f6;border-radius:12px;padding:11px 12px}.chaseBox b{display:block;font-size:14px;color:#164479}.chaseBox span{font-size:10px;color:#728095}.lastSix{display:flex;align-items:center;gap:6px;overflow:auto;margin-top:10px;scrollbar-width:none}.lastSix::-webkit-scrollbar{display:none}.lastSixTitle{font-size:9px;font-weight:1000;color:#8491a4;letter-spacing:.4px;margin-right:2px;white-space:nowrap}.ballChip{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:#ebf0f7;color:#294a70;font-size:10px;font-weight:1000;flex:none}.ballChip.boundary{background:#e8f0fd;color:#095ab7}.ballChip.six{background:#ebf2fd;color:#4378b5}.ballChip.wicket{background:#fff0f2;color:#d02f47}.ballChip.extra{background:#fff6db;color:#003e85}
+.dtabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin:11px 0}.dtab{height:43px;border:1px solid #e5eaf1;border-radius:12px;background:#fff;color:#6b7b93;font-size:9px;font-weight:1000;padding:0 3px}.dtab.on{background:#0a325f;color:#fff;border-color:#0a325f}.panel{background:#fff;border-radius:16px;padding:13px;box-shadow:var(--shadow);margin-bottom:14px}.ptitle{margin-bottom:10px}.ptitle b{font-size:13px}.notice{background:#f7f9fb;border-radius:12px;padding:11px;font-size:11px;color:#67778f;line-height:1.5;margin-bottom:8px}.metricRow{display:flex;gap:7px;flex-wrap:wrap}.metric{display:inline-flex;gap:4px;align-items:center;background:#eef3fa;border-radius:999px;padding:7px 9px;color:#5c6d87;font-size:10px}.playerStrip{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.playerCard{background:#f7f9fc;border:1px solid #e9edf2;border-radius:12px;padding:10px;min-width:0}.playerRole{font-size:8px;font-weight:1000;color:#8e9aac;letter-spacing:.6px;margin-bottom:4px}.playerName{font-size:11px;font-weight:900;color:#17385e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.playerStat{font-size:10px;color:#65768f;margin-top:3px}
+.innings{display:grid;gap:8px}.inning{border:1px solid #e8ecf2;background:#f9fbfd;border-radius:12px;padding:11px}.inningTop{display:flex;align-items:center;justify-content:space-between;gap:8px}.inningTeam{font-size:12px;font-weight:900}.inningScore{font-size:18px;font-weight:1000;color:#08407f}.inningMeta{font-size:10px;color:#838e9f;margin-top:4px}.balls{display:grid;gap:7px}.ball{background:#f8fafc;border-radius:10px;padding:9px;font-size:10px;line-height:1.45}.moreGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.moreItem{border:1px solid #e6eaf1;background:#f8fafc;border-radius:13px;padding:14px 11px;text-align:left;color:#234266;font-size:11px;font-weight:900}.moreItem span{display:block;font-size:9px;font-weight:600;color:#808da0;margin-top:4px}.kv{display:grid;grid-template-columns:1fr auto;gap:8px;padding:9px 0;border-bottom:1px solid #eef0f3;font-size:10px}.kv b{color:#244367}
+.bottom{position:fixed;left:14px;right:14px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:40;max-width:732px;margin:auto;display:grid;grid-template-columns:repeat(4,1fr);gap:4px;background:rgba(7,19,38,.98);border-radius:20px;padding:8px;box-shadow:0 12px 30px rgba(7,20,40,.25)}.bottom button{border:0;background:transparent;color:#a2b0c5;height:54px;border-radius:13px;font-size:9px;font-weight:1000}.bottom b{display:block;font-size:18px;margin-bottom:2px}.bottom .on{background:rgba(255,255,255,.1);color:#fff}
 @media(min-width:620px){.list{grid-template-columns:1fr 1fr}.league{grid-column:1/-1}}@media(max-width:390px){.brand b{font-size:20px}.mark{width:42px;height:42px}.tab{font-size:12px}.tn{font-size:15px}.sc{font-size:24px}.sval{font-size:27px}.playerStrip{grid-template-columns:1fr}.oddsRow{grid-template-columns:1fr 1fr}.oddsTitle{grid-column:1/-1}.dtab{font-size:8px}.quickOdds{grid-template-columns:1fr 1fr}}
 </style><link rel="icon" href="data:">
 </head>
@@ -568,7 +568,7 @@ def _page_v30() -> str:
 <script>
 'use strict';
 const tg=window.Telegram&&window.Telegram.WebApp;
-if(tg){try{tg.ready();tg.expand();tg.setHeaderColor('#071a34');tg.setBackgroundColor('#eef3f8')}catch(e){}}
+if(tg){try{tg.ready();tg.expand();tg.setHeaderColor('#09172c');tg.setBackgroundColor('#eff2f7')}catch(e){}}
 const qs=new URLSearchParams(location.search),TOKEN=qs.get('t')||'',API_PATH='__API_PATH__';
 let mode='live',allMatches=[],detailData=null,detailTab='match',refreshTimer=null,loadGeneration=0,lastHomeLoad=0;
 const bhavCache=new Map(),bhavBusy=new Set();
@@ -701,56 +701,56 @@ IBETIN_V35_PREVIEW_PATH = "/admin/ibetin-v35-preview"
 
 IBETIN_V35_PREVIEW_CSS = r"""
 /* V35 PREVIEW ONLY */
-:root{--pbg:#020814;--ppanel:#06182b;--pline:#153f63;--pblue:#1497ff;--pgreen:#23d98b;--ppurple:#794cff;--ptext:#f4f9ff;--pmuted:#8fa8bf}
-html,body{background:radial-gradient(circle at 50% -10%,#0b315e 0,#041425 35%,#020814 76%)!important;color:var(--ptext)!important}
+:root{--pbg:#030911;--ppanel:#081324;--pline:#153963;--pblue:#1482ff;--pgreen:#23d98b;--ppurple:#4ca0ff;--ptext:#f4f9ff;--pmuted:#93a3bb}
+html,body{background:radial-gradient(circle at 50% -10%,#0b325e 0,#06101f 35%,#030911 76%)!important;color:var(--ptext)!important}
 body{padding-bottom:calc(105px + env(safe-area-inset-bottom))!important}
-.top{background:linear-gradient(125deg,#031125,#092c55 72%,#12396b)!important;border-bottom:1px solid rgba(42,155,255,.24)!important;box-shadow:0 12px 32px rgba(0,0,0,.30)!important}
-.mark{background:linear-gradient(145deg,#ffd553,#ffae17)!important;color:#152235!important;border-radius:12px!important}
-.brand b{color:#fff!important}.brand span{color:#b7cae0!important}
+.top{background:linear-gradient(125deg,#050f1f,#0d2447 72%,#123c6b)!important;border-bottom:1px solid rgba(42,141,255,.24)!important;box-shadow:0 12px 32px rgba(0,0,0,.30)!important}
+.mark{background:linear-gradient(145deg,#53a3ff,#1783ff)!important;color:#151f2e!important;border-radius:12px!important}
+.brand b{color:#fff!important}.brand span{color:#bac8dd!important}
 .liveDot{background:rgba(20,157,91,.22)!important;border-color:#2bdd8d!important;box-shadow:0 0 20px rgba(35,217,139,.14)!important}
-.tab{background:#0a2747!important;color:#a9bed2!important}.tab.on{background:linear-gradient(135deg,#178fff,#0a66d5)!important;color:#fff!important;box-shadow:0 8px 24px rgba(20,126,255,.22)!important}
-.main{background:transparent!important}.search,.refresh{background:#06182b!important;color:#edf7ff!important;border-color:#154262!important;box-shadow:none!important}.search::placeholder{color:#6f8aa4!important}
-.status,.league{color:#8da8c0!important}
-.match{background:linear-gradient(180deg,#071b30,#051522)!important;border:1px solid #164463!important;border-left:4px solid #2b9cff!important;box-shadow:0 15px 34px rgba(0,0,0,.25)!important}.match.live{border-left-color:#ff536f!important}
-.fmt,.ta,.si,.foot{color:#8da7bf!important}.tn{color:#fff!important}.sc{color:#f8fbff!important}.badge{background:#102b47!important;color:#a8c5df!important}.badge.live{background:rgba(255,83,111,.14)!important;color:#ff758a!important}
-.oddsRow{background:#051522!important;border-top-color:#143b5a!important}.oddBox{background:linear-gradient(135deg,#0b6fd7,#0a3b78)!important;border-color:#1d99ff!important}.oddBox:nth-of-type(3){background:linear-gradient(135deg,#119c61,#075d3d)!important;border-color:#25d98b!important}.oddLabel{color:#cfe4f5!important}.oddValue{color:#fff!important}
-.detail{background:transparent!important;padding-top:12px!important}.back{background:#08213a!important;color:#d9ecff!important;border:1px solid #174565!important;box-shadow:none!important}
-.scorehero{background:radial-gradient(circle at 50% 10%,rgba(25,139,255,.20),transparent 30%),linear-gradient(180deg,#082342,#06182b)!important;border-color:#174c70!important;box-shadow:0 18px 38px rgba(0,0,0,.28)!important}
-.scoretop{border-bottom-color:#16415f!important;color:#9cb5cc!important}.sname{color:#d9ecff!important}.sval{color:#fff!important}.vs{background:#0b2848!important;color:#d9ecff!important;border:1px solid #246da8!important}.report{background:#061729!important;border-top-color:#16415f!important;color:#c5d8e8!important}
-.quickMarket,.panel{background:linear-gradient(180deg,#071b30,#061522)!important;border-color:#174767!important;box-shadow:0 14px 32px rgba(0,0,0,.24)!important}.quickHead b,.ptitle b{color:#fff!important}.quickHead span,.sessionTitle{color:#38b9ff!important}
-.quickOdd{background:linear-gradient(135deg,#0a78e8,#08448d)!important;border-color:#20a4ff!important}.quickOdd:nth-child(2){background:linear-gradient(135deg,#10a466,#075c3d)!important;border-color:#2cde8c!important}.quickOdd small{color:#d7edff!important}.quickOdd strong{color:#fff!important;font-size:24px!important}
-.sessionGrid{display:flex!important;gap:8px!important;overflow-x:auto!important;scrollbar-width:none!important}.sessionGrid::-webkit-scrollbar{display:none!important}.sessionCard{flex:0 0 min(74vw,240px)!important;background:linear-gradient(135deg,#0a448f,#082750)!important;border-color:#367ee0!important}.sessionCard:nth-child(even){background:linear-gradient(135deg,#5b2aad,#2f1c66)!important;border-color:#9b67ff!important}.sessionCard b,.sessionVals strong{color:#fff!important}.sessionVals{color:#c8dcef!important}
-.dtab{background:#0a2139!important;color:#9eb7cd!important;border-color:#173f5f!important}.dtab.on{background:linear-gradient(135deg,#1594ff,#1268e7)!important;color:#fff!important;border-color:#2ca9ff!important}
-.notice,.inning,.ball,.moreItem,.playerCard{background:#081a2c!important;border-color:#173e5d!important;color:#bad0e2!important}.playerName,.inningTeam,.inningScore,.moreItem,.kv b{color:#fff!important}.metric{background:#0b2a49!important;color:#a9c3d9!important}.ballChip{background:#244764!important;color:#fff!important}.ballChip.boundary{background:#1398ef!important}.ballChip.six{background:#7650e3!important}.ballChip.wicket{background:#e94d68!important}
-.bottom{background:rgba(2,11,23,.98)!important;border:1px solid #153854!important;box-shadow:0 18px 40px rgba(0,0,0,.42)!important}.bottom .on{background:linear-gradient(180deg,rgba(27,137,255,.24),rgba(11,76,139,.16))!important}
+.tab{background:#0d203c!important;color:#acbacf!important}.tab.on{background:linear-gradient(135deg,#1783ff,#0a69d5)!important;color:#fff!important;box-shadow:0 8px 24px rgba(20,130,255,.22)!important}
+.main{background:transparent!important}.search,.refresh{background:#081324!important;color:#eef4fe!important;border-color:#153962!important;box-shadow:none!important}.search::placeholder{color:#7385a0!important}
+.status,.league{color:#91a2bc!important}
+.match{background:linear-gradient(180deg,#091628,#060f1d)!important;border:1px solid #163a63!important;border-left:4px solid #2b8eff!important;box-shadow:0 15px 34px rgba(0,0,0,.25)!important}.match.live{border-left-color:#ff536f!important}
+.fmt,.ta,.si,.foot{color:#91a2bb!important}.tn{color:#fff!important}.sc{color:#f8fbff!important}.badge{background:#12233c!important;color:#a8c2df!important}.badge.live{background:rgba(255,83,111,.14)!important;color:#ff758a!important}
+.oddsRow{background:#060f1d!important;border-top-color:#14355a!important}.oddBox{background:linear-gradient(135deg,#0b6ad7,#0a3d78)!important;border-color:#1d86ff!important}.oddBox:nth-of-type(3){background:linear-gradient(135deg,#119c61,#075d3d)!important;border-color:#25d98b!important}.oddLabel{color:#d2dff2!important}.oddValue{color:#fff!important}
+.detail{background:transparent!important;padding-top:12px!important}.back{background:#0b1a31!important;color:#dce9fc!important;border:1px solid #173b65!important;box-shadow:none!important}
+.scorehero{background:radial-gradient(circle at 50% 10%,rgba(25,132,255,.20),transparent 30%),linear-gradient(180deg,#0b1d37,#081324)!important;border-color:#174170!important;box-shadow:0 18px 38px rgba(0,0,0,.28)!important}
+.scoretop{border-bottom-color:#16385f!important;color:#a0b0c8!important}.sname{color:#dce9fc!important}.sval{color:#fff!important}.vs{background:#0e213d!important;color:#dce9fc!important;border:1px solid #2462a8!important}.report{background:#081223!important;border-top-color:#16385f!important;color:#c8d4e5!important}
+.quickMarket,.panel{background:linear-gradient(180deg,#091628,#07101d)!important;border-color:#173c67!important;box-shadow:0 14px 32px rgba(0,0,0,.24)!important}.quickHead b,.ptitle b{color:#fff!important}.quickHead span,.sessionTitle{color:#3895ff!important}
+.quickOdd{background:linear-gradient(135deg,#0a72e8,#08468d)!important;border-color:#2088ff!important}.quickOdd:nth-child(2){background:linear-gradient(135deg,#10a466,#075c3d)!important;border-color:#2cde8c!important}.quickOdd small{color:#dae8fc!important}.quickOdd strong{color:#fff!important;font-size:24px!important}
+.sessionGrid{display:flex!important;gap:8px!important;overflow-x:auto!important;scrollbar-width:none!important}.sessionGrid::-webkit-scrollbar{display:none!important}.sessionCard{flex:0 0 min(74vw,240px)!important;background:linear-gradient(135deg,#0a488f,#0c2243)!important;border-color:#3685e0!important}.sessionCard:nth-child(even){background:linear-gradient(135deg,#2a67ad,#1c3f66)!important;border-color:#67aeff!important}.sessionCard b,.sessionVals strong{color:#fff!important}.sessionVals{color:#cbd8ec!important}
+.dtab{background:#0c1b30!important;color:#a2b2c9!important;border-color:#17395f!important}.dtab.on{background:linear-gradient(135deg,#1582ff,#1275e7)!important;color:#fff!important;border-color:#2c8eff!important}
+.notice,.inning,.ball,.moreItem,.playerCard{background:#0a1525!important;border-color:#17385d!important;color:#bdcbdf!important}.playerName,.inningTeam,.inningScore,.moreItem,.kv b{color:#fff!important}.metric{background:#0e213e!important;color:#adbdd5!important}.ballChip{background:#244264!important;color:#fff!important}.ballChip.boundary{background:#137aef!important}.ballChip.six{background:#5095e3!important}.ballChip.wicket{background:#e94d68!important}
+.bottom{background:rgba(3,10,19,.98)!important;border:1px solid #153254!important;box-shadow:0 18px 40px rgba(0,0,0,.42)!important}.bottom .on{background:linear-gradient(180deg,rgba(27,133,255,.24),rgba(11,71,139,.16))!important}
 /* V35 NAV CLEARANCE FIX */
 .main{padding-bottom:calc(185px + env(safe-area-inset-bottom))!important}
 .detail{padding-bottom:calc(185px + env(safe-area-inset-bottom))!important}
 .bottom{left:16px!important;right:16px!important;bottom:calc(8px + env(safe-area-inset-bottom))!important;padding:6px!important;border-radius:18px!important}
 .bottom button{height:48px!important;font-size:8px!important}
 .bottom b{font-size:17px!important;margin-bottom:1px!important}
-body:before{content:"PREVIEW";position:fixed;right:10px;top:8px;z-index:9999;background:#7b43f6;color:#fff;font-size:8px;font-weight:1000;letter-spacing:1px;padding:5px 8px;border-radius:999px;pointer-events:none}
-.previewHomeOdds{padding:12px 13px 13px;border-top:1px solid #153d5d;background:#051522}
-.previewOddsTitle{font-size:9px;font-weight:1000;color:#8fb1cc;letter-spacing:.7px;margin-bottom:8px}
+body:before{content:"PREVIEW";position:fixed;right:10px;top:8px;z-index:9999;background:#4397f6;color:#fff;font-size:8px;font-weight:1000;letter-spacing:1px;padding:5px 8px;border-radius:999px;pointer-events:none}
+.previewHomeOdds{padding:12px 13px 13px;border-top:1px solid #15375d;background:#060f1d}
+.previewOddsTitle{font-size:9px;font-weight:1000;color:#94a8c7;letter-spacing:.7px;margin-bottom:8px}
 .previewHomeGrid,.previewBhavGrid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
-.previewPrice{border-radius:14px;padding:12px 13px;border:1px solid #25a5ff;background:linear-gradient(135deg,#0b79e7,#083f86);min-width:0}
+.previewPrice{border-radius:14px;padding:12px 13px;border:1px solid #258bff;background:linear-gradient(135deg,#0b72e7,#084386);min-width:0}
 .previewPrice.green{border-color:#31df90;background:linear-gradient(135deg,#11a868,#075b3c)}
-.previewPrice small{display:block;color:#d8edff;font-size:9px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.previewPrice small{display:block;color:#dbe8fc;font-size:9px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .previewPrice strong{display:block;color:#fff;font-size:28px;line-height:1;margin-top:6px;font-weight:1000;font-variant-numeric:tabular-nums}
 .previewBhav{margin-top:2px}
 .previewBhavHead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}
-.previewBhavHead b{font-size:17px;color:#fff}.previewBhavHead span{font-size:9px;color:#31baff;font-weight:1000}
-.previewHist{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid #17496d;border-radius:12px;overflow:hidden;margin-top:9px}
-.previewHist div{padding:8px 4px;text-align:center;background:#08223c;border-right:1px solid #17496d}.previewHist div:last-child{border-right:0}
-.previewHist span{display:block;color:#7f9db7;font-size:7px;font-weight:900}.previewHist b{display:block;color:#fff;font-size:13px;margin-top:3px;font-variant-numeric:tabular-nums}.previewHist .cur b{color:#2db8ff}
-.previewSessionTitle{font-size:10px;font-weight:1000;color:#35b9ff;margin:13px 0 7px}
+.previewBhavHead b{font-size:17px;color:#fff}.previewBhavHead span{font-size:9px;color:#3191ff;font-weight:1000}
+.previewHist{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid #173f6d;border-radius:12px;overflow:hidden;margin-top:9px}
+.previewHist div{padding:8px 4px;text-align:center;background:#0b1b32;border-right:1px solid #173f6d}.previewHist div:last-child{border-right:0}
+.previewHist span{display:block;color:#8396b3;font-size:7px;font-weight:900}.previewHist b{display:block;color:#fff;font-size:13px;margin-top:3px;font-variant-numeric:tabular-nums}.previewHist .cur b{color:#2d8fff}
+.previewSessionTitle{font-size:10px;font-weight:1000;color:#3593ff;margin:13px 0 7px}
 .previewSessionStrip{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none}.previewSessionStrip::-webkit-scrollbar{display:none}
-.previewSessionCard{flex:0 0 min(76vw,250px);padding:11px;border-radius:13px;background:linear-gradient(135deg,#0b468f,#092855);border:1px solid #397fd7}
-.previewSessionCard:nth-child(even){background:linear-gradient(135deg,#5a2bad,#2d1a64);border-color:#9c68ff}
+.previewSessionCard{flex:0 0 min(76vw,250px);padding:11px;border-radius:13px;background:linear-gradient(135deg,#0b498f,#0d2447);border:1px solid #3983d7}
+.previewSessionCard:nth-child(even){background:linear-gradient(135deg,#2b68ad,#1a3d64);border-color:#68aeff}
 .previewSessionCard>b{font-size:11px;color:#fff}.previewSessionVals{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
-.previewSessionVals span{padding:5px 7px;border-radius:8px;background:rgba(255,255,255,.08);font-size:8px;color:#c6d9ea}.previewSessionVals b{color:#fff;font-size:12px;margin-left:3px}
-.previewMarketList{display:grid;gap:8px}.previewMarketRow{background:#081a2c;border:1px solid #17405f;border-radius:12px;padding:11px}
-.previewMarketRow>b{display:block;color:#fff;font-size:11px;margin-bottom:7px}.previewMarketVals{display:flex;gap:8px;flex-wrap:wrap;color:#a8c1d6;font-size:10px}.previewMarketVals strong{color:#fff}
+.previewSessionVals span{padding:5px 7px;border-radius:8px;background:rgba(255,255,255,.08);font-size:8px;color:#c6d7ea}.previewSessionVals b{color:#fff;font-size:12px;margin-left:3px}
+.previewMarketList{display:grid;gap:8px}.previewMarketRow{background:#0a1525;border:1px solid #17395f;border-radius:12px;padding:11px}
+.previewMarketRow>b{display:block;color:#fff;font-size:11px;margin-bottom:7px}.previewMarketVals{display:flex;gap:8px;flex-wrap:wrap;color:#abbbd3;font-size:10px}.previewMarketVals strong{color:#fff}
 
 """
 
@@ -846,7 +846,7 @@ def _page_v35_preview() -> str:
     return html
 
 
-IBETIN_V35_PREVIEW_BADGE_CSS = 'body:before{content:"PREVIEW";position:fixed;right:10px;top:8px;z-index:9999;background:#7b43f6;color:#fff;font-size:8px;font-weight:1000;letter-spacing:1px;padding:5px 8px;border-radius:999px;pointer-events:none}'
+IBETIN_V35_PREVIEW_BADGE_CSS = 'body:before{content:"PREVIEW";position:fixed;right:10px;top:8px;z-index:9999;background:#4397f6;color:#fff;font-size:8px;font-weight:1000;letter-spacing:1px;padding:5px 8px;border-radius:999px;pointer-events:none}'
 
 
 def _page_v35_production() -> str:
@@ -863,18 +863,18 @@ IBETIN_V36_BRAND_PREVIEW_PATH = "/admin/ibetin-v36-brand-preview"
 IBETIN_V36_BRAND_CSS = r"""
 /* V36 IBETIN.COM BRAND PREVIEW ONLY */
 .brand b{font-size:20px!important;letter-spacing:.35px!important}
-.brand b .dotcom{color:#2fb7ff;font-weight:1000}
-.brand span{font-size:9px!important;letter-spacing:1.2px!important;font-weight:900!important;color:#9fc0db!important}
-.mark{position:relative!important;background:linear-gradient(145deg,#ffe071,#ffb319)!important;box-shadow:0 8px 22px rgba(255,180,25,.20)!important}
-.mark:after{content:".COM";position:absolute;right:-8px;bottom:-5px;background:#0b6ee0;color:#fff;font-size:6px;line-height:1;font-weight:1000;padding:4px 5px;border-radius:6px;border:2px solid #06182b}
+.brand b .dotcom{color:#2f90ff;font-weight:1000}
+.brand span{font-size:9px!important;letter-spacing:1.2px!important;font-weight:900!important;color:#9fbbdb!important}
+.mark{position:relative!important;background:linear-gradient(145deg,#71b3ff,#1984ff)!important;box-shadow:0 8px 22px rgba(25,132,255,.20)!important}
+.mark:after{content:".COM";position:absolute;right:-8px;bottom:-5px;background:#0b6ee0;color:#fff;font-size:6px;line-height:1;font-weight:1000;padding:4px 5px;border-radius:6px;border:2px solid #081324}
 .liveDot{font-size:9px!important;letter-spacing:.5px!important}
 .top{padding-top:16px!important}
-.ibBrandSig{margin:4px 16px 16px;padding:12px 14px;border:1px solid #143d5b;border-radius:14px;background:linear-gradient(135deg,rgba(9,37,66,.78),rgba(5,22,39,.82));display:flex;align-items:center;justify-content:space-between;gap:10px}
-.ibBrandSig b{font-size:12px;color:#fff;letter-spacing:.5px}.ibBrandSig span{font-size:8px;color:#7fa4c3;letter-spacing:.8px;font-weight:900}
-.loading:after{content:"IBETIN.COM";display:block;margin-top:7px;color:#3fb5ff;font-size:8px;font-weight:1000;letter-spacing:1.5px}
-.match{position:relative}.match:after{content:"IBETIN.COM";position:absolute;right:10px;bottom:7px;font-size:6px;font-weight:1000;letter-spacing:1px;color:rgba(111,164,206,.35);pointer-events:none}
-.scorehero:before{content:"IBETIN.COM LIVE";display:block;padding:7px 14px;background:linear-gradient(90deg,rgba(16,135,255,.12),rgba(22,210,137,.08));border-bottom:1px solid #153e5e;color:#69c8ff;font-size:7px;font-weight:1000;letter-spacing:1.2px}
-body:before{content:"BRAND PREVIEW";position:fixed;right:10px;top:8px;z-index:9999;background:#0a76df;color:#fff;font-size:7px;font-weight:1000;letter-spacing:1px;padding:5px 8px;border-radius:999px;pointer-events:none}
+.ibBrandSig{margin:4px 16px 16px;padding:12px 14px;border:1px solid #14355b;border-radius:14px;background:linear-gradient(135deg,rgba(12,29,56,.78),rgba(7,17,33,.82));display:flex;align-items:center;justify-content:space-between;gap:10px}
+.ibBrandSig b{font-size:12px;color:#fff;letter-spacing:.5px}.ibBrandSig span{font-size:8px;color:#849bbe;letter-spacing:.8px;font-weight:900}
+.loading:after{content:"IBETIN.COM";display:block;margin-top:7px;color:#3f99ff;font-size:8px;font-weight:1000;letter-spacing:1.5px}
+.match{position:relative}.match:after{content:"IBETIN.COM";position:absolute;right:10px;bottom:7px;font-size:6px;font-weight:1000;letter-spacing:1px;color:rgba(111,155,206,.35);pointer-events:none}
+.scorehero:before{content:"IBETIN.COM LIVE";display:block;padding:7px 14px;background:linear-gradient(90deg,rgba(16,128,255,.12),rgba(22,210,137,.08));border-bottom:1px solid #15375e;color:#69afff;font-size:7px;font-weight:1000;letter-spacing:1.2px}
+body:before{content:"BRAND PREVIEW";position:fixed;right:10px;top:8px;z-index:9999;background:#0a6ddf;color:#fff;font-size:7px;font-weight:1000;letter-spacing:1px;padding:5px 8px;border-radius:999px;pointer-events:none}
 """
 
 
@@ -902,8 +902,8 @@ def _page_v36_brand_preview() -> str:
         1,
     )
     html = html.replace(
-        "tg.setHeaderColor('#071a34');tg.setBackgroundColor('#eef3f8')",
-        "tg.setHeaderColor('#020814');tg.setBackgroundColor('#020814')",
+        "tg.setHeaderColor('#09172c');tg.setBackgroundColor('#eff2f7')",
+        "tg.setHeaderColor('#030911');tg.setBackgroundColor('#030911')",
         1,
     )
     html = html.replace(
@@ -923,23 +923,23 @@ IBETIN_V37_PROMO_PREVIEW_PATH = "/admin/ibetin-v37-promo-preview"
 IBETIN_V37_PROMO_CSS = r"""
 /* V37 LIVE LINE x IBETIN.COM PROMO PREVIEW */
 .brand b{font-size:20px!important;letter-spacing:.6px!important}
-.brand span{font-size:9px!important;letter-spacing:1.2px!important;font-weight:900!important;color:#9bb8d1!important}
-.liveLineSub{display:block;margin-top:2px;font-size:8px;color:#74baff;font-weight:900;letter-spacing:.7px}
-.ibPromoCard{margin:11px 0 0;border:1px solid #1a5e8b;border-radius:16px;background:linear-gradient(135deg,#08284a,#071a31 62%,#09263d);padding:13px;box-shadow:0 12px 28px rgba(0,0,0,.18)}
+.brand span{font-size:9px!important;letter-spacing:1.2px!important;font-weight:900!important;color:#9fb1cd!important}
+.liveLineSub{display:block;margin-top:2px;font-size:8px;color:#74b5ff;font-weight:900;letter-spacing:.7px}
+.ibPromoCard{margin:11px 0 0;border:1px solid #1a4f8b;border-radius:16px;background:linear-gradient(135deg,#0c203e,#091629 62%,#0c1c33);padding:13px;box-shadow:0 12px 28px rgba(0,0,0,.18)}
 .ibPromoTop{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px}
-.ibPromoBrand{font-size:12px;font-weight:1000;color:#fff;letter-spacing:.5px}.ibPromoBrand span{color:#38b8ff}
-.ibPromoPill{font-size:7px;font-weight:1000;color:#9ed2f5;border:1px solid #215c83;background:#0b2a47;border-radius:999px;padding:5px 7px;letter-spacing:.7px}
-.ibPromoTitle{font-size:14px;font-weight:1000;color:#fff;margin-bottom:4px}.ibPromoCopy{font-size:9px;line-height:1.45;color:#91abc2}
-.ibPromoBtn{width:100%;margin-top:10px;height:44px;border:0;border-radius:12px;background:linear-gradient(135deg,#1496ff,#0d68d4);color:#fff;font-size:11px;font-weight:1000;letter-spacing:.4px}
-.ibPromoLegal{margin-top:7px;font-size:7px;line-height:1.4;color:#6f8ca5;text-align:center}
-.ibHomePromo{display:block;width:100%;border:0;border-top:1px solid #17405f;background:#061a2d;color:#58bdff;text-align:left;padding:9px 13px;font-size:9px;font-weight:1000;letter-spacing:.2px}
-.ibHomePromo small{float:right;color:#6689a6;font-size:7px;font-weight:900}
-.ibQuickPromo{display:flex;align-items:center;justify-content:space-between;gap:9px;margin-top:9px;padding:9px 10px;border:1px solid #1b5a82;border-radius:11px;background:linear-gradient(135deg,#09284a,#071a30)}
-.ibQuickPromo div{min-width:0}.ibQuickPromo b{display:block;color:#fff;font-size:10px}.ibQuickPromo span{display:block;color:#7fa1bd;font-size:7px;margin-top:2px}
-.ibQuickPromo button{flex:0 0 auto;border:0;border-radius:9px;background:#0f82e9;color:#fff;padding:8px 10px;font-size:8px;font-weight:1000}
-.ibPowered{margin:2px 16px 14px;text-align:center;color:#6f8da7;font-size:7px;font-weight:900;letter-spacing:1px}
+.ibPromoBrand{font-size:12px;font-weight:1000;color:#fff;letter-spacing:.5px}.ibPromoBrand span{color:#3895ff}
+.ibPromoPill{font-size:7px;font-weight:1000;color:#9ec7f5;border:1px solid #214f83;background:#0e203c;border-radius:999px;padding:5px 7px;letter-spacing:.7px}
+.ibPromoTitle{font-size:14px;font-weight:1000;color:#fff;margin-bottom:4px}.ibPromoCopy{font-size:9px;line-height:1.45;color:#95a5be}
+.ibPromoBtn{width:100%;margin-top:10px;height:44px;border:0;border-radius:12px;background:linear-gradient(135deg,#1482ff,#0d6ad4);color:#fff;font-size:11px;font-weight:1000;letter-spacing:.4px}
+.ibPromoLegal{margin-top:7px;font-size:7px;line-height:1.4;color:#7385a1;text-align:center}
+.ibHomePromo{display:block;width:100%;border:0;border-top:1px solid #17395f;background:#081426;color:#58a6ff;text-align:left;padding:9px 13px;font-size:9px;font-weight:1000;letter-spacing:.2px}
+.ibHomePromo small{float:right;color:#6b81a1;font-size:7px;font-weight:900}
+.ibQuickPromo{display:flex;align-items:center;justify-content:space-between;gap:9px;margin-top:9px;padding:9px 10px;border:1px solid #1b4b82;border-radius:11px;background:linear-gradient(135deg,#0c203e,#091628)}
+.ibQuickPromo div{min-width:0}.ibQuickPromo b{display:block;color:#fff;font-size:10px}.ibQuickPromo span{display:block;color:#8499b8;font-size:7px;margin-top:2px}
+.ibQuickPromo button{flex:0 0 auto;border:0;border-radius:9px;background:#0f75e9;color:#fff;padding:8px 10px;font-size:8px;font-weight:1000}
+.ibPowered{margin:2px 16px 14px;text-align:center;color:#7386a3;font-size:7px;font-weight:900;letter-spacing:1px}
 .detail{padding-bottom:calc(240px + env(safe-area-inset-bottom))!important}
-body:before{content:"V37 PROMO PREVIEW";position:fixed;right:10px;top:8px;z-index:9999;background:#0d73d7;color:#fff;font-size:7px;font-weight:1000;letter-spacing:.9px;padding:5px 8px;border-radius:999px;pointer-events:none}
+body:before{content:"V37 PROMO PREVIEW";position:fixed;right:10px;top:8px;z-index:9999;background:#0d6bd7;color:#fff;font-size:7px;font-weight:1000;letter-spacing:.9px;padding:5px 8px;border-radius:999px;pointer-events:none}
 """
 
 IBETIN_V37_PROMO_JS = r"""
@@ -1037,22 +1037,22 @@ IBETIN_V38_MATCH_PULSE_PATH = "/admin/ibetin-v38-match-pulse"
 
 IBETIN_V38_MATCH_PULSE_CSS = r"""
 /* V38 MATCH PULSE PREVIEW */
-body:before{content:"V38 MATCH PULSE"!important;background:#176fe5!important}
-.v38Pulse{margin:10px 0 12px;border:1px solid #1a547d;border-radius:17px;background:linear-gradient(145deg,#071b31,#092845 68%,#082238);padding:13px;box-shadow:0 14px 34px rgba(0,0,0,.22)}
+body:before{content:"V38 MATCH PULSE"!important;background:#1777e5!important}
+.v38Pulse{margin:10px 0 12px;border:1px solid #1a487d;border-radius:17px;background:linear-gradient(145deg,#091629,#0c1f3a 68%,#0a192f);padding:13px;box-shadow:0 14px 34px rgba(0,0,0,.22)}
 .v38PulseHead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
-.v38PulseHead b{font-size:15px;color:#fff;letter-spacing:.2px}.v38PulseHead span{font-size:7px;font-weight:1000;color:#63c3ff;letter-spacing:1px}
+.v38PulseHead b{font-size:15px;color:#fff;letter-spacing:.2px}.v38PulseHead span{font-size:7px;font-weight:1000;color:#63acff;letter-spacing:1px}
 .v38PulseMetrics{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:10px}
-.v38PulseMetric{padding:9px 8px;border-radius:11px;border:1px solid #174566;background:#061625;min-width:0}
-.v38PulseMetric span{display:block;font-size:7px;color:#7695ae;font-weight:900;letter-spacing:.7px}
+.v38PulseMetric{padding:9px 8px;border-radius:11px;border:1px solid #173c66;background:#07111f;min-width:0}
+.v38PulseMetric span{display:block;font-size:7px;color:#7a8daa;font-weight:900;letter-spacing:.7px}
 .v38PulseMetric b{display:block;margin-top:3px;font-size:15px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
-.v38Recent{padding:10px;border-radius:12px;background:#061725;border:1px solid #163e5c}
+.v38Recent{padding:10px;border-radius:12px;background:#07111f;border:1px solid #16375c}
 .v38RecentTop{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
-.v38RecentTop b{font-size:9px;color:#fff}.v38RecentTop span{font-size:7px;color:#7898b2}
+.v38RecentTop b{font-size:9px;color:#fff}.v38RecentTop span{font-size:7px;color:#7c90ae}
 .v38Balls{display:flex;gap:5px;overflow-x:auto;scrollbar-width:none}.v38Balls::-webkit-scrollbar{display:none}
-.v38Ball{flex:0 0 27px;height:27px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#0b2943;border:1px solid #245578;color:#fff;font-size:9px;font-weight:1000}
-.v38Ball.boundary{background:#0b6c49;border-color:#22bd7b}.v38Ball.six{background:#6140b1;border-color:#9d77ff}.v38Ball.wicket{background:#8e2436;border-color:#e55068}.v38Ball.extra{background:#7b5a13;border-color:#d7ac39}
-.v38PulseSummary{margin-top:9px;color:#a9c0d4;font-size:9px;line-height:1.45}.v38PulseSummary b{color:#fff}
-.v38Latest{margin-top:7px;padding-top:8px;border-top:1px solid #143952;color:#87a8c1;font-size:8px;line-height:1.45}
+.v38Ball{flex:0 0 27px;height:27px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#0e1f39;border:1px solid #244b78;color:#fff;font-size:9px;font-weight:1000}
+.v38Ball.boundary{background:#0b6c49;border-color:#22bd7b}.v38Ball.six{background:#4075b1;border-color:#77b6ff}.v38Ball.wicket{background:#8e2436;border-color:#e55068}.v38Ball.extra{background:#0e4380;border-color:#2982e7}
+.v38PulseSummary{margin-top:9px;color:#acbbd1;font-size:9px;line-height:1.45}.v38PulseSummary b{color:#fff}
+.v38Latest{margin-top:7px;padding-top:8px;border-top:1px solid #143152;color:#8b9fbd;font-size:8px;line-height:1.45}
 .v38Pulse .playerStrip{margin-top:10px!important}
 .v38HideNav{display:none!important}
 .detail{padding-bottom:calc(90px + env(safe-area-inset-bottom))!important}
@@ -1172,18 +1172,18 @@ IBETIN_V39_FAVOURITES_PATH = "/admin/ibetin-v39-favourites"
 
 IBETIN_V39_FAVOURITES_CSS = r"""
 /* V39 MY MATCHES / FAVOURITES PREVIEW */
-body:before{content:"V39 MY MATCHES"!important;background:#8a5cf6!important}
+body:before{content:"V39 MY MATCHES"!important;background:#5ca4f6!important}
 .v39FavBar{display:flex;align-items:center;gap:8px;margin:9px 0 10px;overflow-x:auto;scrollbar-width:none}
 .v39FavBar::-webkit-scrollbar{display:none}
-.v39FavFilter{flex:0 0 auto;border:1px solid #1a4667;background:#071827;color:#8da8be;border-radius:999px;padding:8px 11px;font-size:8px;font-weight:1000;letter-spacing:.45px}
-.v39FavFilter.on{border-color:#5d9cff;background:#0b3157;color:#fff}
-.v39FavCount{display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;margin-left:4px;border-radius:999px;background:#163f62;color:#cce9ff;font-size:7px}
+.v39FavFilter{flex:0 0 auto;border:1px solid #1a3e67;background:#081221;color:#91a1ba;border-radius:999px;padding:8px 11px;font-size:8px;font-weight:1000;letter-spacing:.45px}
+.v39FavFilter.on{border-color:#5da9ff;background:#0f2649;color:#fff}
+.v39FavCount{display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;margin-left:4px;border-radius:999px;background:#163962;color:#d0e1fb;font-size:7px}
 .match{position:relative!important}
-.v39FavBtn{border:0;background:transparent;color:#698aa6;font-size:17px;line-height:1;padding:2px 5px;margin-left:auto;margin-right:4px;cursor:pointer}
-.v39FavBtn.on{color:#ffd85e;text-shadow:0 0 14px rgba(255,216,94,.24)}
-.v39DetailFav{width:100%;height:42px;margin:0 0 10px;border:1px solid #1a4c70;border-radius:12px;background:#071a2d;color:#9dc2de;font-size:9px;font-weight:1000;letter-spacing:.45px}
-.v39DetailFav.on{border-color:#c2a33e;background:linear-gradient(135deg,#382f11,#211c0d);color:#ffe582}
-.v39Empty{padding:28px 18px;text-align:center;border:1px dashed #1a4565;border-radius:16px;background:#061522;color:#7897af;font-size:10px;line-height:1.6}
+.v39FavBtn{border:0;background:transparent;color:#6e82a1;font-size:17px;line-height:1;padding:2px 5px;margin-left:auto;margin-right:4px;cursor:pointer}
+.v39FavBtn.on{color:#5ea9ff;text-shadow:0 0 14px rgba(94,169,255,.24)}
+.v39DetailFav{width:100%;height:42px;margin:0 0 10px;border:1px solid #1a4270;border-radius:12px;background:#091426;color:#9dbbde;font-size:9px;font-weight:1000;letter-spacing:.45px}
+.v39DetailFav.on{border-color:#1a79e6;background:linear-gradient(135deg,#382f11,#211c0d);color:#82bcff}
+.v39Empty{padding:28px 18px;text-align:center;border:1px dashed #1a3d65;border-radius:16px;background:#07101d;color:#7c8fab;font-size:10px;line-height:1.6}
 .v39Empty b{display:block;color:#fff;font-size:14px;margin-bottom:5px}
 """
 
@@ -1309,14 +1309,14 @@ IBETIN_V40_VISUAL_POLISH_PATH = "/admin/ibetin-v40-visual-polish"
 IBETIN_V40_VISUAL_POLISH_CSS = r"""
 /* V40 VISUAL REFINEMENT PREVIEW */
 /* V40 single-live-control refinement */
-body:before{content:"V40 POLISH"!important;background:#0f82e9!important;font-size:6px!important;padding:4px 7px!important;opacity:.92}
+body:before{content:"V40 POLISH"!important;background:#0f75e9!important;font-size:6px!important;padding:4px 7px!important;opacity:.92}
 .liveDot{display:none!important}
 
 /* Cleaner brand hierarchy */
 .top{padding:12px 15px 10px!important;box-shadow:0 8px 24px rgba(0,0,0,.22)!important}
 .brand b{font-size:19px!important;letter-spacing:.45px!important}
 .brand span{font-size:8px!important;letter-spacing:1px!important}
-.liveLineSub{font-size:6.5px!important;letter-spacing:.55px!important;margin-top:1px!important;color:#668cae!important}
+.liveLineSub{font-size:6.5px!important;letter-spacing:.55px!important;margin-top:1px!important;color:#6b84a9!important}
 .liveDot{font-size:8px!important;padding:6px 8px!important}
 .ibPowered{display:none!important}
 
@@ -1328,13 +1328,13 @@ body:before{content:"V40 POLISH"!important;background:#0f82e9!important;font-siz
 .search,.refresh{height:42px!important;border-radius:12px!important}
 .status{font-size:8px!important;margin:6px 1px 8px!important}
 .v39FavBar{margin:5px 0 9px!important;gap:6px!important}
-.v39FavFilter{padding:7px 10px!important;font-size:7.5px!important;background:#061522!important}
-.v39FavFilter.on{background:#0a2a49!important;border-color:#3978ac!important;box-shadow:none!important}
+.v39FavFilter{padding:7px 10px!important;font-size:7.5px!important;background:#07101d!important}
+.v39FavFilter.on{background:#0d213d!important;border-color:#396fac!important;box-shadow:none!important}
 
 /* Match cards: flatter, more premium */
 .list{gap:9px!important}
 .league{margin:12px 2px 5px!important;font-size:8px!important;letter-spacing:.65px!important}
-.match{border:1px solid rgba(32,82,119,.72)!important;border-left:3px solid #278ee8!important;border-radius:15px!important;box-shadow:0 8px 22px rgba(0,0,0,.16)!important;overflow:hidden!important;transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease!important}
+.match{border:1px solid rgba(32,73,119,.72)!important;border-left:3px solid #2781e8!important;border-radius:15px!important;box-shadow:0 8px 22px rgba(0,0,0,.16)!important;overflow:hidden!important;transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease!important}
 .match.live{border-left-color:#ee5870!important}
 .match:active{transform:scale(.992)!important}
 .mh{padding:10px 11px 7px!important}
@@ -1342,23 +1342,23 @@ body:before{content:"V40 POLISH"!important;background:#0f82e9!important;font-siz
 .badge{font-size:7px!important;padding:5px 7px!important;border-radius:999px!important}
 .team{padding:7px 11px!important}
 .tn{font-size:11px!important}.sc{font-size:18px!important}.ta,.si{font-size:8px!important}
-.previewHomeOdds{padding:9px 11px 10px!important;background:rgba(3,15,27,.38)!important}
-.previewOddsTitle{font-size:7px!important;margin-bottom:6px!important;color:#7396b2!important}
+.previewHomeOdds{padding:9px 11px 10px!important;background:rgba(4,12,23,.38)!important}
+.previewOddsTitle{font-size:7px!important;margin-bottom:6px!important;color:#788dad!important}
 .previewHomeGrid{gap:7px!important}
 .previewPrice{padding:9px 10px!important;border-radius:11px!important}
 .previewPrice small{font-size:8px!important}.previewPrice strong{font-size:23px!important;margin-top:4px!important}
 .foot{padding:8px 11px 9px!important;font-size:8px!important}
-.ibHomePromo{padding:8px 11px!important;font-size:8px!important;background:#061522!important;color:#4ca9e8!important}
+.ibHomePromo{padding:8px 11px!important;font-size:8px!important;background:#07101d!important;color:#4c95e8!important}
 
 /* Favourite star should feel native, not bolted on */
 .v39FavBtn{display:inline-flex!important;align-items:center!important;justify-content:center!important;width:27px!important;height:27px!important;border-radius:50%!important;background:rgba(255,255,255,.025)!important;border:1px solid transparent!important;font-size:14px!important;margin-left:auto!important;margin-right:3px!important;transition:transform .14s ease,background .14s ease,border-color .14s ease!important}
 .v39FavBtn:active{transform:scale(.84)!important}
-.v39FavBtn.on{background:rgba(255,214,74,.08)!important;border-color:rgba(255,214,74,.2)!important;color:#ffd75c!important;text-shadow:none!important}
+.v39FavBtn.on{background:rgba(74,158,255,.08)!important;border-color:rgba(74,158,255,.2)!important;color:#5ca8ff!important;text-shadow:none!important}
 
 /* Match detail: score first, everything else quieter */
 .detail{padding-top:9px!important}
 .back{height:36px!important;padding:0 11px!important;border-radius:10px!important;font-size:8px!important}
-.v39DetailFav{height:36px!important;margin:0 0 8px!important;border-radius:10px!important;background:#061725!important;font-size:8px!important}
+.v39DetailFav{height:36px!important;margin:0 0 8px!important;border-radius:10px!important;background:#07111f!important;font-size:8px!important}
 .scorehero{border-radius:17px!important;box-shadow:0 10px 28px rgba(0,0,0,.2)!important}
 .scoretop{padding:9px 12px!important;font-size:7px!important}
 .scoremain{padding:15px 10px 13px!important}
@@ -1366,13 +1366,13 @@ body:before{content:"V40 POLISH"!important;background:#0f82e9!important;font-siz
 .report{padding:9px 11px!important;font-size:8px!important}
 
 /* Match Pulse becomes one compact information layer */
-.v38Pulse{margin:8px 0 9px!important;padding:10px!important;border-radius:14px!important;border-color:#153e5c!important;background:linear-gradient(180deg,#061827,#071d31)!important;box-shadow:none!important}
+.v38Pulse{margin:8px 0 9px!important;padding:10px!important;border-radius:14px!important;border-color:#15365c!important;background:linear-gradient(180deg,#081221,#091629)!important;box-shadow:none!important}
 .v38PulseHead{margin-bottom:7px!important}
-.v38PulseHead b{font-size:12px!important}.v38PulseHead span{font-size:6px!important;color:#528fb9!important}
+.v38PulseHead b{font-size:12px!important}.v38PulseHead span{font-size:6px!important;color:#5a7db1!important}
 .v38PulseMetrics{gap:5px!important;margin-bottom:7px!important}
-.v38PulseMetric{padding:7px!important;border-radius:9px!important;background:#071522!important;border-color:#12354f!important}
+.v38PulseMetric{padding:7px!important;border-radius:9px!important;background:#08101d!important;border-color:#142743!important}
 .v38PulseMetric span{font-size:6px!important}.v38PulseMetric b{font-size:13px!important}
-.v38Recent{padding:8px!important;border:0!important;border-top:1px solid #123750!important;border-radius:0!important;background:transparent!important}
+.v38Recent{padding:8px!important;border:0!important;border-top:1px solid #142744!important;border-radius:0!important;background:transparent!important}
 .v38RecentTop{margin-bottom:6px!important}.v38RecentTop b{font-size:8px!important}.v38RecentTop span{font-size:6px!important}
 .v38Ball{flex-basis:24px!important;width:24px!important;height:24px!important;font-size:8px!important}
 .v38PulseSummary{font-size:8px!important;margin-top:7px!important}
@@ -1392,9 +1392,9 @@ body:before{content:"V40 POLISH"!important;background:#0f82e9!important;font-siz
 .previewHist span{font-size:6px!important}.previewHist b{font-size:11px!important}
 
 /* Promotion is contextual, never louder than the cricket */
-.ibQuickPromo{margin-top:7px!important;padding:8px 9px!important;border-radius:9px!important;background:#071b2c!important;border-color:#17405b!important}
+.ibQuickPromo{margin-top:7px!important;padding:8px 9px!important;border-radius:9px!important;background:#091425!important;border-color:#17375b!important}
 .ibQuickPromo b{font-size:8.5px!important}.ibQuickPromo span{font-size:6.5px!important}
-.ibQuickPromo button{padding:7px 9px!important;font-size:7px!important;background:#0c6fc8!important}
+.ibQuickPromo button{padding:7px 9px!important;font-size:7px!important;background:#0c64c8!important}
 .ibPromoCard{display:none!important}
 
 /* Tabs/panels */
@@ -1402,7 +1402,7 @@ body:before{content:"V40 POLISH"!important;background:#0f82e9!important;font-siz
 .dtab{height:34px!important;border-radius:9px!important;font-size:7px!important}
 .panel{border-radius:14px!important;box-shadow:none!important}
 .ptitle{padding:10px 11px!important}.ptitle b{font-size:9px!important}
-.notice,.inning,.ball,.moreItem,.playerCard{border-color:#143a55!important;box-shadow:none!important}
+.notice,.inning,.ball,.moreItem,.playerCard{border-color:#143255!important;box-shadow:none!important}
 
 /* Motion: subtle only */
 @keyframes v40In{from{opacity:.35;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
@@ -1416,21 +1416,21 @@ button:active{opacity:.86}
 .bottom b{font-size:15px!important}
 
 /* Empty-live state with useful upcoming matches */
-.v40LiveEmpty{padding:22px 14px 14px;text-align:center;border:1px dashed #19405e;border-radius:15px;background:#061522}
-.v40LiveEmpty b{display:block;color:#fff;font-size:14px}.v40LiveEmpty span{display:block;color:#7897af;font-size:8px;margin-top:5px}
+.v40LiveEmpty{padding:22px 14px 14px;text-align:center;border:1px dashed #19395e;border-radius:15px;background:#07101d}
+.v40LiveEmpty b{display:block;color:#fff;font-size:14px}.v40LiveEmpty span{display:block;color:#7c8fab;font-size:8px;margin-top:5px}
 .v40Coming{margin-top:12px}
 .v40ComingHead{display:flex;align-items:center;justify-content:space-between;margin:0 2px 7px}
-.v40ComingHead b{font-size:9px;color:#cbe4f8;letter-spacing:.8px}.v40ComingHead button{border:0;background:transparent;color:#58b9ff;font-size:7px;font-weight:1000}
-.v40ComingCard{width:100%;border:1px solid #173f5e;border-radius:13px;background:#061827;color:#fff;padding:10px 11px;margin-bottom:7px;text-align:left}
+.v40ComingHead b{font-size:9px;color:#cedef5;letter-spacing:.8px}.v40ComingHead button{border:0;background:transparent;color:#58a6ff;font-size:7px;font-weight:1000}
+.v40ComingCard{width:100%;border:1px solid #17385e;border-radius:13px;background:#081221;color:#fff;padding:10px 11px;margin-bottom:7px;text-align:left}
 .v40ComingTop{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.v40ComingLeague{font-size:7px;color:#6f91ac;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.v40ComingTime{font-size:7px;color:#f0c25b;font-weight:900;white-space:nowrap}
+.v40ComingLeague{font-size:7px;color:#7488a7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.v40ComingTime{font-size:7px;color:#5ba1f0;font-weight:900;white-space:nowrap}
 .v40ComingTeams{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px}
-.v40ComingTeam{font-size:10px;font-weight:900;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.v40ComingVs{font-size:7px;color:#627f98;font-weight:1000}
-.v40ComingNote{margin-top:7px;padding-top:7px;border-top:1px solid #12364f;color:#84a3bb;font-size:7px;line-height:1.35}
-.v40Stage{margin:8px 0 9px;padding:9px 10px;border:1px solid #1c557b;border-radius:11px;background:#082039;display:flex;align-items:center;gap:9px}
-.v40StageIcon{flex:0 0 28px;height:28px;border-radius:9px;background:#0d6fc8;display:grid;place-items:center;font-size:14px}
-.v40StageText{min-width:0}.v40StageText b{display:block;color:#fff;font-size:9px}.v40StageText span{display:block;color:#8fb1ca;font-size:7px;margin-top:2px;line-height:1.35}
-.v40Stage.weather{border-color:#665a24;background:#25200d}.v40Stage.weather .v40StageIcon{background:#8b741d}
+.v40ComingTeam{font-size:10px;font-weight:900;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.v40ComingVs{font-size:7px;color:#667894;font-weight:1000}
+.v40ComingNote{margin-top:7px;padding-top:7px;border-top:1px solid #142743;color:#889bb7;font-size:7px;line-height:1.35}
+.v40Stage{margin:8px 0 9px;padding:9px 10px;border:1px solid #1c487b;border-radius:11px;background:#0b1a30;display:flex;align-items:center;gap:9px}
+.v40StageIcon{flex:0 0 28px;height:28px;border-radius:9px;background:#0d64c8;display:grid;place-items:center;font-size:14px}
+.v40StageText{min-width:0}.v40StageText b{display:block;color:#fff;font-size:9px}.v40StageText span{display:block;color:#93a7c6;font-size:7px;margin-top:2px;line-height:1.35}
+.v40Stage.weather{border-color:#0e417c;background:#25200d}.v40Stage.weather .v40StageIcon{background:#115097}
 
 /* V40 MOBILE READABILITY PASS */
 .brand b{font-size:21px!important}

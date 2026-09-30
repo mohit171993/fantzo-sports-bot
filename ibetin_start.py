@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+import sys
 from urllib.parse import parse_qs, urlparse
 
 from telegram import Bot
@@ -30,6 +31,20 @@ def _expect_webapps(name: str, markup, errors: list[str]) -> int:
             errors.append(f"{name}/{button.text}: not a web_app button")
         if button.url:
             errors.append(f"{name}/{button.text}: unexpected url button")
+    return len(buttons)
+
+
+def _expect_score_link(name: str, markup, expected_url: str, errors: list[str]) -> int:
+    buttons = _buttons(markup)
+    if len(buttons) != 1:
+        errors.append(f"{name}: expected one score link, got {len(buttons)}")
+    for button in buttons:
+        if button.text != "Open Match Scores":
+            errors.append(f"{name}: wrong score link label")
+        if button.url != expected_url:
+            errors.append(f"{name}: wrong score URL")
+        if button.web_app is not None or button.callback_data is not None:
+            errors.append(f"{name}: expected URL-only score button")
     return len(buttons)
 
 
@@ -356,8 +371,21 @@ def run_navigation_self_test() -> None:
             errors.append(f"direct-reminder/{button.text}: expected web_app button")
 
     alert_count = 0
-    alert_count += _expect_webapps("match-alert-live", match_alerts._markup("started"), errors)
-    alert_count += _expect_webapps("match-alert-final", match_alerts._markup("final"), errors)
+    mode_runtime = sys.modules.get("bot_mode_runtime")
+    if mode_runtime is not None and mode_runtime._installed and mode_runtime._mode() == "liveline":
+        # The mode controller replaces match-alert Mini App buttons with a
+        # scores-only URL. Read its persisted mode at startup, not a release
+        # default: the previous switch survives a Railway restart.
+        expected_url = mode_runtime._scores_url()
+        alert_count += _expect_score_link(
+            "match-alert-live", match_alerts._markup("started"), expected_url, errors,
+        )
+        alert_count += _expect_score_link(
+            "match-alert-final", match_alerts._markup("final"), expected_url, errors,
+        )
+    else:
+        alert_count += _expect_webapps("match-alert-live", match_alerts._markup("started"), errors)
+        alert_count += _expect_webapps("match-alert-final", match_alerts._markup("final"), errors)
 
     news_buttons = _buttons(news.launcher_keyboard())
     if not news_buttons or news_buttons[0].web_app is None or news_buttons[0].url:

@@ -7,9 +7,12 @@ a separate scores page and intercepts bot-owned messages and web routes.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
+import sqlite3
+from contextlib import closing
 from html import escape
 from urllib.parse import parse_qs, urlencode, urlparse
 
@@ -19,6 +22,7 @@ from telegram import (
     InlineKeyboardMarkup,
     MenuButtonCommands,
     MenuButtonWebApp,
+    BotCommandScopeChat,
     ReplyKeyboardRemove,
     Update,
     WebAppInfo,
@@ -51,6 +55,14 @@ log = logging.getLogger(__name__)
 _installed = False
 _store: ModeStore | None = None
 _brand = ""
+_menu_reconciliation_task: asyncio.Task | None = None
+_default_menu_lock = asyncio.Lock()
+# Two Telegram writes per chat at five chats per second stays below the normal
+# bot-wide request budget while old per-chat settings are replaced.
+MENU_RECONCILE_BATCH = 50
+MENU_RECONCILE_DELAY_SECONDS = 0.2
+MENU_REFRESH_SECONDS = 7 * 24 * 60 * 60
+MENU_RETRY_SECONDS = 15 * 60
 # These handlers only reply with a private owner report. Every other admin
 # command remains behind the clean-mode guard because some send public DMs,
 # channel posts, or the Full product keyboard (notably /broadcast).
@@ -175,23 +187,183 @@ def _mode_keyboard() -> InlineKeyboardMarkup:
 
 
 async def _set_default_menu(bot) -> None:
-    if _mode() == LIVE_LINE:
-        # Telegram's default menu is visible before mobile verification.
-        # The score link is issued per verified user, with a signed token.
-        await bot.set_chat_menu_button(menu_button=MenuButtonCommands())
-        await bot.set_my_commands([
-            BotCommand("start", "Verify your Telegram account"),
-            BotCommand("help", "Verification help"),
-        ])
-    else:
-        # Before verification, the existing default is commands-only. Keep
-        # that neutral in Full mode; verified users already have their own
-        # per-chat Mini App menu from the normal onboarding flow.
-        await bot.set_chat_menu_button(menu_button=MenuButtonCommands())
-        await bot.set_my_commands([
-            BotCommand("start", "Verify your Telegram account"),
-            BotCommand("help", "Verification help"),
-        ])
+    try:
+        async with _default_menu_lock:
+            mode = _mode()
+            # Telegram's default menu is visible before mobile verification.
+            # Verified users have per-chat settings reconciled below.
+            await bot.set_chat_menu_button(menu_button=MenuButtonCommands())
+            if _mode() == mode:
+                await bot.set_my_commands(
+                    [BotCommand("start", "Verify your Telegram account"),
+                     BotCommand("help", "Verification help")]
+                    if mode == LIVE_LINE else tracked.PREVERIFY_COMMANDS
+                )
+    except Exception:
+        # The switch has already been committed. Still show the owner its
+        # status and let the reconciliation task repair per-chat settings.
+        log.exception("Could not update default mode menu")
+    finally:
+        # The mode is already persisted. A Telegram default-menu failure must
+        # not leave existing verified chats with stale Full links indefinitely.
+        _schedule_menu_reconciliation(bot)
+
+
+async def _telegram_menu_write(operation, mode: str, user_id: int, kind: str) -> bool:
+    """Retry one transient Telegram failure; return False for a later sweep."""
+    for attempt in range(2):
+        if _mode() != mode:
+            return True
+        try:
+            await operation()
+            return True
+        except Exception as exc:
+            retry_after = getattr(exc, "retry_after", None)
+            transient = (retry_after is not None or type(exc).__name__ in {
+                "TimedOut", "NetworkError",
+            })
+            if transient and attempt == 0:
+                try:
+                    seconds = (retry_after.total_seconds()
+                               if hasattr(retry_after, "total_seconds")
+                               else float(retry_after) if retry_after is not None else 1.0)
+                except (TypeError, ValueError):
+                    seconds = 1.0
+                if 0 <= seconds <= 60:
+                    await asyncio.sleep(max(seconds + 0.5, 1.0))
+                    continue
+            log.warning("Could not update chat %s user_id=%s error=%s",
+                        kind, user_id, type(exc).__name__)
+            return not transient
+    return False
+
+
+async def _set_verified_chat_ui(bot, user_id: int, mode: str) -> bool:
+    """Set one verified private chat to the current mode without sending a DM."""
+    if _mode() != mode:
+        return True
+    try:
+        if not phone_verify.is_verified(user_id):
+            return True
+        if mode == LIVE_LINE:
+            commands = [
+                BotCommand("start", "Open match scores"),
+                BotCommand("help", "Verification help"),
+            ]
+            menu_url = _scores_url(user_id)
+            menu_text = f"Open {_brand_label()} Scores"
+        else:
+            commands = tracked.VERIFIED_COMMANDS
+            menu_url = hub.hub_url("home")
+            menu_text = "Open DURASPORTS" if _brand == "dura" else f"Open {_brand_label()}"
+    except Exception as exc:
+        log.warning("Could not prepare chat menu user_id=%s error=%s",
+                    user_id, type(exc).__name__)
+        return False
+    commands_ok = await _telegram_menu_write(
+        lambda: bot.set_my_commands(
+            commands, scope=BotCommandScopeChat(chat_id=int(user_id)),
+        ), mode, user_id, "commands",
+    )
+    menu_ok = await _telegram_menu_write(
+        lambda: bot.set_chat_menu_button(
+            chat_id=int(user_id),
+            menu_button=MenuButtonWebApp(
+                text=menu_text, web_app=WebAppInfo(url=menu_url),
+            ),
+        ), mode, user_id, "menu",
+    )
+    return commands_ok and menu_ok
+
+
+async def _reconcile_verified_chats(bot, mode: str) -> bool:
+    """Page a fixed DB snapshot; keep memory, Telegram traffic, and time bounded."""
+    assert _store is not None
+    try:
+        with closing(sqlite3.connect(_store.db_path, timeout=15)) as conn:
+            row = conn.execute(
+                "SELECT MAX(user_id) FROM liveline_verified_users"
+            ).fetchone()
+            last_user_id = int(row[0] or 0)
+    except sqlite3.Error as exc:
+        # An empty/legacy installation can lack the verification table.
+        log.warning("Verified chat reconciliation unavailable error=%s",
+                    type(exc).__name__)
+        return False
+    cursor = 0
+    updated = 0
+    needs_retry = False
+    while cursor < last_user_id and _mode() == mode:
+        try:
+            with closing(sqlite3.connect(_store.db_path, timeout=15)) as conn:
+                rows = conn.execute(
+                    "SELECT user_id FROM liveline_verified_users "
+                    "WHERE user_id > ? AND user_id <= ? ORDER BY user_id LIMIT ?",
+                    (cursor, last_user_id, MENU_RECONCILE_BATCH),
+                ).fetchall()
+        except sqlite3.Error:
+            log.exception("Verified chat reconciliation database read failed")
+            return False
+        if not rows:
+            break
+        for row in rows:
+            if _mode() != mode:
+                return True
+            user_id = int(row[0])
+            cursor = user_id
+            if await _set_verified_chat_ui(bot, user_id, mode) is False:
+                needs_retry = True
+            updated += 1
+            await asyncio.sleep(MENU_RECONCILE_DELAY_SECONDS)
+    # Admins can be verified through the existing admin bypass without a row.
+    admin_id = _admin_id()
+    if _mode() == mode and admin_id:
+        if await _set_verified_chat_ui(bot, admin_id, mode) is False:
+            needs_retry = True
+    log.info("Verified chat menu reconciliation mode=%s chats=%s", mode, updated)
+    return not needs_retry
+
+
+async def _menu_reconciliation_loop(bot, previous) -> None:
+    if previous is not None:
+        try:
+            await previous
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            log.exception("Previous menu reconciliation failed; restarting")
+    while True:
+        mode = _mode()
+        try:
+            success = await _reconcile_verified_chats(bot, mode)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.exception("Verified chat menu reconciliation failed")
+            success = False
+        if _mode() != mode:
+            return
+        if success is False:
+            # Full restoration also needs a retry after a temporary DB or
+            # Telegram failure; otherwise old clean menus could linger.
+            await asyncio.sleep(MENU_RETRY_SECONDS)
+            continue
+        if mode != LIVE_LINE:
+            return
+        # Signed score URLs expire in 30 days. Reissue them weekly for chats
+        # that have not interacted with the bot since the last sweep.
+        await asyncio.sleep(MENU_REFRESH_SECONDS)
+
+
+def _schedule_menu_reconciliation(bot) -> None:
+    global _menu_reconciliation_task
+    previous = _menu_reconciliation_task
+    if previous is not None and not previous.done():
+        previous.cancel()
+    _menu_reconciliation_task = asyncio.create_task(
+        _menu_reconciliation_loop(bot, previous),
+        name="bot-mode-menu-reconciliation",
+    )
 
 
 async def _mode_status(update, context) -> None:
@@ -267,17 +439,7 @@ async def _mode_callback(update, context) -> None:
 async def _send_verified_scores(message, context, user_id: int) -> None:
     url = _scores_url(user_id)
     try:
-        # A neutral hub menu remains useful after switching back to Full.
-        # In Live Line the HTTP gate carries its signed access to /scores.
-        menu_url = hub.hub_url("home") + "&" + urlencode({
-            "access": phone_verify.issue_access_token(user_id),
-        })
-        await context.bot.set_chat_menu_button(
-            chat_id=user_id,
-            menu_button=MenuButtonWebApp(
-                text=f"Open {_brand_label()}", web_app=WebAppInfo(url=menu_url),
-            ),
-        )
+        await _set_verified_chat_ui(context.bot, user_id, LIVE_LINE)
     except Exception:
         log.exception("Could not update verified score menu")
     await message.reply_text(
@@ -541,6 +703,9 @@ def install(brand: str) -> None:
         application.add_handler(TypeHandler(Update, _guard_update), group=-90)
         if _mode() == LIVE_LINE:
             await _set_default_menu(application.bot)
+        else:
+            # Resume an interrupted Full restoration after a process restart.
+            _schedule_menu_reconciliation(application.bot)
 
     tracked.configure_telegram_ui = configure_with_mode
     tracked.app.configure_telegram_ui = configure_with_mode

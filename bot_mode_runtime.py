@@ -51,6 +51,10 @@ log = logging.getLogger(__name__)
 _installed = False
 _store: ModeStore | None = None
 _brand = ""
+# These handlers only reply with a private owner report. Every other admin
+# command remains behind the clean-mode guard because some send public DMs,
+# channel posts, or the Full product keyboard (notably /broadcast).
+ADMIN_PRIVATE_STATUS_COMMANDS = frozenset({"/admin", "/reports"})
 
 
 def _brand_label() -> str:
@@ -109,6 +113,57 @@ def _score_destination_ready() -> bool:
         return True
     except RuntimeError:
         return False
+
+
+class _ModeAwareAlertBot:
+    """Recheck mode at each match-alert send, including RetryAfter retries."""
+
+    def __init__(self, bot, user_id: int):
+        self.bot = bot
+        self.user_id = user_id
+
+    async def send_message(self, **kwargs):
+        if _mode() != FULL:
+            # A Full alert may already be waiting on Telegram's RetryAfter.
+            # Never reuse its old copy or Mini App link after a clean switch.
+            kwargs["text"] = "📊 Match update\n\nOpen match scores for the latest result."
+            kwargs["reply_markup"] = InlineKeyboardMarkup([[
+                InlineKeyboardButton("Open Match Scores", url=_scores_url(self.user_id)),
+            ]])
+        return await self.bot.send_message(**kwargs)
+
+
+class _GuardedPublicBot:
+    """Stop an in-flight reminder or channel post after a clean switch."""
+
+    _SEND_METHODS = frozenset({
+        "send_message", "send_photo", "send_document", "send_video",
+        "send_media_group", "copy_message", "forward_message",
+    })
+
+    def __init__(self, bot):
+        self._bot = bot
+
+    def __getattr__(self, name):
+        method = getattr(self._bot, name)
+        if name not in self._SEND_METHODS:
+            return method
+
+        async def guarded_send(*args, **kwargs):
+            if _mode() != FULL:
+                raise RuntimeError("Public send canceled after Live Line activation")
+            return await method(*args, **kwargs)
+
+        return guarded_send
+
+
+class _GuardedPublicApplication:
+    def __init__(self, application):
+        self._application = application
+        self.bot = _GuardedPublicBot(application.bot)
+
+    def __getattr__(self, name):
+        return getattr(self._application, name)
 
 
 def _mode_keyboard() -> InlineKeyboardMarkup:
@@ -293,9 +348,13 @@ async def _guard_update(update, context) -> None:
     is_start = bool(parts and parts[0].split("@", 1)[0].lower() == "/start")
     start_arg = parts[1].split(maxsplit=1)[0].lower() if is_start and len(parts) > 1 else ""
 
-    # Owner commands and reports remain usable in the owner's private chat.
     if user.id == _admin_id() and message_text.startswith("/"):
-        return
+        command = parts[0].split("@", 1)[0].lower()
+        if (getattr(update, "message", None) is message
+                and command in ADMIN_PRIVATE_STATUS_COMMANDS):
+            return
+        await message.reply_text("This command is unavailable in Live Line mode.")
+        raise ApplicationHandlerStop
 
     if start_arg == "stopreminders" or tracked._is_stop_text(message_text):
         reminders.set_opt_out("bot", user.id, True)
@@ -499,21 +558,25 @@ def install(brand: str) -> None:
     original_reminders = reminders.run_due_reminders
     async def reminders_by_mode(application):
         if _mode() == FULL:
-            return await original_reminders(application)
+            return await original_reminders(_GuardedPublicApplication(application))
         return None
     reminders.run_due_reminders = reminders_by_mode
 
     original_channel_daily = reminders.send_liveline_channel_daily
-    async def channel_daily_by_mode(*args, **kwargs):
+    async def channel_daily_by_mode(application, *args, **kwargs):
         if _mode() == FULL:
-            return await original_channel_daily(*args, **kwargs)
+            return await original_channel_daily(
+                _GuardedPublicApplication(application), *args, **kwargs,
+            )
         return False
     reminders.send_liveline_channel_daily = channel_daily_by_mode
 
     original_channel_launch = reminders.send_liveline_channel_launch
-    async def channel_launch_by_mode(*args, **kwargs):
+    async def channel_launch_by_mode(application, *args, **kwargs):
         if _mode() == FULL:
-            return await original_channel_launch(*args, **kwargs)
+            return await original_channel_launch(
+                _GuardedPublicApplication(application), *args, **kwargs,
+            )
         return False
     reminders.send_liveline_channel_launch = channel_launch_by_mode
 
@@ -541,12 +604,9 @@ def install(brand: str) -> None:
         )]])
 
     async def alert_send_by_mode(bot, user_id, text, markup):
-        if _mode() == FULL:
-            return await original_alert_send(bot, user_id, text, markup)
-        safe_markup = InlineKeyboardMarkup([[InlineKeyboardButton(
-            "Open Match Scores", url=_scores_url(user_id),
-        )]])
-        return await original_alert_send(bot, user_id, text, safe_markup)
+        return await original_alert_send(
+            _ModeAwareAlertBot(bot, user_id), user_id, text, markup,
+        )
 
     match_alerts._event_text = alert_text_by_mode
     match_alerts._markup = alert_markup_by_mode

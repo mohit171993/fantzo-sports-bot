@@ -83,8 +83,10 @@ class PreverificationCopyTests(unittest.TestCase):
         self.assertEqual(len(desc_calls), 2)
         descriptions = ["".join(ast.literal_eval(arg) for arg in call.args)
                         for call in desc_calls]
-        for copy in descriptions:
-            self.assertIsNone(PUBLIC_TERMS.search(copy))
+        self.assertEqual(descriptions, [
+            "🗞 Live line, full scorecards and sports news, every match as it happens.",
+            "🗞 Your front page for live sport.\n🏏 Live line and full scorecards\n⚽ Live scores from the top leagues\n📰 Sports updates as they happen\n🔔 Match alerts straight to your chat\nTap START and stay ahead of the game!",
+        ])
         for _, copy in commands:
             self.assertIsNone(PUBLIC_TERMS.search(copy))
 

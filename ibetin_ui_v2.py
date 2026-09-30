@@ -42,7 +42,7 @@ def _hub_page(hub, section: str) -> str:
     if section == "home":
         body = f"""
 <section class="hero">
-  <div class="eyebrow">DURASPORTS MINI APP</div>
+  <div class="eyebrow">IBETIN MINI APP</div>
   <h1>Everything in one place.</h1>
   <p>Sports, live action, news, alerts and support — directly inside Telegram.</p>
 </section>
@@ -54,7 +54,7 @@ def _hub_page(hub, section: str) -> str:
 <section class="hero">
   <div class="eyebrow">PERSONAL NOTIFICATIONS</div>
   <h1>My Match Alerts</h1>
-  <p>Turn Telegram sports notifications on or off for your DURASPORTS account.</p>
+  <p>Turn Telegram sports notifications on or off for your IBETIN account.</p>
 </section>
 <section class="info">
   <div class="row"><div><b>Sports notifications</b><small id="alertStatus">Checking your preference…</small></div>
@@ -77,7 +77,7 @@ loadAlerts();
 <section class="hero">
   <div class="eyebrow">YOUR PREFERENCES</div>
   <h1>Settings</h1>
-  <p>Keep your DURASPORTS language preference synced with Telegram.</p>
+  <p>Keep your IBETIN language preference synced with Telegram.</p>
 </section>
 <section class="info">
   <b>Language</b>
@@ -101,7 +101,7 @@ loadSettings();
         label = hub.SECTION_LABELS.get(section, section.title())
         body = f"""
 <section class="hero">
-  <div class="eyebrow">DURASPORTS MINI APP</div>
+  <div class="eyebrow">IBETIN MINI APP</div>
   <h1>{escape(label)}</h1>
   <p>Opening {escape(label)} inside Telegram…</p>
 </section>
@@ -111,23 +111,25 @@ loadSettings();
 
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"><title>DURASPORTS</title>
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"><title>IBETIN</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<style>*{{box-sizing:border-box}}html,body{{margin:0;min-height:100%;background:#020A14;color:#F6FBFF;font-family:Inter,Arial,Helvetica,sans-serif}}
-body{{padding-bottom:92px}}.wrap{{max-width:760px;margin:0 auto;padding:18px 16px 32px}}.top{{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}}.brand{{font-size:18px;font-weight:950;letter-spacing:.8px}}.pill{{border:1px solid #16365C;background:#0B1E36;border-radius:999px;padding:7px 10px;color:#B7D4EE;font-size:12px;font-weight:900}}
-.hero{{background:#0B1E36;border:1px solid #16365C;border-radius:22px;padding:22px 18px}}.eyebrow{{font-size:12px;font-weight:900;letter-spacing:1.1px;color:#B7D4EE;margin-bottom:8px}}h1{{font-size:26px;line-height:1.08;margin:0 0 8px;color:#F6FBFF}}.hero p,.info p{{margin:0;color:#D6E8F8;font-size:14px;line-height:1.5}}
-.grid{{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}}.tile{{display:flex;align-items:center;gap:11px;min-height:82px;background:#0B1E36;border:1px solid #16365C;border-radius:18px;padding:14px;text-decoration:none;color:#F6FBFF}}.tile:active{{transform:scale(.985)}}.ico{{font-size:25px;flex:0 0 32px;text-align:center}}.tile span:last-child{{display:flex;min-width:0;flex-direction:column;gap:4px}}.tile b{{font-size:13px}}.tile small{{color:#B7D4EE;font-size:12px;line-height:1.3}}
-.info{{margin-top:16px;background:#0B1E36;border:1px solid #16365C;border-radius:18px;padding:16px}}.info>small{{display:block;color:#B7D4EE;margin-top:8px}}.row{{display:flex;align-items:center;justify-content:space-between;gap:14px}}.row small{{display:block;color:#B7D4EE;margin-top:5px}}
-.switch{{position:relative;width:58px;height:32px;flex:0 0 58px}}.switch input{{opacity:0;width:0;height:0}}.switch span{{position:absolute;inset:0;border-radius:999px;background:#16365C;transition:.18s}}.switch span:before{{content:'';position:absolute;width:24px;height:24px;left:4px;top:4px;background:#F6FBFF;border-radius:50%;transition:.18s;box-shadow:0 1px 3px rgba(0,0,0,.18)}}.switch input:checked+span{{background:#1094FF}}.switch input:checked+span:before{{transform:translateX(26px)}}
-select{{width:100%;margin-top:12px;padding:13px;border-radius:12px;background:#07182C;color:#F6FBFF;border:1px solid #16365C;font-size:15px}}.center{{text-align:center}}.spinner{{width:28px;height:28px;margin:4px auto 12px;border:3px solid #16365C;border-top-color:#1094FF;border-radius:50%;animation:spin .7s linear infinite}}@keyframes spin{{to{{transform:rotate(360deg)}}}}
-.nav{{position:fixed;left:0;right:0;bottom:0;background:#071422;border-top:1px solid #16365C;padding:10px 12px max(10px,env(safe-area-inset-bottom));display:flex;justify-content:center;gap:6px;z-index:20}}.nav a{{flex:1;max-width:160px;text-align:center;text-decoration:none;color:#B7D4EE;font-size:12px;font-weight:900;padding:8px 4px;border-radius:11px}}.nav a strong{{display:block;color:#F6FBFF;font-size:17px;margin-bottom:2px}}
-.toast{{position:fixed;left:50%;bottom:92px;transform:translate(-50%,16px);opacity:0;pointer-events:none;background:#F6FBFF;color:#020A14;border-radius:999px;padding:9px 13px;font-size:12px;font-weight:900;transition:.2s;z-index:30}}.toast.show{{opacity:1;transform:translate(-50%,0)}}
-@media(max-width:390px){{.grid{{gap:10px}}.tile{{padding:12px;min-height:78px}}.tile b{{font-size:13px}}}}</style></head><body>
-<div class="wrap"><div class="top"><div class="brand">DURASPORTS</div><div class="pill">TELEGRAM MINI APP</div></div>{body}</div>
+<style>
+*{{box-sizing:border-box}}html,body{{margin:0;min-height:100%;background:#f5f7fb;color:#172033;font-family:Inter,Arial,Helvetica,sans-serif}}
+body{{padding-bottom:82px}}.wrap{{max-width:760px;margin:0 auto;padding:16px 14px 28px}}.top{{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}}.brand{{font-size:20px;font-weight:950;letter-spacing:.7px}}.pill{{border:1px solid #dce3ed;background:#fff;border-radius:999px;padding:6px 9px;color:#65758a;font-size:10px;font-weight:900}}
+.hero{{background:#fff;border:1px solid #dce3ed;border-radius:22px;padding:20px 18px}}.eyebrow{{font-size:11px;font-weight:900;letter-spacing:1.1px;color:#64748b;margin-bottom:8px}}h1{{font-size:27px;line-height:1.08;margin:0 0 8px}}.hero p,.info p{{margin:0;color:#64748b;font-size:13px;line-height:1.5}}
+.grid{{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}}.tile{{display:flex;align-items:center;gap:11px;min-height:78px;background:#fff;border:1px solid #dce3ed;border-radius:18px;padding:13px;text-decoration:none;color:#172033}}.tile:active{{transform:scale(.985)}}.ico{{font-size:25px;flex:0 0 32px;text-align:center}}.tile span:last-child{{display:flex;min-width:0;flex-direction:column;gap:4px}}.tile b{{font-size:13px}}.tile small{{color:#738196;font-size:10.5px;line-height:1.3}}
+.info{{margin-top:14px;background:#fff;border:1px solid #dce3ed;border-radius:18px;padding:16px}}.info>small{{display:block;color:#738196;margin-top:8px}}.row{{display:flex;align-items:center;justify-content:space-between;gap:14px}}.row small{{display:block;color:#738196;margin-top:5px}}
+.switch{{position:relative;width:58px;height:32px;flex:0 0 58px}}.switch input{{opacity:0;width:0;height:0}}.switch span{{position:absolute;inset:0;border-radius:999px;background:#cbd5e1;transition:.18s}}.switch span:before{{content:'';position:absolute;width:24px;height:24px;left:4px;top:4px;background:#fff;border-radius:50%;transition:.18s;box-shadow:0 1px 3px rgba(0,0,0,.18)}}.switch input:checked+span{{background:#2563eb}}.switch input:checked+span:before{{transform:translateX(26px)}}
+select{{width:100%;margin-top:12px;padding:13px;border-radius:12px;background:#fff;color:#172033;border:1px solid #cbd5e1;font-size:15px}}.center{{text-align:center}}.spinner{{width:28px;height:28px;margin:4px auto 12px;border:3px solid #e2e8f0;border-top-color:#2563eb;border-radius:50%;animation:spin .7s linear infinite}}@keyframes spin{{to{{transform:rotate(360deg)}}}}
+.nav{{position:fixed;left:0;right:0;bottom:0;background:rgba(255,255,255,.97);border-top:1px solid #dce3ed;padding:9px 12px max(9px,env(safe-area-inset-bottom));display:flex;justify-content:center;gap:6px;z-index:20}}.nav a{{flex:1;max-width:160px;text-align:center;text-decoration:none;color:#64748b;font-size:10px;font-weight:900;padding:7px 4px;border-radius:11px}}.nav a strong{{display:block;color:#172033;font-size:17px;margin-bottom:2px}}
+.toast{{position:fixed;left:50%;bottom:92px;transform:translate(-50%,16px);opacity:0;pointer-events:none;background:#172033;color:#fff;border-radius:999px;padding:9px 13px;font-size:11px;font-weight:900;transition:.2s;z-index:30}}.toast.show{{opacity:1;transform:translate(-50%,0)}}
+@media(max-width:390px){{.grid{{gap:8px}}.tile{{padding:11px;min-height:74px}}.tile b{{font-size:12px}}}}
+</style></head><body>
+<div class="wrap"><div class="top"><div class="brand">IBETIN</div><div class="pill">TELEGRAM MINI APP</div></div>{body}</div>
 <nav class="nav"><a href="{escape(home, quote=True)}"><strong>⌂</strong>Home</a><a href="{escape(news, quote=True)}"><strong>📰</strong>News</a><a href="{escape(alerts, quote=True)}"><strong>🔔</strong>Alerts</a><a href="{escape(support, quote=True)}"><strong>🛟</strong>Support</a></nav>
 <div id="toast" class="toast"></div>
 <script>
-const tg=window.Telegram&&window.Telegram.WebApp;if(tg){{tg.ready();tg.expand();try{{tg.setHeaderColor('#020A14');tg.setBackgroundColor('#020A14');}}catch(e){{}}}}
+const tg=window.Telegram&&window.Telegram.WebApp;if(tg){{tg.ready();tg.expand();try{{tg.setHeaderColor('#ffffff');tg.setBackgroundColor('#f5f7fb');}}catch(e){{}}}}
 const initData=tg?(tg.initData||''):'';
 function showToast(m){{const el=document.getElementById('toast');el.textContent=m;el.classList.add('show');clearTimeout(window.__ibt);window.__ibt=setTimeout(()=>el.classList.remove('show'),1800);}}
 async function prefs(payload){{const r=await fetch({json.dumps(hub.PREFS_PATH)},{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(Object.assign({{initData:initData}},payload))}});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not save preference');return d;}}
@@ -152,10 +154,10 @@ def _news_page(news, category: str, items: list[dict]) -> str:
     if not cards:
         cards.append('<div class="empty"><b>No fresh headlines right now.</b><br>Refresh or try another category.</div>')
     refresh = f'{news.NEWS_PATH}?{urlencode({"category": category, "refresh": "1"})}'
-    return f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><title>DURASPORTS Sports News</title><script src="https://telegram.org/js/telegram-web-app.js"></script>
-<style>*{{box-sizing:border-box}}html,body{{margin:0;background:#020A14;color:#F6FBFF;font-family:Arial,Helvetica,sans-serif}}body{{min-height:100%;padding-bottom:28px}}.top{{position:sticky;top:0;z-index:5;background:#07182C;border-bottom:1px solid #16365C;padding:16px 16px 12px}}.brand{{display:flex;align-items:center;justify-content:space-between;gap:10px}}.brand h1{{font-size:18px;margin:0;font-weight:900;color:#F6FBFF}}.badge{{font-size:12px;border:1px solid #16365C;border-radius:999px;padding:6px 9px;color:#F6FBFF;background:#1094FF;font-weight:800}}.sub{{margin-top:8px;color:#B7D4EE;font-size:12px}}.tabs{{display:flex;gap:8px;overflow-x:auto;padding:14px 16px 2px;scrollbar-width:none}}.tabs::-webkit-scrollbar{{display:none}}.tab{{white-space:nowrap;text-decoration:none;color:#D6E8F8;border:1px solid #16365C;background:#0B1E36;border-radius:999px;padding:9px 12px;font-size:12px;font-weight:800}}.tab.active{{background:#1094FF;color:#F6FBFF;border-color:#1094FF}}.wrap{{padding:14px 16px}}.card{{background:#0B1E36;border:1px solid #16365C;border-radius:18px;padding:16px;margin-bottom:12px}}.meta{{display:flex;justify-content:space-between;gap:10px;color:#B7D4EE;font-size:12px;font-weight:700}}.card h2{{font-size:16px;line-height:1.35;margin:9px 0 8px;color:#F6FBFF}}.card p{{font-size:14px;line-height:1.5;margin:0;color:#D6E8F8}}.empty{{padding:28px 18px;text-align:center;border:1px dashed #16365C;border-radius:18px;color:#B7D4EE;background:#0B1E36}}.bottom{{padding:0 16px 18px}}.refresh{{display:block;text-align:center;text-decoration:none;background:#1094FF;color:#F6FBFF;border-radius:14px;padding:14px 16px;font-weight:900}}.note{{font-size:12px;color:#B7D4EE;line-height:1.45;text-align:center;margin-top:12px}}</style></head><body>
-<div class="top"><div class="brand"><h1>📰 DURASPORTS SPORTS NEWS</h1><span class="badge">LIVE FEED</span></div><div class="sub">{escape(label)} · India-focused sports headlines</div></div><nav class="tabs">{tabs}</nav><main class="wrap">{''.join(cards)}</main><div class="bottom"><a class="refresh" href="{escape(refresh, quote=True)}">↻ REFRESH NEWS</a><div class="note">Headlines and short summaries come from external publishers via Google News RSS.</div></div>
-<script>const tg=window.Telegram&&window.Telegram.WebApp;if(tg){{tg.ready();tg.expand();try{{tg.setHeaderColor('#020A14');tg.setBackgroundColor('#020A14');}}catch(e){{}}}}</script></body></html>"""
+    return f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><title>IBETIN Sports News</title><script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>*{{box-sizing:border-box}}html,body{{margin:0;background:#f5f7fb;color:#172033;font-family:Arial,Helvetica,sans-serif}}body{{min-height:100%;padding-bottom:28px}}.top{{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid #dce3ed;padding:14px 14px 10px}}.brand{{display:flex;align-items:center;justify-content:space-between;gap:10px}}.brand h1{{font-size:18px;margin:0;font-weight:900}}.badge{{font-size:11px;border:1px solid #dce3ed;border-radius:999px;padding:6px 9px;color:#64748b;font-weight:800}}.sub{{margin-top:6px;color:#64748b;font-size:12px}}.tabs{{display:flex;gap:8px;overflow-x:auto;padding:12px 14px 2px;scrollbar-width:none}}.tabs::-webkit-scrollbar{{display:none}}.tab{{white-space:nowrap;text-decoration:none;color:#475569;border:1px solid #dce3ed;background:#fff;border-radius:999px;padding:9px 12px;font-size:12px;font-weight:800}}.tab.active{{background:#172033;color:#fff;border-color:#172033}}.wrap{{padding:12px 14px}}.card{{background:#fff;border:1px solid #dce3ed;border-radius:16px;padding:14px;margin-bottom:12px}}.meta{{display:flex;justify-content:space-between;gap:10px;color:#64748b;font-size:11px;font-weight:700}}.card h2{{font-size:16px;line-height:1.35;margin:9px 0 8px;color:#172033}}.card p{{font-size:13px;line-height:1.5;margin:0;color:#64748b}}.empty{{padding:28px 18px;text-align:center;border:1px dashed #cbd5e1;border-radius:16px;color:#64748b;background:#fff}}.bottom{{padding:0 14px}}.refresh{{display:block;text-align:center;text-decoration:none;background:#172033;color:#fff;border-radius:14px;padding:13px 16px;font-weight:900}}.note{{font-size:11px;color:#7b8797;line-height:1.45;text-align:center;margin-top:12px}}</style></head><body>
+<div class="top"><div class="brand"><h1>📰 IBETIN SPORTS NEWS</h1><span class="badge">LIVE FEED</span></div><div class="sub">{escape(label)} · India-focused sports headlines</div></div><nav class="tabs">{tabs}</nav><main class="wrap">{''.join(cards)}</main><div class="bottom"><a class="refresh" href="{escape(refresh, quote=True)}">↻ REFRESH NEWS</a><div class="note">Headlines and short summaries come from external publishers via Google News RSS.</div></div>
+<script>const tg=window.Telegram&&window.Telegram.WebApp;if(tg){{tg.ready();tg.expand();try{{tg.setHeaderColor('#ffffff');tg.setBackgroundColor('#f5f7fb');}}catch(e){{}}}}</script></body></html>"""
 
 
 def _install_router(start_module):

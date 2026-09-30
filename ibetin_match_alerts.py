@@ -355,9 +355,9 @@ def _event_text(match: dict, sport: str, event_key: str, extra: dict, language: 
         lines.append(f"📣 {report}")
 
     if hi:
-        lines.extend(["", "DURASPORTS Mini App में लाइव अपडेट देखें।"])
+        lines.extend(["", "IBETIN Mini App में लाइव अपडेट देखें।"])
     else:
-        lines.extend(["", "Follow the latest update inside the DURASPORTS Mini App."])
+        lines.extend(["", "Follow the latest update inside the IBETIN Mini App."])
     return "\n".join(lines)
 
 
@@ -365,7 +365,7 @@ def _markup(event_key: str) -> InlineKeyboardMarkup:
     if event_key == "final":
         return InlineKeyboardMarkup(
             [[InlineKeyboardButton("📊 VIEW RESULTS", web_app=WebAppInfo(url=_hub_url("results")))],
-             [InlineKeyboardButton("⚡ OPEN DURASPORTS", web_app=WebAppInfo(url=_hub_url("home")))]]
+             [InlineKeyboardButton("⚡ OPEN IBETIN", web_app=WebAppInfo(url=_hub_url("home")))]]
         )
     return InlineKeyboardMarkup(
         [[InlineKeyboardButton("🔴 OPEN LIVE", web_app=WebAppInfo(url=_hub_url("live")))],

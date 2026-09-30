@@ -146,15 +146,15 @@ def _liveline_verification_page(token: str = "") -> str:
 <title>Verify account</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
-*{{box-sizing:border-box}}html,body{{margin:0;min-height:100%;font-family:Inter,Arial,sans-serif;background:#020A14;color:#F6FBFF}}
-.wrap{{max-width:560px;margin:0 auto;padding:32px 18px}}
-.card{{margin-top:42px;background:#0B1E36;border:1px solid #16365C;border-radius:22px;padding:28px 20px;box-shadow:0 16px 36px rgba(0,0,0,.35);text-align:center}}
-.mark{{width:64px;height:64px;border-radius:18px;margin:0 auto 16px;display:grid;place-items:center;background:#1094FF;font-size:30px}}
-h1{{margin:0;font-size:24px;color:#F6FBFF}}p{{color:#B7D4EE;line-height:1.55;font-size:15px}}
-.btn{{display:block;margin-top:20px;padding:15px 16px;border-radius:14px;background:#1094FF;color:#F6FBFF;text-decoration:none;font-weight:900}}
-.benefits{{display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin:16px 0 2px}}
-.benefits span{{background:#07182C;border:1px solid #16365C;border-radius:999px;padding:8px 10px;font-size:12px;font-weight:800;color:#F6FBFF}}
-.note{{font-size:12px;color:#B7D4EE;margin-top:14px;line-height:1.45}}
+*{{box-sizing:border-box}}html,body{{margin:0;min-height:100%;font-family:Inter,Arial,sans-serif;background:#eef3f8;color:#102c4b}}
+.wrap{{max-width:560px;margin:0 auto;padding:28px 18px}}
+.card{{margin-top:42px;background:#fff;border-radius:22px;padding:26px 20px;box-shadow:0 10px 32px rgba(5,34,69,.10);text-align:center}}
+.mark{{width:60px;height:60px;border-radius:18px;margin:0 auto 16px;display:grid;place-items:center;background:#f6c84b;font-size:30px}}
+h1{{margin:0;font-size:24px}}p{{color:#6d8297;line-height:1.55;font-size:14px}}
+.btn{{display:block;margin-top:20px;padding:15px 16px;border-radius:14px;background:#0b5cb4;color:#fff;text-decoration:none;font-weight:900;box-shadow:0 8px 18px rgba(11,92,180,.18)}}
+.benefits{{display:flex;justify-content:center;flex-wrap:wrap;gap:7px;margin:16px 0 2px}}
+.benefits span{{background:#f3f7fb;border:1px solid #e3ebf3;border-radius:999px;padding:7px 9px;font-size:11px;font-weight:800;color:#41627f}}
+.note{{font-size:12px;color:#8a9bad;margin-top:14px;line-height:1.45}}
 </style>
 </head>
 <body><div class="wrap"><div class="card">
@@ -897,12 +897,12 @@ def _page_v37_promo_preview() -> str:
     html = html.replace("<title>IBETIN Live Cricket</title>", "<title>IBETIN Live Line · Powered by ibetin.com</title>", 1)
     html = html.replace(
         '<div class="brand"><div class="mark">I</div><div><b>IBETIN</b><span>LIVE CRICKET</span></div></div><div class="liveDot">● LIVE</div>',
-        '<div class="brand"><div class="mark"><svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#071A34"/><rect x="3" y="3" width="58" height="58" rx="12" fill="none" stroke="#F6C84B" stroke-width="3"/><text x="32" y="44" text-anchor="middle" font-family="Arial,sans-serif" font-size="36" font-weight="700" fill="#F6FBFF">D</text></svg></div><div><b>DURASPORTS</b><span>LIVE LINE</span></div></div><div class="liveDot">● LIVE</div>',
+        '<div class="brand"><div class="mark">I</div><div><b>IBETIN</b><span>LIVE LINE</span><small class="liveLineSub">POWERED BY IBETIN.COM</small></div></div><div class="liveDot">● LIVE</div>',
         1,
     )
     html = html.replace(
         '<nav class="bottom">',
-        '<nav class="bottom">',
+        '<div class="ibPowered">IBETIN LIVE LINE · POWERED BY IBETIN.COM</div><nav class="bottom">',
         1,
     )
     html = html.replace("</style>", IBETIN_V37_PROMO_CSS + "\n</style>", 1)
@@ -1628,7 +1628,7 @@ def _page_v40_public() -> str:
     html = _page_v40_visual_polish()
     html = html.replace(
         "<title>IBETIN Live Line · Visual Polish V40</title>",
-        "<title>DURASPORTS Live Line</title>",
+        "<title>IBETIN Live Line</title>",
         1,
     )
     html = html.replace(API_PATH, IBETIN_PUBLIC_LIVELINE_API_PATH)
@@ -1642,7 +1642,6 @@ def _page_v40_public() -> str:
         "if(v40EventSource||typeof EventSource==='undefined')return;",
         1,
     )
-    html = html.replace("</body>", "<style>html,body{background:#020A14!important;color:#F6FBFF!important}.bottom button{font-size:12px!important}.bottom .on,.tab.on,.tab.active,nav a.active,.btn,.primary,.refresh{background:#1094FF!important;color:#F6FBFF!important;border-color:#1094FF!important}.card,.hero,.section,.match,.panel{border-radius:18px!important}.match:after,.loading:after,.scorehero:before{content:none!important;display:none!important}.ibPowered,.liveLineSub{display:none!important}.mark{width:64px!important;height:64px!important;min-width:64px!important;background:transparent!important;overflow:hidden!important;border-radius:14px!important;padding:0!important}</style></body>", 1)
     return html
 
 

@@ -31,7 +31,7 @@ RETRY_BACKOFF_MINUTES = 30
 
 IBETIN_HOME_URL = os.getenv("IBETIN_HOME_URL", "https://ibetin.com").strip()
 IBETIN_MINI_APP_DEEP_LINK = os.getenv("IBETIN_MINI_APP_DEEP_LINK", IBETIN_HOME_URL).strip()
-IBETIN_CHANNEL_URL = "https://t.me/durasportsofficial"
+IBETIN_CHANNEL_URL = "https://t.me/ibetinoffcial"
 _IBETIN_APP_BASE_URL = (
     os.getenv("TRACKING_BASE_URL", "").strip().rstrip("/")
     or "https://ibetin-app-production.up.railway.app"
@@ -357,13 +357,13 @@ def _verification_due_stage(row, now_utc: datetime):
 
 def _copy_for(interest: str, stage: int, source: str, user_id: int = 0):
     if interest == "cricket":
-        subject = "🏏 DURASPORTS Live Line"
+        subject = "🏏 IBETIN Live Line"
         detail = "Live scores, Match Pulse, scorecards, fixtures & results."
     elif interest == "football":
         subject = "⚽ Football updates"
         detail = "Live scores, fixtures & results."
     else:
-        subject = "🔥 DURASPORTS sports update"
+        subject = "🔥 IBETIN sports update"
         detail = "Live Line, fixtures & results are ready."
 
     if stage == 1:
@@ -390,7 +390,7 @@ def _copy_for(interest: str, stage: int, source: str, user_id: int = 0):
                 ],
                 [
                     TelegramInlineKeyboardButton(
-                        "🚀 JOIN DURASPORTS",
+                        "🚀 JOIN IBETIN",
                         url=business.telegram_mini_app_url("home", user_id),
                     )
                 ],
@@ -421,7 +421,7 @@ def _copy_for(interest: str, stage: int, source: str, user_id: int = 0):
                 [live_line_button],
                 [
                     TelegramInlineKeyboardButton(
-                        "🚀 JOIN DURASPORTS",
+                        "🚀 JOIN IBETIN",
                         web_app=WebAppInfo(url=hub.hub_url("home")),
                     )
                 ],
@@ -757,13 +757,13 @@ async def send_liveline_channel_daily(application, local_now: datetime | None = 
         return True
 
     caption = (
-        "🏏 <b>DURASPORTS LIVE LINE</b>\n\n"
-        "Scores, fixtures, and results.\n"
+        "🏏 <b>IBETIN LIVE LINE</b>\n\n"
+        "Live scores • Match Pulse • Scorecards • Fixtures & results\n\n"
         "Tap below to open Live Line."
     )
     markup = InlineKeyboardMarkup(
         [[TelegramInlineKeyboardButton(
-            "🏏 OPEN DURASPORTS LIVE LINE",
+            "🏏 OPEN IBETIN LIVE LINE",
             url=IBETIN_LIVE_LINE_MINI_APP_URL,
         )]]
     )
@@ -931,9 +931,9 @@ async def send_liveline_channel_launch(application) -> bool:
         return True
 
     text = (
-        "🏏 <b>DURASPORTS LIVE LINE IS LIVE</b>\n"
+        "🏏 <b>IBETIN LIVE LINE IS LIVE</b>\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
-        "Follow cricket live inside Telegram with DURASPORTS Live Line.\n\n"
+        "Follow cricket live inside Telegram with IBETIN Live Line.\n\n"
         "⚡ Fast live score updates\n"
         "📊 Match Pulse & scorecards\n"
         "⭐ Save your favourite matches\n"
@@ -943,7 +943,7 @@ async def send_liveline_channel_launch(application) -> bool:
     markup = InlineKeyboardMarkup(
         [[
             TelegramInlineKeyboardButton(
-                "🏏 OPEN DURASPORTS LIVE LINE",
+                "🏏 OPEN IBETIN LIVE LINE",
                 url=IBETIN_LIVE_LINE_MINI_APP_URL,
             )
         ]]

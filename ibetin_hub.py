@@ -96,7 +96,7 @@ def news_button(label: str = "📰 SPORTS NEWS") -> InlineKeyboardButton:
 def clean_main_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
-            [webapp_button("⚡ OPEN DURASPORTS", "home")],
+            [webapp_button("⚡ OPEN IBETIN", "home")],
             [
                 news_button("📰 NEWS"),
                 webapp_button("🔴 LIVE", "live"),
@@ -262,14 +262,14 @@ PAGE_TEMPLATE = Template(
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
 *{box-sizing:border-box}
-:root{--bg:#020A14;--card:#0B1E36;--card2:#07182C;--line:#16365C;--text:#F6FBFF;--muted:#B7D4EE;--soft:#D6E8F8}
+:root{--bg:#07101c;--card:#0e1b2b;--card2:#101f31;--line:#20334b;--text:#f7f9fc;--muted:#91a5bc;--soft:#b8c6d6}
 html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:Inter,Arial,Helvetica,sans-serif}
 body{padding-bottom:84px}
 .wrap{max-width:760px;margin:0 auto;padding:15px 14px 28px}
 .top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
 .brand{font-size:18px;font-weight:950;letter-spacing:.8px}
-.pill{border:1px solid var(--line);border-radius:999px;padding:6px 9px;color:var(--muted);font-size:12px;font-weight:900}
-.hero{background:#0B1E36;border:1px solid #16365C;border-radius:24px;padding:22px 18px;box-shadow:0 16px 36px rgba(0,0,0,.28)}
+.pill{border:1px solid var(--line);border-radius:999px;padding:6px 9px;color:var(--muted);font-size:10px;font-weight:900}
+.hero{background:linear-gradient(145deg,#13253a,#0b1726);border:1px solid #29415e;border-radius:24px;padding:21px 18px;box-shadow:0 14px 40px rgba(0,0,0,.22)}
 .hero .eyebrow{font-size:11px;font-weight:900;letter-spacing:1.2px;color:#9fb5ca;margin-bottom:8px}
 .hero h1{font-size:26px;line-height:1.08;margin:0 0 8px}
 .hero p{margin:0;color:var(--soft);font-size:14px;line-height:1.5}
@@ -292,13 +292,13 @@ body{padding-bottom:84px}
 .switch input:checked + .slider:before{transform:translateX(26px)}
 .status{margin-top:10px;font-size:12px;color:var(--muted)}
 select{width:100%;margin-top:12px;padding:13px 12px;border-radius:13px;background:var(--card2);color:var(--text);border:1px solid #2b425e;font-size:15px}
-.primary{display:block;width:100%;border:0;border-radius:14px;padding:14px 16px;margin-top:14px;background:#1094FF;color:#F6FBFF;font-weight:950;text-align:center;text-decoration:none;font-size:14px}
+.primary{display:block;width:100%;border:0;border-radius:14px;padding:14px 16px;margin-top:14px;background:#f7f9fc;color:#07101c;font-weight:950;text-align:center;text-decoration:none;font-size:14px}
 .loading{display:flex;align-items:center;gap:10px;color:var(--soft)}
 .dot{width:10px;height:10px;border-radius:50%;background:#f7f9fc;animation:pulse 1s infinite alternate}
 @keyframes pulse{to{opacity:.25}}
 .note{font-size:11px!important;color:#7e93aa!important;margin-top:10px!important}
-.nav{position:fixed;left:0;right:0;bottom:0;background:#071422;backdrop-filter:blur(14px);border-top:1px solid #16365C;padding:10px 12px max(10px,env(safe-area-inset-bottom));display:flex;justify-content:center;gap:6px;z-index:20}
-.nav a{flex:1;max-width:160px;text-align:center;text-decoration:none;color:#B7D4EE;font-size:12px;font-weight:900;padding:8px 4px;border-radius:11px}
+.nav{position:fixed;left:0;right:0;bottom:0;background:rgba(7,16,28,.96);backdrop-filter:blur(14px);border-top:1px solid #1e3046;padding:9px 12px max(9px,env(safe-area-inset-bottom));display:flex;justify-content:center;gap:6px;z-index:20}
+.nav a{flex:1;max-width:160px;text-align:center;text-decoration:none;color:#94a8bd;font-size:10px;font-weight:900;padding:7px 4px;border-radius:11px}
 .nav a strong{display:block;color:#eef3f8;font-size:17px;margin-bottom:2px}
 .toast{position:fixed;left:50%;bottom:92px;transform:translate(-50%,16px);opacity:0;pointer-events:none;background:#f7f9fc;color:#07101c;border-radius:999px;padding:9px 13px;font-size:11px;font-weight:900;transition:.2s;z-index:30}
 .toast.show{opacity:1;transform:translate(-50%,0)}
@@ -307,7 +307,7 @@ select{width:100%;margin-top:12px;padding:13px 12px;border-radius:13px;backgroun
 </head>
 <body>
 <div class="wrap">
-  <div class="top"><div class="brand">DURASPORTS</div><div class="pill">TELEGRAM MINI APP</div></div>
+  <div class="top"><div class="brand">IBETIN</div><div class="pill">TELEGRAM MINI APP</div></div>
   $content
 </div>
 <nav class="nav">
@@ -322,7 +322,7 @@ const tg = window.Telegram && window.Telegram.WebApp;
 if (tg) {
   tg.ready();
   tg.expand();
-  try { tg.setHeaderColor('#020A14'); tg.setBackgroundColor('#020A14'); } catch (e) {}
+  try { tg.setHeaderColor('#07101c'); tg.setBackgroundColor('#07101c'); } catch (e) {}
 }
 const initData = tg ? (tg.initData || '') : '';
 function toast(message) {
@@ -356,7 +356,7 @@ def _page(section: str) -> str:
     if section == "home":
         content = f"""
         <section class="hero">
-          <div class="eyebrow">YOUR DURASPORTS COMMAND CENTER</div>
+          <div class="eyebrow">YOUR IBETIN COMMAND CENTER</div>
           <h1>Everything important. One clean screen.</h1>
           <p>Sports, live action, news, account help and personal alerts — all from inside Telegram.</p>
         </section>
@@ -372,11 +372,11 @@ def _page(section: str) -> str:
         <section class="hero">
           <div class="eyebrow">PERSONAL NOTIFICATIONS</div>
           <h1>My Match Alerts</h1>
-          <p>Choose which sports you want DURASPORTS to notify you about.</p>
+          <p>Choose which sports you want IBETIN to notify you about.</p>
         </section>
         <section class="section">
           <h2>Telegram alerts</h2>
-          <p>Your choices are saved directly to your DURASPORTS bot profile.</p>
+          <p>Your choices are saved directly to your IBETIN bot profile.</p>
           <div class="row">
             <div><b>Match notifications</b><div class="status" id="alertStatus">Checking your preference…</div></div>
             <label class="switch"><input id="alertsToggle" type="checkbox" disabled><span class="slider"></span></label>
@@ -465,7 +465,7 @@ loadAlerts();
         <section class="hero">
           <div class="eyebrow">YOUR PREFERENCES</div>
           <h1>Settings</h1>
-          <p>Keep your DURASPORTS bot language synced with the Mini App.</p>
+          <p>Keep your IBETIN bot language synced with the Mini App.</p>
         </section>
         <section class="section">
           <h2>Language</h2>
@@ -514,12 +514,12 @@ loadSettings();
         target = SECTION_TARGETS[section]
         content = f"""
         <section class="hero">
-          <div class="eyebrow">DURASPORTS MINI APP</div>
+          <div class="eyebrow">IBETIN MINI APP</div>
           <h1>{escape(label)}</h1>
           <p>Opening {escape(label)} inside this Telegram Mini App…</p>
         </section>
         <section class="section">
-          <div class="loading"><span class="dot"></span><b>Loading secure DURASPORTS section</b></div>
+          <div class="loading"><span class="dot"></span><b>Loading secure IBETIN section</b></div>
           <a class="primary" href="{escape(target, quote=True)}">CONTINUE INSIDE TELEGRAM</a>
         </section>
         """
@@ -530,7 +530,7 @@ setTimeout(() => {{
 """
 
     return PAGE_TEMPLATE.safe_substitute(
-        title=escape(f"DURASPORTS · {SECTION_LABELS.get(section, section.title())}"),
+        title=escape(f"IBETIN · {SECTION_LABELS.get(section, section.title())}"),
         content=content,
         home_url=escape(hub_url("home"), quote=True),
         news_url=escape(news_url(), quote=True),
@@ -590,14 +590,14 @@ def _install_clean_runtime_ui() -> None:
     import bot_persistent as app
 
     app.core.TEXT["en"]["welcome"] = (
-        "⚡ <b>DURASPORTS</b>\n"
+        "⚡ <b>IBETIN</b>\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
         "<b>Your sports & entertainment command center.</b>\n\n"
         "Everything opens inside Telegram. Use the clean shortcuts below or open the full Mini App.\n\n"
         ""
     )
     app.core.TEXT["hi"]["welcome"] = (
-        "⚡ <b>DURASPORTS</b>\n"
+        "⚡ <b>IBETIN</b>\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
         "<b>आपका sports & entertainment command center.</b>\n\n"
         "सभी विकल्प Telegram के अंदर खुलते हैं। नीचे quick shortcuts चुनें या पूरा Mini App खोलें।\n\n"
@@ -612,19 +612,19 @@ def _install_clean_runtime_ui() -> None:
         return InlineKeyboardMarkup([[webapp_button(label, section)]])
 
     try:
-        app.fantzo_autoreply._website_keyboard = lambda: one_button("⚡ OPEN DURASPORTS", "home")
+        app.fantzo_autoreply._website_keyboard = lambda: one_button("⚡ OPEN IBETIN", "home")
         app.fantzo_autoreply._sports_keyboard = lambda: one_button("🏆 OPEN SPORTS", "sports")
-        app.fantzo_autoreply._account_keyboard = lambda: one_button("⚡ OPEN DURASPORTS", "home")
+        app.fantzo_autoreply._account_keyboard = lambda: one_button("⚡ OPEN IBETIN", "home")
         app.fantzo_autoreply._support_keyboard = lambda: one_button("🛟 OPEN SUPPORT", "support")
     except Exception:
         logger.exception("Could not simplify IBETIN assistant keyboards")
 
     try:
         app.fantzo_business._welcome_buttons = lambda: InlineKeyboardMarkup(
-            [[webapp_button("⚡ OPEN DURASPORTS", "home")], [news_button("📰 SPORTS NEWS")]]
+            [[webapp_button("⚡ OPEN IBETIN", "home")], [news_button("📰 SPORTS NEWS")]]
         )
         app.fantzo_business._fantzo_button = (
-            lambda source, label="⚡ OPEN DURASPORTS": one_button(label, "home")
+            lambda source, label="⚡ OPEN IBETIN": one_button(label, "home")
         )
     except Exception:
         logger.exception("Could not simplify IBETIN business keyboards")
@@ -639,7 +639,7 @@ def _install_clean_runtime_ui() -> None:
 
         try:
             cleanup = await update.effective_message.reply_text(
-                "Updating DURASPORTS…", reply_markup=ReplyKeyboardRemove()
+                "Updating IBETIN…", reply_markup=ReplyKeyboardRemove()
             )
             await cleanup.delete()
         except Exception:
@@ -654,7 +654,7 @@ def _install_clean_runtime_ui() -> None:
         await original_configure(application)
         await application.bot.set_my_commands(
             [
-                BotCommand("start", "Open DURASPORTS"),
+                BotCommand("start", "Open IBETIN"),
                 BotCommand("news", "Sports news"),
                 BotCommand("live", "Live section"),
                 BotCommand("alerts", "My match alerts"),
@@ -663,7 +663,7 @@ def _install_clean_runtime_ui() -> None:
         )
         await application.bot.set_chat_menu_button(
             menu_button=MenuButtonWebApp(
-                text="Open DURASPORTS",
+                text="Open IBETIN",
                 web_app=WebAppInfo(url=hub_url("home")),
             )
         )
@@ -673,7 +673,7 @@ def _install_clean_runtime_ui() -> None:
             if not message:
                 return
             await message.reply_text(
-                "🔔 <b>MY MATCH ALERTS</b>\n\nManage your Telegram sports notifications inside the DURASPORTS Mini App.",
+                "🔔 <b>MY MATCH ALERTS</b>\n\nManage your Telegram sports notifications inside the IBETIN Mini App.",
                 parse_mode="HTML",
                 reply_markup=one_button("🔔 MANAGE ALERTS", "alerts"),
             )
@@ -700,7 +700,7 @@ def install_on_tracking_handler(analytics_module, *, install_runtime_ui: bool = 
                 _send_html(self, 200, _page(section))
             except Exception:
                 logger.exception("Could not render IBETIN Mini App")
-                _send_html(self, 500, "<h3>DURASPORTS Mini App could not load.</h3>")
+                _send_html(self, 500, "<h3>IBETIN Mini App could not load.</h3>")
             return
         previous_get(self)
 

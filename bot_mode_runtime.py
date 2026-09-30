@@ -79,7 +79,7 @@ ADMIN_PRIVATE_STATUS_COMMANDS = frozenset({"/admin", "/reports"})
 
 
 def _brand_label() -> str:
-    return {"ibetin": "iBetin", "dura": "DURASPORTS"}.get(_brand, _brand.title())
+    return {"ibetin": "iBetin", "dura": "DURA"}.get(_brand, _brand.title())
 
 
 def _score_button_label() -> str:

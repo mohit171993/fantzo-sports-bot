@@ -56,18 +56,18 @@ def _page() -> str:
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
 *{{box-sizing:border-box}}
-html,body{{margin:0;width:100%;height:100%;background:#050b14;color:#fff;font-family:Arial,Helvetica,sans-serif;overflow:hidden}}
-.shell{{height:100%;display:flex;flex-direction:column;background:#050b14}}
-.top{{height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;background:#0b1320;border-bottom:1px solid #1b2a3d;flex:0 0 auto}}
-.brand{{font-size:15px;font-weight:900;letter-spacing:.5px}}
-.badge{{font-size:11px;font-weight:800;color:#8ea2bb;border:1px solid #27384e;border-radius:999px;padding:6px 9px}}
-.frame-wrap{{position:relative;flex:1;min-height:0;background:#000}}
+html,body{{margin:0;width:100%;height:100%;background:#071A34;color:#F6FBFF;font-family:Arial,Helvetica,sans-serif;overflow:hidden}}
+.shell{{height:100%;display:flex;flex-direction:column;background:#071A34}}
+.top{{height:58px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:#0B2748;border-bottom:3px solid #F6C84B;flex:0 0 auto}}
+.brand{{font-size:16px;font-weight:900;letter-spacing:.6px}}
+.badge{{font-size:12px;font-weight:800;color:#F6FBFF;background:#EF4763;border-radius:999px;padding:6px 10px}}
+.frame-wrap{{position:relative;flex:1;min-height:0;background:#071A34}}
 iframe{{width:100%;height:100%;border:0;background:#000}}
-.fallback{{position:absolute;inset:0;display:none;align-items:center;justify-content:center;padding:24px;background:#07101c;text-align:center}}
-.card{{max-width:360px}}
-.card h2{{margin:0 0 10px;font-size:23px}}
-.card p{{color:#9cadc2;line-height:1.5;font-size:14px}}
-.btn{{display:block;margin-top:16px;padding:15px 18px;border-radius:14px;background:#fff;color:#07101c;text-decoration:none;font-weight:900}}
+.fallback{{position:absolute;inset:0;display:none;align-items:center;justify-content:center;padding:28px;background:#071A34;text-align:center}}
+.card{{max-width:340px;background:#0B2748;border:1px solid #1A4E86;border-radius:18px;padding:22px 18px}}
+.card h2{{margin:0 0 10px;font-size:24px;color:#F6FBFF}}
+.card p{{color:#A9C7E8;line-height:1.5;font-size:15px}}
+.btn{{display:block;margin-top:16px;padding:15px 18px;border-radius:14px;background:#0B5CB4;color:#F6FBFF;text-decoration:none;font-weight:900;font-size:15px}}
 </style>
 </head>
 <body>
@@ -117,13 +117,33 @@ def install_on_tracking_handler(analytics_module) -> None:
         path = urlparse(self.path).path
         if path == MINITV_PATH:
             if not is_public_enabled():
-                _send_html(self, 503, "<h3>Fantzo Live TV is temporarily unavailable.</h3>")
+                _send_html(
+                    self,
+                    503,
+                    "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"
+                    "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+                    "<style>html,body{margin:0;min-height:100%;background:#071A34;color:#F6FBFF;"
+                    "font-family:Arial,Helvetica,sans-serif}body{display:flex;min-height:100vh;"
+                    "align-items:center;justify-content:center;padding:28px;text-align:center}"
+                    "h3{margin:0;max-width:320px;font-size:22px;line-height:1.35;font-weight:800}"
+                    "</style></head><body><h3>Fantzo Live TV is temporarily unavailable.</h3></body></html>",
+                )
                 return
             try:
                 _send_html(self, 200, _page())
             except Exception:
                 logger.exception("Could not render Fantzo MiniTV")
-                _send_html(self, 500, "<h3>Fantzo MiniTV could not load.</h3>")
+                _send_html(
+                    self,
+                    500,
+                    "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"
+                    "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+                    "<style>html,body{margin:0;min-height:100%;background:#071A34;color:#F6FBFF;"
+                    "font-family:Arial,Helvetica,sans-serif}body{display:flex;min-height:100vh;"
+                    "align-items:center;justify-content:center;padding:28px;text-align:center}"
+                    "h3{margin:0;max-width:320px;font-size:22px;line-height:1.35;font-weight:800}"
+                    "</style></head><body><h3>Fantzo MiniTV could not load.</h3></body></html>",
+                )
             return
         previous_get(self)
 

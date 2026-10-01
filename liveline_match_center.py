@@ -30,7 +30,9 @@ import time
 from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qs, urlparse
 
-VERSION = "match-centre-2026-10-01"
+import liveline_roanuz_feeds as feeds
+
+VERSION = "match-centre-2026-10-01b"
 logger = logging.getLogger(__name__)
 
 CENTER_TTL = 12
@@ -802,6 +804,7 @@ def build_center(node, odds_payload=None, extra_balls=()):
         "live": _live_block(ctx, innings, winprob) if ctx.live else None,
         "commentary": _commentary(ctx, extra_balls),
         "squads": _squads(ctx),
+        "odds": feeds.build_odds(odds_payload, ctx.teams) if odds_payload else None,
     }
 
 
@@ -912,12 +915,63 @@ def build_football(rows):
 
 # ------------------------------------------------------------ runtime glue ---
 
+def _learn_names(ctx, payloads):
+    for payload in payloads:
+        over = _d(_d(_d(payload).get("data")).get("over"))
+        for ball in _l(over.get("balls")):
+            ball = _d(ball)
+            match = re.match(r"^(.+?) to (.+?):", _clean(ball.get("comment"), 160))
+            if not match:
+                continue
+            for key, name in ((_d(ball.get("bowler")).get("player_key"), match.group(1)), (_d(ball.get("batsman")).get("player_key"), match.group(2))):
+                if key and str(key) not in ctx._names:
+                    ctx._names[str(key)] = name.strip()
+
+
 class _Runtime:
-    def __init__(self, runtime):
+    def __init__(self, runtime, brand="ibetin"):
         self.runtime = runtime
         self.v23 = runtime.v23
         self.liveline = runtime.v23.liveline
         self.admin = runtime.v23.v20.admin
+        self.brand = brand
+        self.feeds = feeds.Feeds(self.admin, brand, _cached, _cache_get, _lock_for, _ball_token, _clean)
+
+    def _feed_ctx(self, key):
+        node = self.match_node(key)
+        status = str(node.get("status") or "").lower()
+        return node, status
+
+    def balls(self, key):
+        node, status = self._feed_ctx(key)
+        if status not in ("started", "completed"):
+            return None, status or "not_started"
+        live = status == "started"
+
+        def load():
+            ctx = _Match(node)
+            payloads, complete = self.feeds.ball_payloads(key, live)
+            _learn_names(ctx, payloads)
+            feed = feeds.build_ball_feed(payloads, ctx.teams, _ball_token, _clean, ctx.name, complete)
+            feed["offset"] = feeds._over_offset_from_balls(payloads)
+            feed["live"] = live
+            return feed
+        return _cached(f"rf:balls:{key}:{int(live)}", feeds.BALL_LIVE_TTL if live else 120, load, negative_ttl=30), status
+
+    def over_summary(self, key):
+        node, status = self._feed_ctx(key)
+        if status not in ("started", "completed"):
+            return None, status or "not_started"
+        live = status == "started"
+
+        def load():
+            ctx = _Match(node)
+            bb = _cache_get(f"rf:balls:{key}:{int(live)}")
+            offset = bb.get("offset") if isinstance(bb, dict) else None
+            out = self.feeds.summary(key, live, ctx.teams, ctx.name, offset)
+            out["live"] = live
+            return out
+        return _cached(f"rf:summary:{key}:{int(live)}", feeds.SUMMARY_LIVE_TTL if live else 300, load, negative_ttl=30), status
 
     def match_node(self, key):
         _payload, node = self.v23._match_payload(key)
@@ -970,7 +1024,7 @@ def _send(rt, handler, status, payload):
 
 
 def _handle(rt, handler, action, key):
-    if action in ("center", "points") and (not key or not _KEY_RE.match(key)):
+    if action in ("center", "points", "balls", "oversummary") and (not key or not _KEY_RE.match(key)):
         _send(rt, handler, 400, {"ok": False, "error": "Invalid match key"})
         return
     if action == "center":
@@ -991,6 +1045,18 @@ def _handle(rt, handler, action, key):
             logger.info("Live Line points table unavailable key=%s: %s", key, str(exc)[:160])
             _send(rt, handler, 200, {"ok": True, "points": {"groups": []}})
         return
+    if action in ("balls", "oversummary"):
+        field = "balls" if action == "balls" else "summary"
+        if key.isdigit():
+            _send(rt, handler, 200, {"ok": True, field: None, "reason": "fallback"})
+            return
+        try:
+            data, status = rt.balls(key) if action == "balls" else rt.over_summary(key)
+            _send(rt, handler, 200, {"ok": True, field: data, "status": status, "reason": "" if data else "not_live"})
+        except Exception as exc:
+            logger.info("Live Line %s feed unavailable key=%s: %s", action, key, str(exc)[:160])
+            _send(rt, handler, 200, {"ok": True, field: None, "reason": "unavailable"})
+        return
     if action == "football":
         try:
             _send(rt, handler, 200, {"ok": True, "matches": rt.football()})
@@ -1000,7 +1066,7 @@ def _handle(rt, handler, action, key):
         return
 
 
-_ACTIONS = {"center", "points", "football"}
+_ACTIONS = {"center", "points", "football", "balls", "oversummary"}
 
 
 def inject_page(page: str, brand: str) -> str:
@@ -1013,13 +1079,29 @@ def inject_page(page: str, brand: str) -> str:
     return page
 
 
+def _install_feed_transport(runtime, brand):
+    """Shared TTLs for the paid feeds + cross-bot relay. Never raises."""
+    import sys
+
+    v14 = sys.modules.get("ibetin_liveline_v14_efficient")
+    done = {}
+    if v14 is not None:
+        done["ttl"] = feeds.install_shared_ttl(v14)
+        if brand == "dura":
+            done["dura_relay"] = feeds.install_dura_relay(v14)
+    if brand == "ibetin":
+        done["relay_paths"] = feeds.install_relay_paths(runtime)
+    logger.info("Live Line Roanuz feeds installed version=%s brand=%s %s", feeds.FEEDS_VERSION, brand, done)
+    return done
+
+
 def install(runtime, brand: str = "ibetin") -> bool:
     """Install the match centre on the V40 runtime module. Never raises."""
     brand = "dura" if str(brand).lower().startswith("dura") else "ibetin"
     try:
         if getattr(runtime, "_liveline_match_centre_installed", False):
             return True
-        rt = _Runtime(runtime)
+        rt = _Runtime(runtime, brand)
         previous_api = rt.liveline._api
 
         def api(handler):
@@ -1042,6 +1124,7 @@ def install(runtime, brand: str = "ibetin") -> bool:
         admin_page = lambda: inject_page(base_visual(), brand)  # noqa: E731
         rt.v23._page = admin_page
         rt.liveline._page = admin_page
+        _install_feed_transport(runtime, brand)
         runtime._liveline_match_centre_installed = True
         runtime._liveline_match_centre_runtime = rt
         _self_test(runtime, brand)
@@ -1068,7 +1151,14 @@ _SELF_TEST_NODE = {
 
 
 def _self_test(runtime, brand):
-    center = build_center(_SELF_TEST_NODE, {"data": {"match": {"result_prediction": {"automatic": {"percentage": [{"team_key": "ta", "value": 40}, {"team_key": "tb", "value": 60}]}}}}})
+    center = build_center(_SELF_TEST_NODE, {"data": {"match": {
+        "result_prediction": {"automatic": {"percentage": [{"team_key": "ta", "value": 40}, {"team_key": "tb", "value": 60}]}},
+        "bet_odds": {"automatic": {"decimal": [{"team_key": "ta", "value": 2.4}, {"team_key": "tb", "value": 1.6}]}}}}})
+    ctx = _Match(_SELF_TEST_NODE)
+    bb = feeds.build_ball_feed([{"data": {"over": {"index": {"innings": "b_1", "over_number": 3}, "balls": [
+        {"key": "k1", "innings": "b_1", "overs": [2, 1], "repr": "b4", "comment": "A to B: FOUR"},
+        {"key": "k2", "innings": "b_1", "overs": [2, 2], "repr": "w", "comment": "A to B: OUT"}]}}}], ctx.teams, _ball_token, _clean, ctx.name)
+    os_ = feeds.build_over_summary([{"data": {"summaries": [{"index": {"innings": "b_1", "over_number": 1}, "runs": 9, "wickets": 0, "match_score": {"runs": 9, "wickets": 0, "run_rate": 9.0}}]}}], ctx.teams, ctx.name)
     page = runtime._page_v40_public()
     checks = {
         "scorecard": bool(center["innings"] and center["innings"][0]["batting"]),
@@ -1078,6 +1168,9 @@ def _self_test(runtime, brand):
         "page_assets": "__LIVELINE_MATCH_CENTRE__" in page,
         "bhav_kept": "LIVE BHAV" in page,
         "brand_theme": (f'data-mc-brand="{brand}"' in page) or (f"mcBrand='{brand}'" in page),
+        "live_odds": bool(center.get("odds") and center["odds"]["favourite"] == "TB"),
+        "ball_by_ball": bb["innings"][0]["overs"][0]["over"] == 3 and bb["innings"][0]["overs"][0]["wickets"] == 1,
+        "over_summary": os_["innings"][0]["overs"][0]["over"] == 1 and os_["innings"][0]["runs"] == 9,
     }
     ok = all(checks.values())
     (logger.info if ok else logger.error)("Live Line Match Centre self-test %s checks=%s", "PASS" if ok else "FAILED", checks)

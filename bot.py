@@ -25,6 +25,27 @@ logger = logging.getLogger(__name__)
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 HIGHLIGHTLY_API_KEY = os.getenv("HIGHLIGHTLY_API_KEY")
 ADMIN_USER_ID = int(os.getenv("ADMIN_USER_ID", "8992664481"))
+# Owner-approved additional full admins. They get every admin right the
+# main ADMIN_USER_ID has; owner alerts still go to ADMIN_USER_ID only.
+EXTRA_ADMIN_USER_IDS = frozenset({8860632140})  # @Liveline_proadmin
+
+
+def admin_user_ids() -> frozenset:
+    """Every Telegram user id with full (main-admin level) rights."""
+    ids = set(EXTRA_ADMIN_USER_IDS)
+    try:
+        if int(ADMIN_USER_ID):
+            ids.add(int(ADMIN_USER_ID))
+    except (TypeError, ValueError):
+        pass
+    return frozenset(ids)
+
+
+def is_admin_user(user_id) -> bool:
+    try:
+        return int(user_id) in admin_user_ids()
+    except (TypeError, ValueError):
+        return False
 
 HIGHLIGHTLY_API_BASE = "https://sports.highlightly.net"
 APP_TIMEZONE = ZoneInfo("Asia/Kolkata")
@@ -810,7 +831,7 @@ async def team_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     touch_user(update)
-    if update.effective_user.id != ADMIN_USER_ID:
+    if not is_admin_user(update.effective_user.id):
         await update.effective_message.reply_text("This command is restricted.")
         return
 
@@ -844,7 +865,7 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.effective_user.id != ADMIN_USER_ID:
+    if not is_admin_user(update.effective_user.id):
         await update.effective_message.reply_text("This command is restricted.")
         return
 

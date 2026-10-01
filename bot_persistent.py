@@ -224,7 +224,7 @@ async def setbanner_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     if not user or not message:
         return
 
-    if user.id != core.ADMIN_USER_ID:
+    if not core.is_admin_user(user.id):
         await message.reply_text("This command is restricted.")
         return
 
@@ -240,7 +240,7 @@ async def setbanner_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 async def banner_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     message = update.effective_message
-    if not user or user.id != core.ADMIN_USER_ID or not message or not message.photo:
+    if not user or not core.is_admin_user(user.id) or not message or not message.photo:
         return
 
     caption = (message.caption or "").strip().lower()

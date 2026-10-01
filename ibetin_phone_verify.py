@@ -182,6 +182,11 @@ def _is_admin_user(user_id: int) -> bool:
             value = 0
         if value:
             admin_ids.add(value)
+    try:
+        import bot as _core
+        admin_ids.update(_core.admin_user_ids())
+    except Exception:
+        pass
     return uid in admin_ids
 
 

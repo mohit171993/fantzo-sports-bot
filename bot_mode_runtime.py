@@ -1,8 +1,9 @@
 """Draft runtime wiring for the shared iBetin/Dura bot codebase.
 
 Install only after the V40 runtime has loaded, before ibetin_start.main().
-Full mode delegates to every original handler and route. Live Line mode serves
-a separate scores page and intercepts bot-owned messages and web routes.
+Full mode delegates to every original handler and route. In Live Line mode
+verified users and the admin keep the complete Full bot; only unverified users
+are intercepted and receive the separate scores page (no verification prompt).
 """
 
 from __future__ import annotations
@@ -15,7 +16,6 @@ import sqlite3
 import threading
 import time
 from contextlib import closing
-from html import escape
 from urllib.parse import parse_qs, urlencode, urlparse
 
 from telegram import (
@@ -25,7 +25,6 @@ from telegram import (
     MenuButtonCommands,
     MenuButtonWebApp,
     BotCommandScopeChat,
-    ReplyKeyboardRemove,
     Update,
     WebAppInfo,
 )
@@ -51,7 +50,7 @@ from mode_control import (
     parse_admin_mode_request,
 )
 from scores_only import (
-    alert_score_match, merge_score_match, score_detail, score_match,
+    merge_score_match, score_detail, score_match,
     score_matches, score_page,
 )
 
@@ -72,10 +71,6 @@ MENU_RECONCILE_BATCH = 50
 MENU_RECONCILE_DELAY_SECONDS = 0.2
 MENU_REFRESH_SECONDS = 7 * 24 * 60 * 60
 MENU_RETRY_SECONDS = 15 * 60
-# These handlers only reply with a private owner report. Every other admin
-# command remains behind the clean-mode guard because some send public DMs,
-# channel posts, or the Full product keyboard (notably /broadcast).
-ADMIN_PRIVATE_STATUS_COMMANDS = frozenset({"/admin", "/reports"})
 
 
 def _brand_label() -> str:
@@ -104,6 +99,16 @@ def _mode() -> str:
         # A temporary SQLite failure must never reopen a betting route.
         log.exception("Mode state unavailable; using clean mode")
         return LIVE_LINE
+
+
+def _is_verified_user(user_id) -> bool:
+    """Verified users (and the admin bypass) keep Full behavior in Live Line."""
+    try:
+        return bool(user_id) and bool(phone_verify.is_verified(int(user_id)))
+    except Exception:
+        # Fail closed: an unreadable verification table means Live Line only.
+        log.exception("Verification state unavailable user_id=%s", user_id)
+        return False
 
 
 def _persistent_mode_storage_ready() -> bool:
@@ -149,9 +154,9 @@ class _ModeAwareAlertBot:
         self.user_id = user_id
 
     async def send_message(self, **kwargs):
-        if _mode() != FULL:
+        if _mode() != FULL and not _is_verified_user(self.user_id):
             # A Full alert may already be waiting on Telegram's RetryAfter.
-            # Never reuse its old copy or Mini App link after a clean switch.
+            # Unverified recipients only receive the Live Line alert.
             kwargs["text"] = "📊 Match update\n\nOpen match scores for the latest result."
             kwargs["reply_markup"] = InlineKeyboardMarkup([[
                 InlineKeyboardButton(
@@ -169,8 +174,9 @@ class _GuardedPublicBot:
         "send_media_group", "copy_message", "forward_message",
     })
 
-    def __init__(self, bot):
+    def __init__(self, bot, allow_verified: bool = False):
         self._bot = bot
+        self._allow_verified = allow_verified
 
     def __getattr__(self, name):
         method = getattr(self._bot, name)
@@ -179,16 +185,18 @@ class _GuardedPublicBot:
 
         async def guarded_send(*args, **kwargs):
             if _mode() != FULL:
-                raise RuntimeError("Public send canceled after Live Line activation")
+                chat_id = kwargs.get("chat_id", args[0] if args else None)
+                if not (self._allow_verified and _is_verified_user(chat_id)):
+                    raise RuntimeError("Public send canceled after Live Line activation")
             return await method(*args, **kwargs)
 
         return guarded_send
 
 
 class _GuardedPublicApplication:
-    def __init__(self, application):
+    def __init__(self, application, allow_verified: bool = False):
         self._application = application
-        self.bot = _GuardedPublicBot(application.bot)
+        self.bot = _GuardedPublicBot(application.bot, allow_verified)
 
     def __getattr__(self, name):
         return getattr(self._application, name)
@@ -202,13 +210,25 @@ def _mode_keyboard() -> InlineKeyboardMarkup:
     ])
 
 
+def _default_menu_button(mode: str):
+    """Unverified chats use the default: the Live Line scores page."""
+    if mode == LIVE_LINE:
+        try:
+            return MenuButtonWebApp(
+                text=_score_button_label(), web_app=WebAppInfo(url=_scores_url()),
+            )
+        except Exception:
+            log.exception("Live Line default menu unavailable; using commands")
+    return MenuButtonCommands()
+
+
 async def _set_default_menu(bot) -> None:
     try:
         async with _default_menu_lock:
             mode = _mode()
             # Telegram's default menu is visible before mobile verification.
             # Verified users have per-chat settings reconciled below.
-            await bot.set_chat_menu_button(menu_button=MenuButtonCommands())
+            await bot.set_chat_menu_button(menu_button=_default_menu_button(mode))
             if _mode() == mode:
                 await bot.set_my_commands(
                     [BotCommand("start", "Verify your Telegram account"),
@@ -261,17 +281,11 @@ async def _set_verified_chat_ui(bot, user_id: int, mode: str) -> bool:
     try:
         if not phone_verify.is_verified(user_id):
             return True
-        if mode == LIVE_LINE:
-            commands = [
-                BotCommand("start", "Open match scores"),
-                BotCommand("help", "Verification help"),
-            ]
-            menu_url = _scores_url(user_id)
-            menu_text = _score_button_label()
-        else:
-            commands = tracked.VERIFIED_COMMANDS
-            menu_url = hub.hub_url("home")
-            menu_text = "Open DURASPORTS" if _brand == "dura" else f"Open {_brand_label()}"
+        # Verified users keep the Full menu in both modes; unverified users
+        # fall back to the Live Line default menu set by _set_default_menu.
+        commands = tracked.VERIFIED_COMMANDS
+        menu_url = hub.hub_url("home")
+        menu_text = "Open DURASPORTS" if _brand == "dura" else f"Open {_brand_label()}"
     except Exception as exc:
         log.warning("Could not prepare chat menu user_id=%s error=%s",
                     user_id, type(exc).__name__)
@@ -336,8 +350,23 @@ async def _reconcile_verified_chats(bot, mode: str) -> bool:
     if _mode() == mode and admin_id:
         if await _set_verified_chat_ui(bot, admin_id, mode) is False:
             needs_retry = True
-    log.info("Verified chat menu reconciliation mode=%s chats=%s", mode, updated)
+    log.info("Verified chat menu reconciliation mode=%s chats=%s full_menu=%s "
+             "live_line_default_users=%s", mode, updated, updated,
+             _unverified_user_count())
     return not needs_retry
+
+
+def _unverified_user_count():
+    """Known bot users without verification; they use the default menu."""
+    try:
+        with closing(sqlite3.connect(_store.db_path, timeout=15)) as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) FROM users WHERE user_id NOT IN "
+                "(SELECT user_id FROM liveline_verified_users)"
+            ).fetchone()
+        return int(row[0] or 0)
+    except Exception:
+        return "unknown"
 
 
 async def _menu_reconciliation_loop(bot, previous) -> None:
@@ -452,12 +481,9 @@ async def _mode_callback(update, context) -> None:
     raise ApplicationHandlerStop
 
 
-async def _send_verified_scores(message, context, user_id: int) -> None:
+async def _send_live_line_scores(message, context, user_id: int) -> None:
+    """The only reply unverified users receive in Live Line mode."""
     url = _scores_url(user_id)
-    try:
-        await _set_verified_chat_ui(context.bot, user_id, LIVE_LINE)
-    except Exception:
-        log.exception("Could not update verified score menu")
     await message.reply_text(
         f"📊 {_brand_label()} match scores and updates are here.",
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(
@@ -466,54 +492,16 @@ async def _send_verified_scores(message, context, user_id: int) -> None:
     )
 
 
-async def _verify_clean_contact(update, context) -> None:
-    """Preserve one-time self-contact verification without the Full menu."""
-    user, message = update.effective_user, update.effective_message
-    contact = getattr(message, "contact", None)
-    if not user or not message or not contact:
-        return
-    was_verified = phone_verify.is_verified(user.id)
-    if was_verified and not context.user_data.get("ibetin_mobile_verify_pending"):
-        await _send_verified_scores(message, context, user.id)
-        return
-    if contact.user_id is None or int(contact.user_id) != int(user.id):
-        await message.reply_text(
-            "Verification failed. Use the Telegram contact button for your own number.",
-            reply_markup=tracked._verification_reply_keyboard(),
-        )
-        return
-    lead = leads.get_lead(user.id) or {}
-    source = str(context.user_data.pop("ibetin_mobile_verify_source", "") or lead.get("source") or "bot_start")
-    campaign = str(context.user_data.pop("ibetin_campaign", "") or lead.get("campaign") or "direct")
-    if not phone_verify.verify_user(
-        user.id, contact.phone_number, source=source, campaign=campaign,
-        contact_consent=True,
-    ):
-        await message.reply_text(
-            "Verification failed. Use the Telegram contact button and try again.",
-            reply_markup=tracked._verification_reply_keyboard(),
-        )
-        return
-    context.user_data.pop("ibetin_mobile_verify_pending", None)
-    try:
-        core.touch_user(update)
-        core.track(user.id, f"mobile_verified:{source}")
-    except Exception:
-        log.exception("Could not track clean-mode mobile verification")
-    if not was_verified:
-        await tracked._notify_verified_lead(
-            context, user, phone_verify.normalize_phone(contact.phone_number), source, campaign,
-        )
-    await message.reply_text("Verification complete.", reply_markup=ReplyKeyboardRemove())
-    await _send_verified_scores(message, context, user.id)
-
-
 async def _guard_update(update, context) -> None:
     if _mode() == FULL:
         return
+    user = update.effective_user
+    # The admin and verified users keep the complete Full bot in Live Line
+    # mode: every command, button, Mini App link and reminder flow.
+    if user and (user.id == _admin_id() or _is_verified_user(user.id)):
+        return
     message = update.business_message or update.effective_message
     chat = update.effective_chat
-    user = update.effective_user
     if update.callback_query:
         try:
             await update.callback_query.answer()
@@ -526,14 +514,6 @@ async def _guard_update(update, context) -> None:
     is_start = bool(parts and parts[0].split("@", 1)[0].lower() == "/start")
     start_arg = parts[1].split(maxsplit=1)[0].lower() if is_start and len(parts) > 1 else ""
 
-    if user.id == _admin_id() and message_text.startswith("/"):
-        command = parts[0].split("@", 1)[0].lower()
-        if (getattr(update, "message", None) is message
-                and command in ADMIN_PRIVATE_STATUS_COMMANDS):
-            return
-        await message.reply_text("This command is unavailable in Live Line mode.")
-        raise ApplicationHandlerStop
-
     if start_arg == "stopreminders" or tracked._is_stop_text(message_text):
         reminders.set_opt_out("bot", user.id, True)
         reminders.set_opt_out("business_dm", user.id, True)
@@ -544,9 +524,11 @@ async def _guard_update(update, context) -> None:
             await message.reply_text("Reminders are off.")
         raise ApplicationHandlerStop
 
-    if getattr(message, "contact", None) is not None:
-        await _verify_clean_contact(update, context)
-        raise ApplicationHandlerStop
+    if getattr(message, "contact", None) is not None and not update.business_message:
+        # The user chose to share their own contact (for example from an
+        # older verification keyboard). Let the normal Full verification
+        # handler process it; no verification prompt is ever sent here.
+        return
 
     if is_start:
         campaign = leads.clean_campaign(parts[1] if len(parts) > 1 else "direct")
@@ -557,23 +539,21 @@ async def _guard_update(update, context) -> None:
         except Exception:
             log.exception("Could not record Live Line campaign start")
 
-    if not phone_verify.is_verified(user.id):
-        if update.business_message:
+    if update.business_message:
+        try:
             leads.record_start(user.id, source="business_dm")
-            bot_url = phone_verify.verification_bot_url("verify")
-            markup = InlineKeyboardMarkup([[InlineKeyboardButton(
-                "Open Bot", url=bot_url,
-            )]]) if bot_url else None
-            await message.reply_text(
-                "Open this bot privately and verify your Telegram account to view match scores.",
-                reply_markup=markup,
-            )
-        else:
-            await tracked._prompt_mobile_verification(update, context, "bot_start")
+        except Exception:
+            log.exception("Could not record Live Line business start")
+        # Business chats take a plain link; the signed URL opens the scores.
+        await message.reply_text(
+            f"📊 {_brand_label()} match scores and updates are here.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(
+                _score_button_label(), url=_scores_url(user.id),
+            )]]),
+        )
         raise ApplicationHandlerStop
 
-    if message and chat and chat.type == "private":
-        await _send_verified_scores(message, context, user.id)
+    await _send_live_line_scores(message, context, user.id)
     raise ApplicationHandlerStop
 
 
@@ -685,6 +665,47 @@ def _verified_scores_identity(handler, parsed):
         return 0, "", False
 
 
+_AUTH_BOOTSTRAP_PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<noscript><meta http-equiv="refresh" content="0;url=/scores"></noscript>
+</head><body><script>
+(function(){
+  function fallback(){ location.replace('/scores'); }
+  var data = '';
+  try { data = new URLSearchParams(location.hash.slice(1)).get('tgWebAppData') || ''; } catch (e) {}
+  if (!data) {
+    try { data = (JSON.parse(sessionStorage.getItem('__telegram__initParams') || '{}').tgWebAppData) || ''; } catch (e) {}
+  }
+  var key = 'dura_mode_auth:' + location.pathname + location.search;
+  var tried = '';
+  try { tried = sessionStorage.getItem(key) || ''; sessionStorage.setItem(key, '1'); } catch (e) { tried = '1'; }
+  if (!data || tried) { fallback(); return; }
+  fetch('/scores/auth', {method: 'POST', credentials: 'same-origin',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({initData: data})})
+    .then(function(r){ if (r.ok) { location.reload(); } else { fallback(); } })
+    .catch(fallback);
+})();
+</script></body></html>"""
+
+
+def _scores_auth(handler) -> None:
+    """Exchange signed Telegram Mini App initData for the signed access cookie."""
+    try:
+        length = int(handler.headers.get("Content-Length", "0") or 0)
+        if length <= 0 or length > 16384:
+            raise ValueError("Invalid request")
+        payload = json.loads(handler.rfile.read(length).decode("utf-8"))
+        user = hub._verify_init_data(str(payload.get("initData") or ""))
+        user_id = int(user["id"])
+        token = phone_verify.issue_access_token(user_id)
+    except Exception:
+        return _send_bytes(handler, 403, b'{"ok":false}', "application/json; charset=utf-8")
+    verified = _is_verified_user(user_id)
+    body = json.dumps({"ok": True, "verified": verified}).encode("utf-8")
+    return _send_bytes(handler, 200, body, "application/json; charset=utf-8", token)
+
+
 def _install_http_gate() -> None:
     cls = analytics.TrackingHandler
     if getattr(cls, "_bot_mode_http_gate", False):
@@ -710,20 +731,11 @@ def _install_http_gate() -> None:
         if decision == "pass":
             return original_get(self)
         if decision == "scores":
-            _user_id, token, verified = _verified_scores_identity(self, parsed)
-            if not verified:
-                bot_url = phone_verify.verification_bot_url("verify")
-                link = (f'<p><a href="{escape(bot_url, quote=True)}">Open the bot to verify</a></p>'
-                        if bot_url else "")
-                body = ("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"
-                        "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
-                        "<title>Verify to view match scores</title></head><body><main>"
-                        "<h1>Verify to view match scores</h1>"
-                        "<p>Open the bot privately and verify your Telegram account.</p>"
-                        + link + "</main></body></html>").encode("utf-8")
-                return _send_bytes(self, 401, body, "text/html; charset=utf-8")
+            # Live Line scores are public: unverified users must never meet a
+            # verification wall. A signed link is still exchanged for a cookie.
+            user_id, token, _verified = _verified_scores_identity(self, parsed)
             mode = (parse_qs(parsed.query).get("mode") or ["live"])[0]
-            if (parse_qs(parsed.query).get("access") or [""])[0]:
+            if user_id and (parse_qs(parsed.query).get("access") or [""])[0]:
                 # Exchange the signed URL for an HttpOnly cookie, as the
                 # existing verified Live Line does, then hide it from the URL.
                 safe_mode = mode if mode in {"live", "upcoming", "results"} else "live"
@@ -735,6 +747,7 @@ def _install_http_gate() -> None:
                 self.send_header("Content-Length", "0")
                 self.end_headers()
                 return
+            token = token if user_id else ""
             try:
                 rows = _safe_rows(mode)
             except Exception:
@@ -744,9 +757,8 @@ def _install_http_gate() -> None:
             body = score_page(rows, _brand_label(), mode).encode("utf-8")
             return _send_bytes(self, 200, body, "text/html; charset=utf-8", token)
         if decision == "scores_api":
-            _user_id, token, verified = _verified_scores_identity(self, parsed)
-            if not verified:
-                return _send_bytes(self, 401, b'{"ok":false}', "application/json; charset=utf-8")
+            user_id, token, _verified = _verified_scores_identity(self, parsed)
+            token = token if user_id else ""
             query = parse_qs(parsed.query)
             action = (query.get("action") or ["matches"])[0]
             try:
@@ -773,7 +785,11 @@ def _install_http_gate() -> None:
                 return _send_bytes(self, 503, b'{"ok":false,"error":"feed_unavailable"}',
                                    "application/json; charset=utf-8")
         if decision == "redirect":
-            # Preserve first-touch open counts for existing /go ad links while
+            user_id, _token, verified = _verified_scores_identity(self, parsed)
+            if user_id and verified:
+                # Verified users keep every Full page and Mini App in Live Line.
+                return original_get(self)
+            # Preserve first-touch open counts for existing /go links while
             # routing the visitor to scores instead of the external site.
             if parsed.path == "/go":
                 try:
@@ -781,6 +797,11 @@ def _install_http_gate() -> None:
                     analytics.record_open(analytics._clean_source(source))
                 except Exception:
                     log.exception("Could not record Live Line open")
+            if not user_id:
+                # Unknown visitor: a Telegram Mini App can prove its user with
+                # signed initData (then reload); anyone else lands on /scores.
+                return _send_bytes(self, 200, _AUTH_BOOTSTRAP_PAGE.encode("utf-8"),
+                                   "text/html; charset=utf-8")
             query = parse_qs(parsed.query)
             supplied = (query.get("access") or [""])[0]
             access = supplied if phone_verify.verify_access_token(supplied) else ""
@@ -795,8 +816,15 @@ def _install_http_gate() -> None:
 
     def gated_post(self):
         parsed = urlparse(self.path)
-        if http_route(_mode(), "POST", parsed.path) == "pass" and original_post:
+        decision = http_route(_mode(), "POST", parsed.path)
+        if decision == "pass" and original_post:
             return original_post(self)
+        if decision == "scores_auth":
+            return _scores_auth(self)
+        if decision == "deny" and original_post:
+            user_id, _token, verified = _verified_scores_identity(self, parsed)
+            if user_id and verified:
+                return original_post(self)
         return _send_bytes(self, 403, b"", "text/plain; charset=utf-8")
 
     cls.do_GET = gated_get
@@ -844,8 +872,21 @@ def install(brand: str) -> None:
     async def reminders_by_mode(application):
         if _mode() == FULL:
             return await original_reminders(_GuardedPublicApplication(application))
-        return None
+        # Live Line: verified users keep their normal reminders; sends to any
+        # unverified chat are refused (they never get verification prompts).
+        return await original_reminders(
+            _GuardedPublicApplication(application, allow_verified=True),
+        )
     reminders.run_due_reminders = reminders_by_mode
+
+    original_verification_due_stage = reminders._verification_due_stage
+    def verification_due_stage_by_mode(row, now_utc):
+        if _mode() == FULL:
+            return original_verification_due_stage(row, now_utc)
+        # No verification reminder is due in Live Line, so none is attempted
+        # or recorded; the Full cadence resumes unchanged after switching back.
+        return None
+    reminders._verification_due_stage = verification_due_stage_by_mode
 
     original_channel_daily = reminders.send_liveline_channel_daily
     async def channel_daily_by_mode(application, *args, **kwargs):
@@ -865,36 +906,15 @@ def install(brand: str) -> None:
         return False
     reminders.send_liveline_channel_launch = channel_launch_by_mode
 
-    original_alert_text = match_alerts._event_text
-    original_alert_markup = match_alerts._markup
+    # Alert copy is unchanged; each send is checked per recipient, so only
+    # unverified recipients receive the Live Line alert in Live Line mode.
     original_alert_send = match_alerts._send
-
-    def alert_text_by_mode(match, sport, event_key, extra, language):
-        if _mode() == FULL:
-            return original_alert_text(match, sport, event_key, extra, language)
-        safe = alert_score_match(match, sport)
-        home = escape(safe["home"]["name"])
-        away = escape(safe["away"]["name"])
-        score = ""
-        if safe["home_score"] or safe["away_score"]:
-            score = f'\n{escape(safe["home_score"])} – {escape(safe["away_score"])}'
-        heading = "मैच अपडेट" if language == "hi" else "Match update"
-        return f"📊 <b>{heading}</b>\n\n{home} vs {away}{score}"
-
-    def alert_markup_by_mode(event_key):
-        if _mode() == FULL:
-            return original_alert_markup(event_key)
-        return InlineKeyboardMarkup([[InlineKeyboardButton(
-            _score_button_label(), web_app=WebAppInfo(url=_scores_url()),
-        )]])
 
     async def alert_send_by_mode(bot, user_id, text, markup):
         return await original_alert_send(
             _ModeAwareAlertBot(bot, user_id), user_id, text, markup,
         )
 
-    match_alerts._event_text = alert_text_by_mode
-    match_alerts._markup = alert_markup_by_mode
     match_alerts._send = alert_send_by_mode
     _installed = True
     log.info("Bot mode controller installed brand=%s initial_mode=%s", brand, _mode())

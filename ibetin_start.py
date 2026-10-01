@@ -387,23 +387,11 @@ def run_navigation_self_test() -> None:
             errors.append(f"direct-reminder/{button.text}: expected web_app button")
 
     alert_count = 0
-    mode_runtime = sys.modules.get("bot_mode_runtime")
-    if mode_runtime is not None and mode_runtime._installed and mode_runtime._mode() == "liveline":
-        # Mode persists across Railway restarts; validate the clean Mini App
-        # button instead of expecting Full match-alert destinations.
-        expected_url = mode_runtime._scores_url()
-        expected_label = mode_runtime._score_button_label()
-        alert_count += _expect_score_link(
-            "match-alert-live", match_alerts._markup("started"),
-            expected_url, expected_label, errors,
-        )
-        alert_count += _expect_score_link(
-            "match-alert-final", match_alerts._markup("final"),
-            expected_url, expected_label, errors,
-        )
-    else:
-        alert_count += _expect_webapps("match-alert-live", match_alerts._markup("started"), errors)
-        alert_count += _expect_webapps("match-alert-final", match_alerts._markup("final"), errors)
+    # Match alerts keep their Full web_app buttons in both modes. In Live Line
+    # mode bot_mode_runtime swaps in the score link per unverified recipient
+    # at send time, so the shared alert markup is validated the same way.
+    alert_count += _expect_webapps("match-alert-live", match_alerts._markup("started"), errors)
+    alert_count += _expect_webapps("match-alert-final", match_alerts._markup("final"), errors)
 
     news_buttons = _buttons(news.launcher_keyboard())
     if not news_buttons or news_buttons[0].web_app is None or news_buttons[0].url:

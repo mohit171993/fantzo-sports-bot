@@ -110,6 +110,7 @@ class NavigationRestartTests(unittest.TestCase):
         reminders = SimpleNamespace(
             _copy_for=reminder_copy,
             run_due_reminders=lambda *_args: None,
+            _verification_due_stage=lambda *_args: 1,
             send_liveline_channel_daily=lambda *_args: None,
             send_liveline_channel_launch=lambda *_args: None,
         )
@@ -163,27 +164,23 @@ class NavigationRestartTests(unittest.TestCase):
         }, start_scope)
         self.self_test = start_scope["run_navigation_self_test"]
 
-    def test_persisted_liveline_restart_accepts_only_clean_score_alerts(self):
+    def test_persisted_liveline_restart_keeps_full_alert_buttons(self):
+        # Verified users keep Full alerts in Live Line; unverified recipients
+        # get the score link at send time, so startup validates Full markup.
         self.assertEqual(self.runtime._mode(), LIVE_LINE)
         self.self_test()
         for event in ("started", "final"):
             button = self.alerts._markup(event).inline_keyboard[0][0]
-            self.assertEqual(button.text, "🏏 OPEN DURASPORTS LIVE LINE")
-            self.assertEqual(button.web_app.url, SCORES_URL)
-            self.assertIsNone(button.url)
-            self.assertIsNone(button.callback_data)
+            self.assertIsNotNone(button.web_app)
+        # No verification reminder is due in Live Line; Full cadence otherwise.
+        self.assertIsNone(self.runtime.reminders._verification_due_stage({}, None))
+        self.runtime._store.switch(FULL)
+        self.assertEqual(self.runtime.reminders._verification_due_stage({}, None), 1)
 
         self.alerts._markup = lambda _event: Markup([[
             Button("🏏 OPEN DURASPORTS LIVE LINE", url=SCORES_URL),
         ]])
-        with self.assertRaisesRegex(RuntimeError, "wrong score Mini App URL"):
-            self.self_test()
-
-        self.alerts._markup = lambda _event: Markup([[
-            Button("🏏 OPEN DURASPORTS LIVE LINE", web_app=SimpleNamespace(
-                url="https://wrong.example/scores")),
-        ]])
-        with self.assertRaisesRegex(RuntimeError, "wrong score Mini App URL"):
+        with self.assertRaisesRegex(RuntimeError, "not a web_app button"):
             self.self_test()
 
     def test_full_mode_still_requires_webapp_match_alerts(self):

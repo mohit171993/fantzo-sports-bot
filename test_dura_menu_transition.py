@@ -59,7 +59,7 @@ class FakeBot:
 
 
 class MenuTransitionTests(unittest.TestCase):
-    def test_verified_live_menu_is_signed_scores_and_commands_are_clean(self):
+    def test_verified_chats_get_full_menu_in_both_modes(self):
         mode = [LIVE_LINE]
         full_commands = (Command("start", "Full Hub"), Command("support", "Support"))
         scope = load_functions({"_set_verified_chat_ui", "_telegram_menu_write"}, {
@@ -80,13 +80,12 @@ class MenuTransitionTests(unittest.TestCase):
         asyncio.run(scope["_set_verified_chat_ui"](bot, 456, LIVE_LINE))
         self.assertEqual([call[0] for call in bot.calls], ["commands", "menu"])
         self.assertEqual(bot.calls[0][2]["scope"].chat_id, 456)
-        self.assertEqual([item.command for item in bot.calls[0][1]], ["start", "help"])
+        self.assertIs(bot.calls[0][1], full_commands)
         self.assertEqual(bot.calls[1][1]["menu_button"].web_app.url,
-                         "https://dura.example/scores?access=signed-456")
-        self.assertEqual(bot.calls[1][1]["menu_button"].text,
-                         "🏏 OPEN DURASPORTS LIVE LINE")
-        self.assertNotIn("hub", bot.calls[1][1]["menu_button"].web_app.url)
+                         "https://dura.example/hub?section=home")
+        self.assertEqual(bot.calls[1][1]["menu_button"].text, "Open DURASPORTS")
         bot.calls.clear()
+        # Unverified chats keep the default (Live Line) menu: no per-chat write.
         asyncio.run(scope["_set_verified_chat_ui"](bot, 999, LIVE_LINE))
         self.assertEqual(bot.calls, [])
 
@@ -101,21 +100,32 @@ class MenuTransitionTests(unittest.TestCase):
         scheduled = []
         full = (Command("start", "Verify"), Command("help", "Help"),
                 Command("support", "Contact support"))
-        scope = load_functions({"_set_default_menu"}, {
+
+        class CommandsMenu:
+            pass
+
+        scope = load_functions({"_set_default_menu", "_default_menu_button"}, {
             "_mode": lambda: mode[0], "LIVE_LINE": LIVE_LINE,
             "_default_menu_lock": asyncio.Lock(),
-            "BotCommand": Command, "MenuButtonCommands": object,
+            "BotCommand": Command, "MenuButtonCommands": CommandsMenu,
+            "MenuButtonWebApp": Menu, "WebAppInfo": WebApp,
+            "_scores_url": lambda: "https://dura.example/scores",
+            "_score_button_label": lambda: "🏏 OPEN DURASPORTS LIVE LINE",
             "tracked": SimpleNamespace(PREVERIFY_COMMANDS=full),
             "_schedule_menu_reconciliation": lambda bot: scheduled.append(bot),
             "log": SimpleNamespace(exception=lambda *_args: None),
         })
         bot = FakeBot()
         asyncio.run(scope["_set_default_menu"](bot))
+        default_menu = bot.calls[0][1]["menu_button"]
+        self.assertEqual(default_menu.web_app.url, "https://dura.example/scores")
+        self.assertEqual(default_menu.text, "🏏 OPEN DURASPORTS LIVE LINE")
         self.assertEqual([command.command for command in bot.calls[1][1]],
                          ["start", "help"])
         mode[0] = FULL
         bot.calls.clear()
         asyncio.run(scope["_set_default_menu"](bot))
+        self.assertIsInstance(bot.calls[0][1]["menu_button"], CommandsMenu)
         self.assertIs(bot.calls[1][1], full)
         self.assertEqual([command.command for command in bot.calls[1][1]],
                          ["start", "help", "support"])
@@ -145,6 +155,7 @@ class MenuTransitionTests(unittest.TestCase):
                 "asyncio": SimpleNamespace(sleep=fast_sleep),
                 "_set_verified_chat_ui": set_chat,
                 "_admin_id": lambda: 0,
+                "_unverified_user_count": lambda: 0,
                 "log": SimpleNamespace(info=lambda *_args: None,
                                        warning=lambda *_args: None,
                                        exception=lambda *_args: None),
@@ -175,6 +186,7 @@ class MenuTransitionTests(unittest.TestCase):
                 "asyncio": SimpleNamespace(sleep=fast_sleep),
                 "_set_verified_chat_ui": set_chat,
                 "_admin_id": lambda: 0,
+                "_unverified_user_count": lambda: 0,
                 "log": SimpleNamespace(info=lambda *_args: None,
                                        warning=lambda *_args: None,
                                        exception=lambda *_args: None),

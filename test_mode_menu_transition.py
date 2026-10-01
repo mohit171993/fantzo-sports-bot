@@ -138,8 +138,8 @@ class MenuTransitionTests(unittest.TestCase):
         })
         commands = scope["_preverify_commands"]()
         self.assertEqual([(c.command, c.description) for c in commands],
-                         [("start", "Verify your Telegram account"),
-                          ("help", "Verification help")])
+                         [("start", "Get started"),
+                          ("help", "Help and quick guide")])
 
     def test_reconciliation_pages_past_200_and_uses_fixed_snapshot(self):
         with tempfile.TemporaryDirectory() as directory:

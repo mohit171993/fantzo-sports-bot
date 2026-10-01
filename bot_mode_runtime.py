@@ -93,8 +93,8 @@ def _preverify_commands():
     commands = getattr(tracked, "PREVERIFY_COMMANDS", None)
     if commands:
         return commands
-    return [BotCommand("start", "Verify your Telegram account"),
-            BotCommand("help", "Verification help")]
+    return [BotCommand("start", "Get started"),
+            BotCommand("help", "Help and quick guide")]
 
 
 def _admin_id() -> int:
@@ -172,7 +172,9 @@ class _ModeAwareAlertBot:
         if _mode() != FULL and not _is_verified_user(self.user_id):
             # A Full alert may already be waiting on Telegram's RetryAfter.
             # Unverified recipients only receive the Live Line alert.
-            kwargs["text"] = "📊 Match update\n\nOpen match scores for the latest result."
+            kwargs["text"] = ("⚡ MATCH UPDATE\n\n"
+                              "🏏 A fresh score just landed.\n"
+                              "👇 Tap below for the full scorecard.")
             kwargs["reply_markup"] = InlineKeyboardMarkup([[
                 InlineKeyboardButton(
                     _score_button_label(), web_app=WebAppInfo(url=_scores_url(self.user_id)),
@@ -246,8 +248,8 @@ async def _set_default_menu(bot) -> None:
             await bot.set_chat_menu_button(menu_button=_default_menu_button(mode))
             if _mode() == mode:
                 await bot.set_my_commands(
-                    [BotCommand("start", "Verify your Telegram account"),
-                     BotCommand("help", "Verification help")]
+                    [BotCommand("start", "Live scores and sports updates"),
+                     BotCommand("help", "How IBETIN Live Line works")]
                     if mode == LIVE_LINE else _preverify_commands()
                 )
     except Exception:
@@ -500,7 +502,9 @@ async def _send_live_line_scores(message, context, user_id: int) -> None:
     """The only reply unverified users receive in Live Line mode."""
     url = _scores_url(user_id)
     await message.reply_text(
-        f"📊 {_brand_label()} match scores and updates are here.",
+        f"⚡ {_brand_label().upper()} LIVE LINE\n\n"
+        "🏏 Live scores, full scorecards and match updates.\n"
+        "👇 Tap below to open.",
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(
             _score_button_label(), web_app=WebAppInfo(url=url),
         )]]),
@@ -534,9 +538,9 @@ async def _guard_update(update, context) -> None:
         reminders.set_opt_out("business_dm", user.id, True)
         if start_arg != "stopreminders":
             leads.set_status(user.id, "dnc")
-            await message.reply_text("Contact preference updated. Follow-up is stopped.")
+            await message.reply_text("✅ Contact preference saved. Follow-ups are stopped.")
         else:
-            await message.reply_text("Reminders are off.")
+            await message.reply_text("🔕 Reminders are off.")
         raise ApplicationHandlerStop
 
     if getattr(message, "contact", None) is not None and not update.business_message:
@@ -561,7 +565,9 @@ async def _guard_update(update, context) -> None:
             log.exception("Could not record Live Line business start")
         # Business chats take a plain link; the signed URL opens the scores.
         await message.reply_text(
-            f"📊 {_brand_label()} match scores and updates are here.",
+            f"⚡ {_brand_label().upper()} LIVE LINE\n\n"
+        "🏏 Live scores, full scorecards and match updates.\n"
+        "👇 Tap below to open.",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(
                 _score_button_label(), url=_scores_url(user.id),
             )]]),

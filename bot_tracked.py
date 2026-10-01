@@ -79,32 +79,34 @@ def _install_ibetin_hub_copy() -> None:
     en.update(
         {
             "welcome": (
-                "⚡ <b>IBETIN</b>\n"
+                "⚡ <b>WELCOME TO IBETIN</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
-                "Quick access without a crowded menu.\n\n"
-                "🚀 Join IBETIN Mini App\n"
-                "🏏 Live Line\n"
-                "🔴 Live now\n"
-                "🏆 Sports\n"
-                "📰 Sports News\n"
-                "🔔 Match Alerts\n"
-                "🛟 Support\n\n"
-                "More sections are available inside the Mini App."
+                "The fastest live line, right inside Telegram.\n\n"
+                "🏏 <b>Live Line</b> · ball-by-ball scores\n"
+                "🔴 <b>Live now</b> · matches in play\n"
+                "🏆 <b>Sports</b> · fixtures and results\n"
+                "📰 <b>Sports News</b> · fresh headlines\n"
+                "🔔 <b>Match Alerts</b> · straight to your chat\n"
+                "🛟 <b>Support</b> · real people, fast help\n\n"
+                "👇 Tap a button below to begin."
             ),
             "explore": (
                 "🌐 <b>IBETIN MINI APP HUB</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
-                "Every navigation button opens inside Telegram."
+                "📲 Every section opens right here in Telegram.\n"
+                "👇 Pick where you want to go."
             ),
             "join": (
                 "🌐 <b>OPEN IBETIN</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
-                "Continue inside Telegram using the IBETIN Mini App."
+                "📲 Continue in the IBETIN Mini App, right inside Telegram.\n"
+                "👇 Tap below to open."
             ),
             "settings": (
                 "⚙️ <b>IBETIN SETTINGS</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
-                "Open settings in the IBETIN Mini App."
+                "🌐 Language, alerts and preferences in one place.\n"
+                "👇 Open settings in the IBETIN Mini App."
             ),
         }
     )
@@ -113,27 +115,28 @@ def _install_ibetin_hub_copy() -> None:
     hi.update(
         {
             "welcome": (
-                "⚡ <b>IBETIN</b>\n"
+                "⚡ <b>IBETIN में आपका स्वागत है</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
-                "कम विकल्प, तेज़ access.\n\n"
-                "🚀 IBETIN Mini App\n"
-                "🏏 Live Line\n"
-                "🔴 Live\n"
-                "🏆 Sports\n"
-                "📰 Sports News\n"
-                "🔔 Match Alerts\n"
-                "🛟 Support\n\n"
-                "बाकी सभी sections Mini App के अंदर उपलब्ध हैं।"
+                "सबसे तेज़ लाइव लाइन, सीधे Telegram के अंदर।\n\n"
+                "🏏 <b>Live Line</b> · बॉल-बाय-बॉल स्कोर\n"
+                "🔴 <b>Live</b> · अभी चल रहे मैच\n"
+                "🏆 <b>Sports</b> · फिक्स्चर और रिज़ल्ट\n"
+                "📰 <b>Sports News</b> · ताज़ा खबरें\n"
+                "🔔 <b>Match Alerts</b> · सीधे आपकी चैट में\n"
+                "🛟 <b>Support</b> · तुरंत मदद\n\n"
+                "👇 शुरू करने के लिए नीचे बटन दबाएँ।"
             ),
             "explore": (
                 "🌐 <b>IBETIN MINI APP HUB</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
-                "सभी navigation विकल्प Telegram के अंदर खुलेंगे।"
+                "📲 हर सेक्शन यहीं Telegram के अंदर खुलेगा।\n"
+                "👇 जहाँ जाना है, चुनें।"
             ),
             "join": (
                 "🌐 <b>OPEN IBETIN</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
-                "IBETIN को Telegram Mini App के अंदर खोलें।"
+                "📲 IBETIN Mini App को Telegram के अंदर खोलें।\n"
+                "👇 खोलने के लिए नीचे टैप करें।"
             ),
         }
     )
@@ -274,15 +277,15 @@ STOP_PHRASES = {
 }
 
 VERIFIED_COMMANDS = [
-    BotCommand("start", "Open IBETIN Mini App Hub"),
-    BotCommand("news", "Open Sports News Mini App"),
-    BotCommand("website", "Open IBETIN Mini App"),
-    BotCommand("live", "Open Live Mini App"),
-    BotCommand("liveline", "Open IBETIN Live Line"),
-    BotCommand("sports", "Open Sports Mini App"),
-    BotCommand("team", "Open team search"),
-    BotCommand("support", "Open Support Mini App"),
-    BotCommand("help", "IBETIN Mini App menu"),
+    BotCommand("start", "Open the IBETIN hub"),
+    BotCommand("news", "Latest sports news"),
+    BotCommand("website", "Open the IBETIN Mini App"),
+    BotCommand("live", "Matches live now"),
+    BotCommand("liveline", "Ball-by-ball IBETIN Live Line"),
+    BotCommand("sports", "Fixtures, scores and results"),
+    BotCommand("team", "Find your team"),
+    BotCommand("support", "Talk to IBETIN support"),
+    BotCommand("help", "IBETIN menu and help"),
     BotCommand("reports", "Admin report center"),
 ]
 
@@ -569,10 +572,10 @@ async def _prompt_mobile_verification(update, context, source: str = "bot_start"
     # ask again; continue directly to the requested destination.
     if phone_verify.is_verified(user.id):
         await _set_user_menu_button(context.bot, user.id, True)
-        await message.reply_text("✅ <b>Your quick access buttons are ready below.</b>", parse_mode="HTML", reply_markup=app.QUICK_MENU)
+        await message.reply_text("✅ <b>Quick access is ready</b>\n👇 Your shortcuts are pinned below the chat.", parse_mode="HTML", reply_markup=app.QUICK_MENU)
         if source == "liveline":
             await message.reply_text(
-                "🏏 <b>IBETIN LIVE LINE</b>\n\n👇 Open Live Line below.",
+                "🏏 <b>IBETIN LIVE LINE</b>\n\n⚡ Ball-by-ball scores and full scorecards.\n👇 Open Live Line below.",
                 parse_mode="HTML",
                 reply_markup=InlineKeyboardMarkup(
                     [[InlineKeyboardButton(
@@ -588,7 +591,7 @@ async def _prompt_mobile_verification(update, context, source: str = "bot_start"
         if source == "business_dm":
             import fantzo_business
             await message.reply_text(
-                "✅ <b>Your Telegram mobile is already verified.</b>\n\n"
+                "✅ <b>You're verified and all set.</b>\n\n"
                 "👇 Choose what you want to do next.",
                 parse_mode="HTML",
                 reply_markup=fantzo_business.business_keyboard(user.id),
@@ -926,9 +929,9 @@ async def smart_start(update, context) -> None:
         return
 
     await _set_user_menu_button(context.bot, user.id, True)
-    await message.reply_text("✅ <b>Your quick access buttons are ready below.</b>", parse_mode="HTML", reply_markup=app.QUICK_MENU)
+    await message.reply_text("✅ <b>Quick access is ready</b>\n👇 Your shortcuts are pinned below the chat.", parse_mode="HTML", reply_markup=app.QUICK_MENU)
     await message.reply_text(
-        "👋 <b>Welcome back to IBETIN</b>\n\n👇 Choose what you want to do next.",
+        "👋 <b>Welcome back to IBETIN</b>\n\n🏏 Live Line · 📊 Scorecards · 📰 News\n👇 Choose what you want to do next.",
         parse_mode="HTML",
         reply_markup=conversion_keyboard(user.id),
         disable_web_page_preview=True,
@@ -1000,7 +1003,7 @@ async def help_command(update, context) -> None:
     if not await _require_verified(update, context):
         return
     await message.reply_text(
-        "⚡ <b>IBETIN</b>\n\nChoose an option below.",
+        "⚡ <b>IBETIN MENU</b>\n━━━━━━━━━━━━━━━━━━\n\n🏏 Live Line and full scorecards\n📰 Sports news\n🔔 Match alerts\n🛟 Support\n\n👇 Choose an option below.",
         parse_mode="HTML",
         reply_markup=premium_main_keyboard(user.id),
         disable_web_page_preview=True,
@@ -1114,7 +1117,7 @@ async def smart_callback_router(update, context) -> None:
     message = update.effective_message
     if message:
         await message.reply_text(
-            "⚡ <b>IBETIN</b>\n\nChoose an option from the current menu.",
+            "⚡ <b>IBETIN MENU</b>\n\n👇 Choose an option from the menu below.",
             parse_mode="HTML",
             reply_markup=premium_main_keyboard(update.effective_user.id),
         )
@@ -1222,8 +1225,8 @@ async def configure_telegram_ui(application) -> None:
 
     await application.bot.set_my_commands(
         [
-            BotCommand("start", "Verify your Telegram account"),
-            BotCommand("help", "Verification help"),
+            BotCommand("start", "Get started"),
+            BotCommand("help", "Help and quick guide"),
         ]
     )
 

@@ -1747,8 +1747,58 @@ def _page_v40_visual_polish() -> str:
     return html
 
 
+IBETIN_PREMIUM_LIVELINE_CSS = r"""
+/* iBetin premium neon theme (colours/edges only): deep black, cyan neon, blue lightning, hexagon marks */
+:root{--iB:#030607;--iB2:#071014;--iB3:#0c171b;--iC:#19e3ff;--iC2:#8af3ff;--iC3:#0a8fa6;--iBl:#2f7dff;--iInk:#eef9fb;--iMu:#8aa5ab;--iRule:rgba(25,227,255,.14);--iEdge:rgba(25,227,255,.3)}
+html body{background:radial-gradient(90% 40% at 50% -6%,rgba(25,227,255,.14),transparent 70%),url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='48' viewBox='0 0 28 48'%3E%3Cpath d='M14 0l14 8v16L14 32 0 24V8zM14 32l14 8v16M14 32L0 40' fill='none' stroke='%2319e3ff' stroke-opacity='.045'/%3E%3C/svg%3E"),linear-gradient(180deg,#061014,var(--iB) 40%)!important;background-attachment:fixed!important;color:var(--iInk)!important}
+html body .top{background:radial-gradient(120% 140% at 0 0,rgba(25,227,255,.13),transparent 55%),linear-gradient(180deg,rgba(6,13,16,.97),rgba(3,7,8,.95))!important;border-bottom:0!important;box-shadow:0 1px 0 rgba(25,227,255,.55),0 0 14px rgba(25,227,255,.25),0 14px 30px rgba(0,0,0,.55)!important}
+html body .brand .mark{position:relative;border:0!important;border-radius:0!important;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);background:linear-gradient(160deg,var(--iC2),var(--iC) 40%,var(--iBl))!important;color:transparent!important;box-shadow:none!important;filter:drop-shadow(0 0 10px rgba(25,227,255,.55))}
+html body .brand .mark:before{content:"";position:absolute;inset:2px;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);background:radial-gradient(circle at 50% 30%,#0e2a31,#04090b 70%)}
+html body .brand .mark:after{content:"";position:absolute;inset:0;margin:auto;width:46%;height:56%;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 26'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23ffffff'/%3E%3Cstop offset='1' stop-color='%2319e3ff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M12.5 0L1 15h7l-2 11L19 9.5h-7.2z' fill='url(%23g)'/%3E%3C/svg%3E") center/contain no-repeat;filter:drop-shadow(0 0 5px rgba(25,227,255,.9))}
+html body .brand b{color:var(--iInk)!important;text-shadow:0 0 16px rgba(25,227,255,.55)!important;letter-spacing:1.6px!important}
+html body .brand span{color:var(--iC2)!important;letter-spacing:2.6px!important}html body .brand .liveLineSub{color:var(--iMu)!important;letter-spacing:1.6px!important}
+html body .liveDot{background:linear-gradient(180deg,var(--iC2),var(--iC))!important;color:#021014!important;border:0!important;box-shadow:0 0 14px rgba(25,227,255,.55)!important}
+html body .tabs{padding:4px!important;gap:4px!important;border-radius:15px!important;background:rgba(255,255,255,.03)!important;box-shadow:inset 0 0 0 1px var(--iRule)!important}
+html body .tab{background:transparent!important;border:0!important;color:var(--iMu)!important;box-shadow:none!important;letter-spacing:1.2px!important;border-radius:11px!important}
+html body .tab.on{background:linear-gradient(180deg,var(--iC2),var(--iC) 55%,#08b9d6)!important;color:#021014!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 0 18px rgba(25,227,255,.45)!important}
+html body .search,html body .refresh{background:linear-gradient(180deg,#0c171b,#071013)!important;border:1px solid var(--iRule)!important;color:var(--iInk)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.03)!important}
+html body .search::placeholder{color:#6f8b91!important}html body .refresh{color:var(--iC)!important;box-shadow:0 0 14px rgba(25,227,255,.15)!important}
+html body .v39FavFilter button,html body .v39FavFilter>*{background:rgba(25,227,255,.05)!important;border:1px solid var(--iEdge)!important;color:var(--iInk)!important;box-shadow:none!important}
+html body .v39FavFilter .on,html body .v39FavFilter [aria-pressed="true"]{background:linear-gradient(180deg,var(--iC2),var(--iC))!important;border-color:transparent!important;color:#021014!important;box-shadow:0 0 12px rgba(25,227,255,.4)!important}
+html body .status{color:var(--iMu)!important}
+html body .league{color:var(--iC2)!important;letter-spacing:1.4px!important;text-transform:uppercase}
+html body .match{position:relative;overflow:hidden;background:linear-gradient(180deg,#0a1216,#070d10)!important;border:1px solid var(--iRule)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 16px 30px -12px rgba(0,0,0,.8)!important}
+html body .match:before{content:"";position:absolute;inset:0 0 auto 0;width:auto!important;height:2px;background:linear-gradient(90deg,transparent,rgba(25,227,255,.5),transparent)}
+html body .match.live{border-color:var(--iEdge)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 16px 30px -12px rgba(0,0,0,.8),0 0 22px -8px rgba(25,227,255,.35)!important}
+html body .match.live:before{background:linear-gradient(90deg,var(--iBl),var(--iC) 45%,var(--iC2) 70%,transparent);box-shadow:0 0 10px var(--iC)}
+html body .mh .fmt{color:var(--iMu)!important}
+html body .mh .badge{background:rgba(255,255,255,.04)!important;color:var(--iInk)!important;border:1px solid rgba(180,203,208,.22)!important}
+html body .mh .badge.live{background:linear-gradient(180deg,var(--iC2),var(--iC))!important;color:#021014!important;border:0!important;box-shadow:0 0 12px rgba(25,227,255,.55)!important}
+html body .team+.team{border-top:1px solid var(--iRule)!important}
+html body .tn{color:var(--iInk)!important}html body .ta,html body .si{color:#7f9aa1!important}html body .sc{color:#fff!important}
+html body .miniMark,html body .teamMark{border:0!important;border-radius:0!important;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 44' preserveAspectRatio='none'%3E%3Cdefs%3E%3ClinearGradient id='s' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%238af3ff'/%3E%3Cstop offset='1' stop-color='%232f7dff'/%3E%3C/linearGradient%3E%3CradialGradient id='f' cx='.5' cy='.28' r='.75'%3E%3Cstop offset='0' stop-color='%2316353d'/%3E%3Cstop offset='1' stop-color='%23060c0e'/%3E%3C/radialGradient%3E%3C/defs%3E%3Cpath d='M20 1.2l17.6 10.2v21.2L20 42.8 2.4 32.6V11.4z' fill='url(%23f)' stroke='url(%23s)' stroke-width='1.6'/%3E%3C/svg%3E") center/100% 100% no-repeat!important;color:var(--iC2)!important;box-shadow:none!important;filter:drop-shadow(0 0 6px rgba(25,227,255,.25))}
+html body .mh~.team:nth-of-type(2) .miniMark,html body .scoremain>div:first-child .teamMark{background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 44' preserveAspectRatio='none'%3E%3Cdefs%3E%3CradialGradient id='f' cx='.5' cy='.25' r='.8'%3E%3Cstop offset='0' stop-color='%23bff8ff'/%3E%3Cstop offset='.6' stop-color='%2319e3ff'/%3E%3Cstop offset='1' stop-color='%232f7dff'/%3E%3C/radialGradient%3E%3C/defs%3E%3Cpath d='M20 .6l18.2 10.5v21.8L20 43.4 1.8 32.9V11.1z' fill='url(%23f)'/%3E%3C/svg%3E") center/100% 100% no-repeat!important;color:#021014!important;box-shadow:none!important;filter:drop-shadow(0 0 8px rgba(25,227,255,.45))}
+html body .foot{border-top:1px solid var(--iRule)!important;background:rgba(0,0,0,.25)!important;color:var(--iMu)!important}
+html body .foot b{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:rgba(25,227,255,.1);box-shadow:inset 0 0 0 1px rgba(25,227,255,.35);color:var(--iC)!important}
+html body .bottom{background:linear-gradient(180deg,rgba(9,17,20,.97),rgba(3,7,8,.98))!important;border:1px solid var(--iEdge)!important;box-shadow:0 0 18px -4px rgba(25,227,255,.3),0 18px 36px rgba(0,0,0,.6)!important}
+html body .bottom button{color:var(--iMu)!important}html body .bottom .on{color:var(--iC2)!important;background:rgba(25,227,255,.1)!important;box-shadow:inset 0 0 0 1px rgba(25,227,255,.4),0 0 12px rgba(25,227,255,.2)!important}
+html body .ibPowered{color:var(--iMu)!important}
+html body .back{background:rgba(25,227,255,.06)!important;border:1px solid rgba(25,227,255,.45)!important;color:var(--iC2)!important}
+html body .scorehero{position:relative;border:1px solid rgba(25,227,255,.4)!important;background:radial-gradient(110% 90% at 100% 0,rgba(25,227,255,.2),transparent 55%),radial-gradient(90% 80% at 0 100%,rgba(47,125,255,.14),transparent 60%),linear-gradient(160deg,#0c1a1f,#060c0f 60%,#030607)!important;box-shadow:0 0 26px -6px rgba(25,227,255,.35),0 18px 34px -14px rgba(0,0,0,.8)!important}
+html body .scoretop,html body .report{color:var(--iMu)!important;border-color:var(--iRule)!important}
+html body .scorehero .vs{background:var(--iB)!important;border:1px solid rgba(25,227,255,.55)!important;color:var(--iC2)!important;box-shadow:0 0 14px rgba(25,227,255,.3)!important}
+html body .v38Pulse,html body .panel,html body .innings,html body .inning{background:linear-gradient(180deg,#0a1216,#070d10)!important;border:1px solid var(--iRule)!important}
+html body .dtabs .dtab,html body .dtab{background:linear-gradient(180deg,#0c171b,#071013)!important;border:1px solid var(--iRule)!important;color:var(--iMu)!important;box-shadow:none!important}
+html body .dtabs .dtab.on,html body .dtab.on{background:linear-gradient(180deg,var(--iC2),var(--iC) 55%,#08b9d6)!important;color:#021014!important;border-color:transparent!important;box-shadow:0 0 14px rgba(25,227,255,.4)!important}
+html body .metric,html body .kv{border-color:var(--iRule)!important}
+html body .mh .badge.live,html body .liveDot{animation:ibGlow 1.6s ease-in-out infinite}
+@keyframes ibGlow{0%,100%{box-shadow:0 0 6px rgba(25,227,255,.4)}50%{box-shadow:0 0 16px rgba(25,227,255,.9)}}
+"""
+
+
 def _page_v40_public() -> str:
     html = _page_v40_visual_polish()
+    html = html.replace("</style>", IBETIN_PREMIUM_LIVELINE_CSS + "\n</style>", 1)
     html = html.replace(
         "<title>IBETIN Live Line · Visual Polish V40</title>",
         "<title>IBETIN Live Line</title>",

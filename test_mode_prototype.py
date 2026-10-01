@@ -29,6 +29,8 @@ def _load_runtime_function(name, bindings):
     node = next(node for node in tree.body if isinstance(node, (ast.AsyncFunctionDef, ast.FunctionDef))
                 and node.name == name)
     scope = dict(bindings)
+    if "_admin_id" in scope and "_is_mode_admin" not in scope:
+        scope["_is_mode_admin"] = lambda uid, _admin=scope["_admin_id"]: uid == _admin()
     exec(compile(ast.Module(body=[node], type_ignores=[]), str(name), "exec"), scope)
     return scope[name]
 
@@ -248,6 +250,50 @@ class ModeTests(unittest.TestCase):
             asyncio.run(func(_private_update(123, "/mode liveline", replies), context))
         self.assertEqual(self.bot.state().mode, LIVE_LINE)
         self.assertEqual(effects, ["menu", "status"])
+
+    def test_mode_admin_matches_admin_panel_authorization(self):
+        calls = []
+        fake_reports = SimpleNamespace(
+            is_authorized_admin=lambda uid: calls.append(uid) or uid == 777)
+        func = _load_runtime_function("_is_mode_admin", {
+            "_admin_id": lambda: 123,
+            "log": SimpleNamespace(exception=lambda *_args: None),
+        })
+        with patch.dict(sys.modules, {"ibetin_reports": fake_reports}):
+            self.assertTrue(func(123))
+            self.assertTrue(func(777))
+            self.assertFalse(func(456))
+            self.assertFalse(func(0))
+            self.assertFalse(func(None))
+        self.assertEqual(calls, [777, 456])
+        broken = SimpleNamespace(is_authorized_admin=lambda uid: 1 / 0)
+        with patch.dict(sys.modules, {"ibetin_reports": broken}):
+            self.assertTrue(func(123))
+            self.assertFalse(func(777))
+
+    def test_unlocked_report_admin_can_use_mode_command(self):
+        replies, effects = [], []
+        async def status(_update, _context):
+            effects.append("status")
+        func = _load_runtime_function("_mode_command", {
+            "parse_admin_mode_request": parse_admin_mode_request,
+            "_admin_id": lambda: 123,
+            "_is_mode_admin": lambda uid: uid in (123, 777),
+            "_store": self.bot,
+            "_mode_status": status,
+            "ApplicationHandlerStop": StopUpdate,
+            "LIVE_LINE": LIVE_LINE,
+        })
+        with self.assertRaises(StopUpdate):
+            asyncio.run(func(_private_update(777, "/mode", replies),
+                             SimpleNamespace(args=[], bot=object())))
+        self.assertEqual(effects, ["status"])
+        self.assertEqual(self.bot.state().mode, FULL)
+        with self.assertRaises(StopUpdate):
+            asyncio.run(func(_private_update(456, "/mode", replies),
+                             SimpleNamespace(args=[], bot=object())))
+        self.assertEqual(effects, ["status"])
+        self.assertEqual(replies, [])
 
     def test_clean_switch_refuses_missing_volume_without_state_change(self):
         replies = []

@@ -312,6 +312,10 @@ class AutomationMenuTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual([b.callback_data for row in markup.inline_keyboard for b in row], expected)
 
 
+
+# Grouped admin home (admin_home_v2) tests run in the same build step.
+from test_admin_home_v2 import AdminHomeV2Tests, IbetinFlavourTests  # noqa: E402,F401
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
 

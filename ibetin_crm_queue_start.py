@@ -449,6 +449,12 @@ def main():
     bot_mode_runtime.install("dura")
     import ibetin_reports as reports
     install(reports)
+    try:
+        # Grouped /admin home (6 categories); classic dashboard stays as fallback.
+        import admin_home_v2
+        admin_home_v2.install_ibetin(reports, brand_key="dura", queue_sql=queue_sql)
+    except Exception:
+        log.exception("Admin home v2 unavailable; classic dashboard kept")
     reports.ensure_tables()
     reset_test_once(reports)
     force_test_unverified_once(reports)

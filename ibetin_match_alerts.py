@@ -355,9 +355,9 @@ def _event_text(match: dict, sport: str, event_key: str, extra: dict, language: 
         lines.append(f"📣 {report}")
 
     if hi:
-        lines.extend(["", "IBETIN Mini App में लाइव अपडेट देखें।"])
+        lines.extend(["", "👇 IBETIN Mini App में हर अपडेट लाइव देखें।"])
     else:
-        lines.extend(["", "Follow the latest update inside the IBETIN Mini App."])
+        lines.extend(["", "👇 Follow every update live in the IBETIN Mini App."])
     return "\n".join(lines)
 
 

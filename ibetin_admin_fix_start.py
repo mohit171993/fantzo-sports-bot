@@ -228,11 +228,34 @@ def _clean_env_secret(name: str) -> str:
     return value
 
 
+_ROANUZ_AUTH_COOLDOWN = 600
+_roanuz_auth_state = {"blocked_until": 0.0, "reason": ""}
+
+
+def _roanuz_error_reason(response) -> str:
+    """Return Roanuz's public error code/message (never echoes credentials)."""
+    try:
+        error = (response.json() or {}).get("error") or {}
+    except Exception:
+        return ""
+    if not isinstance(error, dict):
+        return ""
+    code = str(error.get("code") or "").strip()[:24]
+    msg = str(error.get("msg") or error.get("message") or "").strip()[:80]
+    return " ".join(part for part in (code, msg) if part)
+
+
+def _roanuz_auth_paused() -> bool:
+    return _roanuz_auth_state["blocked_until"] > time.time()
+
+
 def _roanuz_auth(force: bool = False) -> str:
     project = _clean_env_secret("ROANUZ_PROJECT_KEY")
     api_key = _clean_env_secret("ROANUZ_API_KEY")
     if not project or not api_key:
         raise RuntimeError("Roanuz credentials are not configured")
+    if _roanuz_auth_paused():
+        raise RuntimeError(f"Roanuz auth paused after rejection ({_roanuz_auth_state['reason']})")
 
     with _roanuz_lock:
         if not force and _roanuz_token["value"] and _roanuz_token["until"] > time.time() + 60:
@@ -242,7 +265,22 @@ def _roanuz_auth(force: bool = False) -> str:
         with httpx.Client(timeout=20.0, follow_redirects=True) as client:
             response = client.post(url, json={"api_key": api_key}, headers={"Accept": "application/json"})
         if response.status_code < 200 or response.status_code >= 300:
-            raise RuntimeError(f"Roanuz auth HTTP {response.status_code}")
+            reason = _roanuz_error_reason(response)
+            if response.status_code in (400, 401, 403):
+                # Credential rejections do not fix themselves; stop hammering the
+                # auth endpoint on every request and go straight to the proxy.
+                _roanuz_auth_state["blocked_until"] = time.time() + _ROANUZ_AUTH_COOLDOWN
+                _roanuz_auth_state["reason"] = f"HTTP {response.status_code} {reason}".strip()
+                logger.warning(
+                    "IBETIN Roanuz auth rejected HTTP %s %s; check ROANUZ_API_KEY/ROANUZ_PROJECT_KEY "
+                    "on this service. Direct Roanuz paused for %ss (proxy fallback continues)",
+                    response.status_code,
+                    reason,
+                    _ROANUZ_AUTH_COOLDOWN,
+                )
+            raise RuntimeError(f"Roanuz auth HTTP {response.status_code} {reason}".strip())
+        _roanuz_auth_state["blocked_until"] = 0.0
+        _roanuz_auth_state["reason"] = ""
         payload = response.json()
         token = _deep_value(payload, ("token", "access_token", "accessToken"))
         if not token:
@@ -294,7 +332,7 @@ def _roanuz_get(path: str, ttl: int = 10):
     if cached is not None:
         return cached
 
-    if project:
+    if project and not _roanuz_auth_paused():
         try:
             url = f"{_ROANUZ_BASE}/cricket/{project}/{path.lstrip('/')}"
             last_status = 0

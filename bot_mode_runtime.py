@@ -102,6 +102,21 @@ def _admin_id() -> int:
         return 0
 
 
+def _admin_ids() -> frozenset:
+    try:
+        return frozenset(core.admin_user_ids())
+    except Exception:
+        admin_id = _admin_id()
+        return frozenset({admin_id}) if admin_id else frozenset()
+
+
+def _is_admin_user(user_id) -> bool:
+    try:
+        return int(user_id) in _admin_ids()
+    except (TypeError, ValueError):
+        return False
+
+
 def _mode() -> str:
     assert _store is not None
     try:
@@ -331,10 +346,10 @@ async def _reconcile_chats(bot, mode: str) -> bool:
                 needs_retry = True
             verified += 1
             await asyncio.sleep(MENU_RECONCILE_DELAY_SECONDS)
-        admin_id = _admin_id()
-        if _mode() == mode and admin_id:
-            if await _set_verified_chat_ui(bot, admin_id, mode) is False:
-                needs_retry = True
+        for admin_id in sorted(_admin_ids()):
+            if _mode() == mode and admin_id:
+                if await _set_verified_chat_ui(bot, admin_id, mode) is False:
+                    needs_retry = True
         if mode == LIVE_LINE:
             # Only chats that were shown the verification prompt carry a
             # per-chat Commands menu that would hide the Live Line default.
@@ -408,7 +423,7 @@ async def _mode_status(update, context) -> None:
 async def _mode_command(update, context) -> None:
     user, chat = update.effective_user, update.effective_chat
     action = parse_admin_mode_request(
-        int(user.id) if user else 0, _admin_id(), list(context.args or []),
+        int(user.id) if user else 0, _admin_ids(), list(context.args or []),
     )
     if not chat or chat.type != "private" or action is None:
         raise ApplicationHandlerStop
@@ -441,7 +456,7 @@ async def _mode_command(update, context) -> None:
 async def _mode_callback(update, context) -> None:
     query = update.callback_query
     user, chat = update.effective_user, update.effective_chat
-    if not query or not user or not chat or chat.type != "private" or user.id != _admin_id():
+    if not query or not user or not chat or chat.type != "private" or not _is_admin_user(user.id):
         raise ApplicationHandlerStop
     action = str(query.data or "").partition(":")[2]
     if action not in {LIVE_LINE, FULL, "status"}:
@@ -497,7 +512,7 @@ async def _guard_update(update, context) -> None:
         return
     user = update.effective_user
     # The admin and verified users keep the complete Full bot.
-    if user and (user.id == _admin_id() or _is_verified_user(user.id)):
+    if user and (_is_admin_user(user.id) or _is_verified_user(user.id)):
         return
     if update.business_message and _is_business_owner(update.business_message):
         return  # The owner's own replies in a client chat.

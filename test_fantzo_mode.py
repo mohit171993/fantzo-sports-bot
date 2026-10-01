@@ -24,6 +24,7 @@ fantzo_analytics.TRACKING_BASE_URL = "https://fantzo.example"
 import bot_mode_runtime as runtime  # noqa: E402
 
 ADMIN = 8992664481
+PROADMIN = 8860632140  # @Liveline_proadmin
 
 
 def _install_once():
@@ -104,6 +105,19 @@ class FantzoModeTests(unittest.TestCase):
     def test_only_admin_can_use_mode(self):
         self.assertIsNone(parse_admin_mode_request(5, ADMIN, ["liveline"]))
         self.assertEqual(parse_admin_mode_request(ADMIN, ADMIN, []), "status")
+
+    def test_liveline_proadmin_is_full_admin(self):
+        self.assertTrue(runtime.core.is_admin_user(PROADMIN))
+        self.assertTrue(runtime.core.is_admin_user(ADMIN))
+        self.assertFalse(runtime.core.is_admin_user(5))
+        self.assertEqual(parse_admin_mode_request(PROADMIN, runtime._admin_ids(), []), "status")
+        self.assertEqual(parse_admin_mode_request(PROADMIN, runtime._admin_ids(), ["full"]), "full")
+        self.assertIsNone(parse_admin_mode_request(5, runtime._admin_ids(), ["full"]))
+        runtime._store.switch(LIVE_LINE)
+        for update in (_update(PROADMIN, "/admin"), _update(PROADMIN, "/reports"),
+                       _update(PROADMIN, callback=True), _update(PROADMIN, "/broadcast hi")):
+            self.assertEqual(_guard(update), "passed")
+            self.assertEqual(update.effective_message.replies, [])
 
     def test_full_mode_passes_everyone(self):
         for update in (_update(999, "/start"), _update(999, "hi"), _update(999, callback=True)):

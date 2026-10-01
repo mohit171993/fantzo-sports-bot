@@ -33,7 +33,7 @@ _last_backup_error = None
 def _is_admin(update: Update) -> bool:
     return bool(
         update.effective_user
-        and int(update.effective_user.id) == int(core.ADMIN_USER_ID)
+        and core.is_admin_user(update.effective_user.id)
     )
 
 

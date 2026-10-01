@@ -50,7 +50,7 @@ def _team_admin_ids() -> set[int]:
     This intentionally uses Fantzo environment variables and never reads
     iBetin authorization settings.
     """
-    ids: set[int] = {int(core.ADMIN_USER_ID)}
+    ids: set[int] = set(core.admin_user_ids())
 
     single = os.getenv("FANTZO_REPORT_ADMIN_USER_ID", "").strip()
     if single:
@@ -75,7 +75,7 @@ def _team_admin_ids() -> set[int]:
 
 def _is_owner(update) -> bool:
     user = update.effective_user
-    return bool(user and int(user.id) == int(core.ADMIN_USER_ID))
+    return bool(user and core.is_admin_user(user.id))
 
 
 def _is_admin(update) -> bool:

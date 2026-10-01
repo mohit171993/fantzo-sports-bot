@@ -231,7 +231,7 @@ def admin_keyboard():
 
 
 async def banner_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.effective_user or update.effective_user.id != core.ADMIN_USER_ID:
+    if not update.effective_user or not core.is_admin_user(update.effective_user.id):
         return
     await update.effective_message.reply_text(
         _admin_text(),
@@ -241,7 +241,7 @@ async def banner_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def begin_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.effective_user or update.effective_user.id != core.ADMIN_USER_ID:
+    if not update.effective_user or not core.is_admin_user(update.effective_user.id):
         return
     context.user_data["fantzo_banner_queue_upload"] = True
     await update.effective_message.reply_text(
@@ -253,7 +253,7 @@ async def begin_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def done_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.effective_user or update.effective_user.id != core.ADMIN_USER_ID:
+    if not update.effective_user or not core.is_admin_user(update.effective_user.id):
         return
     context.user_data["fantzo_banner_queue_upload"] = False
     await update.effective_message.reply_text(
@@ -264,7 +264,7 @@ async def done_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def banner_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user = update.effective_user
-    if not query or not user or int(user.id) != int(core.ADMIN_USER_ID):
+    if not query or not user or not core.is_admin_user(user.id):
         if query:
             await query.answer("Restricted", show_alert=True)
         raise ApplicationHandlerStop
@@ -321,7 +321,7 @@ async def banner_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     raise ApplicationHandlerStop
 
 async def receive_banner(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.effective_user or update.effective_user.id != core.ADMIN_USER_ID:
+    if not update.effective_user or not core.is_admin_user(update.effective_user.id):
         return
     if not context.user_data.get("fantzo_banner_queue_upload"):
         return
@@ -460,7 +460,7 @@ async def _post_daily(bot):
         return True
 
 async def post_now(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.effective_user or update.effective_user.id != core.ADMIN_USER_ID:
+    if not update.effective_user or not core.is_admin_user(update.effective_user.id):
         return
     try:
         posted = await _post_next(context.bot)
@@ -476,13 +476,13 @@ async def post_now(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 async def pause(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user and update.effective_user.id == core.ADMIN_USER_ID:
+    if update.effective_user and core.is_admin_user(update.effective_user.id):
         _set_setting("paused", "1"); await update.effective_message.reply_text("⏸ Live TV automatic banner posting paused.")
 async def resume(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user and update.effective_user.id == core.ADMIN_USER_ID:
+    if update.effective_user and core.is_admin_user(update.effective_user.id):
         _set_setting("paused", "0"); await update.effective_message.reply_text("▶ Live TV automatic banner posting resumed.")
 async def clear(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user and update.effective_user.id == core.ADMIN_USER_ID:
+    if update.effective_user and core.is_admin_user(update.effective_user.id):
         clear_queue(); await update.effective_message.reply_text("🗑 Unposted Live TV banner queue cleared.")
 
 async def scheduler_loop(application):
@@ -527,7 +527,7 @@ def install(application):
     )
     application.add_handler(
         MessageHandler(
-            image_uploads & filters.User(user_id=core.ADMIN_USER_ID),
+            image_uploads & filters.User(user_id=sorted(core.admin_user_ids())),
             receive_banner,
         ),
         group=-6,

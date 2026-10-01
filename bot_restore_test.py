@@ -99,6 +99,8 @@ tracked.app.configure_telegram_ui = configure_telegram_ui_with_restored_features
 
 
 if __name__ == "__main__":
+    import bot_mode_runtime
+    bot_mode_runtime.install("fantzo")
     tracked.private_apk_upload.install_on_tracking_handler(tracked.analytics)
     tracked.trial_live_tv.install_on_tracking_handler(tracked.analytics)
     tracked.fantzo_live_tv.install_on_tracking_handler(tracked.analytics)

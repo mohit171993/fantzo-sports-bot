@@ -219,3 +219,14 @@ class RevocationTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
+
+
+class AdminModeButtonTests(unittest.TestCase):
+    def test_admin_panel_has_mode_button_handled_by_mode_runtime(self):
+        import re
+        root = Path(__file__).parent
+        start = (root / 'ibetin_crm_queue_start.py').read_text(encoding='utf-8')
+        runtime = (root / 'bot_mode_runtime.py').read_text(encoding='utf-8')
+        self.assertIn('Button("🔀 BOT MODE", callback_data="mode:status")', start)
+        pattern = re.search(r'pattern=r?"(\^mode:[^"]+)"', runtime).group(1)
+        self.assertTrue(re.match(pattern, 'mode:status'))

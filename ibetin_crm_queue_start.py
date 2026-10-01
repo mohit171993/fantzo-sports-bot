@@ -306,6 +306,8 @@ def install(reports):
             [b("📘 FB DAILY DOSE", "fb_dailydose"), b("🤖 AUTOMATION", "automation")],
             [b("📚 TEAM GUIDE", "guide")],
             [b("⚙️ ADVANCED REPORTS", "advanced")],
+            # Opens the bot_mode_runtime /mode screen (Live Line / Full / Status).
+            [Button("🔀 BOT MODE", callback_data="mode:status")],
         ])
 
     def automation_text():

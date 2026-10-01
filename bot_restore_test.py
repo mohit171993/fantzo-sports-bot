@@ -101,6 +101,12 @@ tracked.app.configure_telegram_ui = configure_telegram_ui_with_restored_features
 if __name__ == "__main__":
     import bot_mode_runtime
     bot_mode_runtime.install("fantzo")
+    try:
+        # Grouped /admin home (6 categories); classic ops dashboard stays as fallback.
+        import admin_home_v2
+        admin_home_v2.install_fantzo()
+    except Exception:
+        logger.exception("Admin home v2 unavailable; classic dashboard kept")
     tracked.private_apk_upload.install_on_tracking_handler(tracked.analytics)
     tracked.trial_live_tv.install_on_tracking_handler(tracked.analytics)
     tracked.fantzo_live_tv.install_on_tracking_handler(tracked.analytics)

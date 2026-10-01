@@ -116,7 +116,7 @@ def _is_admin(update) -> bool:
     user = update.effective_user
     if not user:
         return False
-    if user.id == core.ADMIN_USER_ID:
+    if core.is_admin_user(user.id):
         return True
     return user.id == _creative_admin_id()
 

@@ -44,7 +44,7 @@ def is_authorized_admin(user_id: int) -> bool:
     if not uid:
         return False
 
-    if uid == int(core.ADMIN_USER_ID):
+    if core.is_admin_user(uid):
         return True
 
     env_admin = 0

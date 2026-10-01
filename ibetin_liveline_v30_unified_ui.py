@@ -1624,8 +1624,55 @@ def _page_v40_visual_polish() -> str:
     return html
 
 
+DURA_PREMIUM_LIVELINE_CSS = r"""
+/* DURA premium carbon theme (colours/edges only): carbon fibre, Dura red, gold edges, cream type */
+:root{--dC:#100d0b;--dC2:#1b1714;--dC3:#241e19;--dR:#d42a20;--dR2:#8f150f;--dG:#d8b25a;--dG2:#f3dc98;--dG3:#9c7428;--dCr:#f4ecdc;--dMu:#b3a692}
+html body{background:repeating-linear-gradient(45deg,rgba(255,255,255,.018) 0 2px,transparent 2px 6px),repeating-linear-gradient(-45deg,rgba(0,0,0,.22) 0 2px,transparent 2px 6px),radial-gradient(120% 70% at 50% 0,#2a221c 0,#14100d 45%,#0b0908 100%)!important;background-attachment:fixed!important;color:var(--dCr)!important}
+html body .top{background:repeating-linear-gradient(45deg,rgba(255,255,255,.022) 0 2px,transparent 2px 6px),radial-gradient(130% 120% at 0 0,#2c241d 0,#13100d 58%,#0c0a08 100%)!important;border-bottom:0!important;box-shadow:0 2px 0 -1px var(--dG),0 14px 30px rgba(0,0,0,.45)!important}
+html body .brand .mark{position:relative;background:radial-gradient(circle at 30% 25%,#e0443a,var(--dR) 45%,var(--dR2))!important;color:transparent!important;box-shadow:inset 0 0 0 1.5px var(--dG),inset 0 1px 0 2px rgba(255,236,190,.3),0 6px 16px rgba(212,42,32,.35)!important}
+html body .brand .mark:after{content:"D";position:absolute;inset:0;display:grid;place-items:center;color:#fff;font:800 26px/1 'Barlow Condensed','Arial Narrow',Arial,sans-serif;text-shadow:0 1px 0 rgba(0,0,0,.25)}
+html body .brand b{color:var(--dR)!important;-webkit-text-stroke:.7px var(--dG);text-shadow:0 0 1px rgba(243,220,152,.55),0 2px 12px rgba(212,42,32,.45)!important;letter-spacing:1.6px!important}
+html body .brand span{color:var(--dCr)!important;letter-spacing:2.6px!important}html body .brand .liveLineSub{color:var(--dG)!important;letter-spacing:1.6px!important}
+html body .liveDot{background:linear-gradient(180deg,#de3529,var(--dR))!important;color:#fff!important;border:0!important;box-shadow:inset 0 0 0 1px rgba(243,220,152,.55),0 4px 14px rgba(212,42,32,.35)!important}
+html body .tabs{padding:4px!important;gap:4px!important;border-radius:15px!important;background:rgba(255,255,255,.04)!important;box-shadow:inset 0 0 0 1px rgba(216,178,90,.25)!important}
+html body .tab{background:transparent!important;border:0!important;color:var(--dMu)!important;box-shadow:none!important;letter-spacing:1.2px!important;border-radius:11px!important}
+html body .tab.on{background:linear-gradient(180deg,#dc3127,var(--dR) 55%,#a5180f)!important;color:#fff!important;box-shadow:inset 0 1px 0 rgba(255,214,160,.45),inset 0 0 0 1px rgba(243,220,152,.4),0 6px 16px rgba(212,42,32,.38)!important}
+html body .search,html body .refresh{background:linear-gradient(180deg,var(--dC3),var(--dC2))!important;border:1px solid rgba(216,178,90,.28)!important;color:var(--dCr)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)!important}
+html body .search::placeholder{color:#8f8372!important}html body .refresh{color:var(--dG2)!important}
+html body .v39FavFilter button,html body .v39FavFilter>*{background:linear-gradient(180deg,var(--dC3),var(--dC2))!important;border:1px solid rgba(216,178,90,.3)!important;color:var(--dCr)!important}
+html body .v39FavFilter .on,html body .v39FavFilter [aria-pressed="true"]{background:linear-gradient(180deg,#dc3127,var(--dR))!important;border-color:rgba(243,220,152,.5)!important;color:#fff!important}
+html body .status{color:var(--dMu)!important}
+html body .league{color:var(--dG)!important;letter-spacing:1.4px!important;text-transform:uppercase}
+html body .match{position:relative;overflow:hidden;background:linear-gradient(180deg,#1e1915,#15110e)!important;border:1px solid rgba(216,178,90,.24)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 16px 30px -12px rgba(0,0,0,.7)!important}
+html body .match:before{content:"";position:absolute;inset:0 0 auto 0;width:auto!important;height:3px;background:linear-gradient(90deg,var(--dG3),var(--dG2) 45%,var(--dG3))}
+html body .match.live:before{background:linear-gradient(90deg,var(--dR2),var(--dR) 35%,var(--dG) 75%,var(--dG2))}
+html body .mh .fmt{color:var(--dMu)!important}
+html body .mh .badge{background:rgba(244,236,220,.06)!important;color:var(--dCr)!important;border:1px solid rgba(216,178,90,.3)!important}
+html body .mh .badge.live{background:linear-gradient(180deg,#de3529,var(--dR))!important;color:#fff!important;border:0!important;box-shadow:inset 0 0 0 1px rgba(243,220,152,.55),0 4px 10px rgba(212,42,32,.35)!important}
+html body .team+.team{border-top:1px dashed rgba(216,178,90,.14)!important}
+html body .tn{color:var(--dCr)!important}html body .ta,html body .si{color:#9a8e7c!important}html body .sc{color:#fff!important}
+html body .miniMark,html body .teamMark{background:radial-gradient(circle at 32% 26%,#3a3129,var(--dC) 72%)!important;color:var(--dG2)!important;border:0!important;box-shadow:inset 0 0 0 1.5px var(--dG),inset 0 0 0 3px var(--dC),inset 0 0 0 4px rgba(216,178,90,.35),0 4px 10px rgba(0,0,0,.35)!important}
+html body .mh~.team:nth-of-type(2) .miniMark,html body .scoremain>div:first-child .teamMark{background:radial-gradient(circle at 32% 26%,#e04a3e,var(--dR) 55%,var(--dR2))!important;color:#fff!important;box-shadow:inset 0 0 0 1.5px var(--dG),inset 0 0 0 3px var(--dR2),inset 0 0 0 4px rgba(243,220,152,.4),0 4px 12px rgba(212,42,32,.3)!important}
+html body .foot{border-top:1px solid rgba(216,178,90,.16)!important;background:rgba(0,0,0,.18)!important;color:var(--dMu)!important}
+html body .foot b{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:rgba(216,178,90,.14);color:var(--dG2)!important}
+html body .bottom{background:linear-gradient(180deg,rgba(28,23,19,.97),rgba(14,11,9,.98))!important;border:1px solid rgba(216,178,90,.35)!important;box-shadow:0 18px 36px rgba(0,0,0,.55)!important}
+html body .bottom button{color:var(--dMu)!important}html body .bottom .on{color:#fff!important;background:linear-gradient(180deg,rgba(212,42,32,.32),rgba(143,21,15,.18))!important;box-shadow:inset 0 0 0 1px rgba(216,178,90,.35)!important}
+html body .ibPowered{color:var(--dG)!important}
+html body .back{background:linear-gradient(180deg,var(--dC3),var(--dC2))!important;border:1px solid rgba(216,178,90,.45)!important;color:var(--dG2)!important}
+html body .scorehero{position:relative;border:1px solid rgba(216,178,90,.45)!important;background:repeating-linear-gradient(45deg,rgba(255,255,255,.02) 0 2px,transparent 2px 6px),radial-gradient(100% 80% at 100% 0,rgba(212,42,32,.3),transparent 55%),radial-gradient(90% 70% at 0 100%,rgba(216,178,90,.12),transparent 60%),linear-gradient(160deg,#2a231c,#15110e 60%,#0c0a08)!important;box-shadow:0 18px 34px -14px rgba(0,0,0,.6)!important}
+html body .scoretop,html body .report{color:var(--dMu)!important;border-color:rgba(216,178,90,.2)!important}
+html body .scorehero .vs{background:var(--dC)!important;border:1px solid rgba(216,178,90,.55)!important;color:var(--dG2)!important}
+html body .v38Pulse,html body .panel,html body .innings,html body .inning{background:linear-gradient(180deg,#1e1915,#14100d)!important;border:1px solid rgba(216,178,90,.22)!important}
+html body .dtabs .dtab,html body .dtab{background:linear-gradient(180deg,var(--dC3),var(--dC2))!important;border:1px solid rgba(216,178,90,.22)!important;color:var(--dMu)!important;box-shadow:none!important}
+html body .dtabs .dtab.on,html body .dtab.on{background:linear-gradient(180deg,#dc3127,var(--dR) 55%,#a5180f)!important;color:#fff!important;border-color:rgba(243,220,152,.5)!important}
+html body .metric,html body .kv{border-color:rgba(216,178,90,.18)!important}
+"""
+
+
 def _page_v40_public() -> str:
     html = _page_v40_visual_polish()
+    html = html.replace("</style>", DURA_PREMIUM_LIVELINE_CSS + "\n</style>", 1)
+    html = html.replace("tg.setHeaderColor('#1b1917');tg.setBackgroundColor('#f4f3f2')", "tg.setHeaderColor('#13100d');tg.setBackgroundColor('#0b0908')", 1)
     html = html.replace(
         "<title>IBETIN Live Line · Visual Polish V40</title>",
         "<title>IBETIN Live Line</title>",

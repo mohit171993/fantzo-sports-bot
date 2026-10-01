@@ -81,35 +81,37 @@ def _install_ibetin_hub_copy() -> None:
     en.update(
         {
             "welcome": (
-                "⚡ <b>DURASPORTS</b>\n"
+                "⚡ <b>WELCOME TO DURASPORTS</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
-                "Quick access without a crowded menu.\n\n"
-                "🚀 Join DURASPORTS Mini App\n"
-                "🏏 Live Line\n"
-                "🔴 Live now\n"
-                "🏆 Sports\n"
-                "📰 Sports News\n"
-                "🔔 Match Alerts\n"
-                "🛟 Support\n\n"
-                "More sections are available inside the Mini App.\n\n"
+                "Your front page for live sport, right inside Telegram.\n\n"
+                "🏏 <b>Live Line</b> · ball-by-ball scores\n"
+                "🔴 <b>Live now</b> · matches in play\n"
+                "🏆 <b>Sports</b> · fixtures and results\n"
+                "📰 <b>Sports News</b> · fresh headlines\n"
+                "🔔 <b>Match Alerts</b> · straight to your chat\n"
+                "🛟 <b>Support</b> · real people, fast help\n\n"
+                "👇 Tap a button below to begin.\n\n"
                 ""
             ),
             "explore": (
                 "🌐 <b>DURASPORTS MINI APP HUB</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
-                "Every navigation button opens inside Telegram.\n\n"
+                "📲 Every section opens right here in Telegram.\n"
+                "👇 Pick where you want to go.\n\n"
                 ""
             ),
             "join": (
                 "🌐 <b>OPEN DURASPORTS</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
-                "Continue inside Telegram using the DURASPORTS Mini App.\n\n"
+                "📲 Continue in the DURASPORTS Mini App, right inside Telegram.\n"
+                "👇 Tap below to open.\n\n"
                 ""
             ),
             "settings": (
                 "⚙️ <b>DURASPORTS SETTINGS</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
-                "Open settings in the DURASPORTS Mini App."
+                "🌐 Language, alerts and preferences in one place.\n"
+                "👇 Open settings in the DURASPORTS Mini App."
             ),
         }
     )
@@ -118,29 +120,30 @@ def _install_ibetin_hub_copy() -> None:
     hi.update(
         {
             "welcome": (
-                "⚡ <b>DURASPORTS</b>\n"
+                "⚡ <b>DURASPORTS में आपका स्वागत है</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
-                "कम विकल्प, तेज़ access.\n\n"
-                "🚀 DURASPORTS Mini App\n"
-                "🏏 Live Line\n"
-                "🔴 Live\n"
-                "🏆 Sports\n"
-                "📰 Sports News\n"
-                "🔔 Match Alerts\n"
-                "🛟 Support\n\n"
-                "बाकी सभी sections Mini App के अंदर उपलब्ध हैं।\n\n"
+                "लाइव खेल, सीधे Telegram के अंदर।\n\n"
+                "🏏 <b>Live Line</b> · बॉल-बाय-बॉल स्कोर\n"
+                "🔴 <b>Live</b> · अभी चल रहे मैच\n"
+                "🏆 <b>Sports</b> · फिक्स्चर और रिज़ल्ट\n"
+                "📰 <b>Sports News</b> · ताज़ा खबरें\n"
+                "🔔 <b>Match Alerts</b> · सीधे आपकी चैट में\n"
+                "🛟 <b>Support</b> · तुरंत मदद\n\n"
+                "👇 शुरू करने के लिए नीचे बटन दबाएँ।\n\n"
                 ""
             ),
             "explore": (
                 "🌐 <b>DURASPORTS MINI APP HUB</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
-                "सभी navigation विकल्प Telegram के अंदर खुलेंगे।\n\n"
+                "📲 हर सेक्शन यहीं Telegram के अंदर खुलेगा।\n"
+                "👇 जहाँ जाना है, चुनें।\n\n"
                 ""
             ),
             "join": (
                 "🌐 <b>OPEN DURASPORTS</b>\n"
                 "━━━━━━━━━━━━━━━━━━\n\n"
-                "DURASPORTS को Telegram Mini App के अंदर खोलें।\n\n"
+                "📲 DURASPORTS Mini App को Telegram के अंदर खोलें।\n"
+                "👇 खोलने के लिए नीचे टैप करें।\n\n"
                 ""
             ),
         }
@@ -282,21 +285,21 @@ STOP_PHRASES = {
 }
 
 PREVERIFY_COMMANDS = (
-    BotCommand("start", "Verify account and continue"),
-    BotCommand("help", "Account help"),
+    BotCommand("start", "Get started"),
+    BotCommand("help", "Help and quick guide"),
     BotCommand("support", "Contact support"),
 )
 
 VERIFIED_COMMANDS = (
-    BotCommand("start", "Open DURASPORTS Mini App Hub"),
-    BotCommand("news", "Open Sports News Mini App"),
+    BotCommand("start", "Open the DURASPORTS hub"),
+    BotCommand("news", "Latest sports news"),
     BotCommand("website", "Open DURASPORTS Mini App"),
-    BotCommand("live", "Open Live Mini App"),
-    BotCommand("liveline", "Open DURASPORTS Live Line"),
-    BotCommand("sports", "Open Sports Mini App"),
-    BotCommand("team", "Open team search"),
-    BotCommand("support", "Open Support Mini App"),
-    BotCommand("help", "DURASPORTS Mini App menu"),
+    BotCommand("live", "Matches live now"),
+    BotCommand("liveline", "Ball-by-ball DURASPORTS Live Line"),
+    BotCommand("sports", "Fixtures, scores and results"),
+    BotCommand("team", "Find your team"),
+    BotCommand("support", "Talk to DURASPORTS support"),
+    BotCommand("help", "DURASPORTS menu and help"),
     BotCommand("reports", "Admin report center"),
 )
 
@@ -636,10 +639,10 @@ async def _prompt_mobile_verification(update, context, source: str = "bot_start"
     # ask again; continue directly to the requested destination.
     if phone_verify.is_verified(user.id):
         await _set_user_menu_button(context.bot, user.id, True)
-        await message.reply_text("✅ <b>Your quick access buttons are ready below.</b>", parse_mode="HTML", reply_markup=app.QUICK_MENU)
+        await message.reply_text("✅ <b>Quick access is ready</b>\n👇 Your shortcuts are pinned below the chat.", parse_mode="HTML", reply_markup=app.QUICK_MENU)
         if source == "liveline":
             await message.reply_text(
-                "🏏 <b>DURASPORTS LIVE LINE</b>\n\n👇 Open Live Line below.",
+                "🏏 <b>DURASPORTS LIVE LINE</b>\n\n⚡ Ball-by-ball scores and full scorecards.\n👇 Open Live Line below.",
                 parse_mode="HTML",
                 reply_markup=InlineKeyboardMarkup(
                     [[InlineKeyboardButton(
@@ -655,7 +658,7 @@ async def _prompt_mobile_verification(update, context, source: str = "bot_start"
         if source == "business_dm":
             import fantzo_business
             await message.reply_text(
-                "✅ <b>Your Telegram mobile is already verified.</b>\n\n"
+                "✅ <b>You're verified and all set.</b>\n\n"
                 "👇 Choose what you want to do next.",
                 parse_mode="HTML",
                 reply_markup=fantzo_business.business_keyboard(user.id),
@@ -1024,9 +1027,9 @@ async def smart_start(update, context) -> None:
         return
 
     await _set_user_menu_button(context.bot, user.id, True)
-    await message.reply_text("✅ <b>Your quick access buttons are ready below.</b>", parse_mode="HTML", reply_markup=app.QUICK_MENU)
+    await message.reply_text("✅ <b>Quick access is ready</b>\n👇 Your shortcuts are pinned below the chat.", parse_mode="HTML", reply_markup=app.QUICK_MENU)
     await message.reply_text(
-        "👋 <b>Welcome back to DURASPORTS</b>\n\n👇 Choose what you want to do next.",
+        "👋 <b>Welcome back to DURASPORTS</b>\n\n🏏 Live Line · 📊 Scorecards · 📰 News\n👇 Choose what you want to do next.",
         parse_mode="HTML",
         reply_markup=conversion_keyboard(user.id),
         disable_web_page_preview=True,
@@ -1098,7 +1101,7 @@ async def help_command(update, context) -> None:
     if not await _require_verified(update, context):
         return
     await message.reply_text(
-        "⚡ <b>DURASPORTS</b>\n\nChoose an option below.",
+        "⚡ <b>DURASPORTS MENU</b>\n━━━━━━━━━━━━━━━━━━\n\n🏏 Live Line and full scorecards\n📰 Sports news\n🔔 Match alerts\n🛟 Support\n\n👇 Choose an option below.",
         parse_mode="HTML",
         reply_markup=premium_main_keyboard(user.id),
         disable_web_page_preview=True,

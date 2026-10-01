@@ -18,6 +18,48 @@ body.matchOpen{background:var(--v34bg)!important;overflow-x:hidden}.detail{paddi
 .v33Tabs{gap:5px!important;margin:9px 0!important}.v33Tabs .dtab{height:44px!important;border-radius:12px!important;font-size:8px!important;letter-spacing:-.1px!important}.v33Snapshot{padding:12px!important}.v33SnapHead{margin-bottom:9px!important}.v33SnapHead strong{font-size:16px!important}.v33Metrics{border-radius:11px!important}.v33Metric{padding:8px 3px!important}.v33Metric span{font-size:7px!important}.v33Metric b{font-size:15px!important;margin-top:3px!important}.v33Snapshot .playerStrip{margin-top:9px!important;gap:7px!important}.v33Snapshot .playerCard{padding:9px!important}.v33Snapshot .playerName{font-size:11px!important}.v33Snapshot .playerStat{font-size:9px!important}.v33Snapshot .lastSix{margin-top:9px!important;padding-top:9px!important}.v33Snapshot .ballChip{width:32px!important;height:32px!important;font-size:9px!important}.v33Panel{padding:11px!important}
 @media(max-width:390px){.v33Hero{margin-left:9px!important;margin-right:9px!important}.v33Content{padding-left:9px!important;padding-right:9px!important}.v33Series{font-size:12px!important;padding:0 52px!important}.v33TeamName{font-size:15px!important}.v33TeamScore{font-size:32px!important}.v33OddVal{font-size:24px!important}.v33Metrics{grid-template-columns:repeat(4,1fr)!important}.v33Session{flex-basis:78vw!important}}
 .brand b,.v33Word b,.v33Series,.v33TeamName,.v33TeamScore,.v33Head strong,.v33SnapHead strong,.v33OddVal,.sval,.quickHead b,.ptitle b{font-family:'Barlow Condensed','Arial Narrow',Arial,sans-serif!important}
+/* Dura premium carbon theme: carbon fibre, Dura red, gold edges, cream type (colours only) */
+:root{--dC:#100d0b;--dC2:#1b1714;--dC3:#241e19;--dR:#d42a20;--dR2:#8f150f;--dG:#d8b25a;--dG2:#f3dc98;--dG3:#9c7428;--dCr:#f4ecdc;--dMu:#b3a692}
+html,body{background:repeating-linear-gradient(45deg,rgba(255,255,255,.018) 0 2px,transparent 2px 6px),repeating-linear-gradient(-45deg,rgba(0,0,0,.22) 0 2px,transparent 2px 6px),radial-gradient(120% 70% at 50% 0,#2a221c 0,#14100d 45%,#0b0908 100%)!important;background-attachment:fixed!important;color:var(--dCr)!important}
+.top{background:linear-gradient(180deg,rgba(20,16,13,.97),rgba(14,11,9,.94))!important;border-bottom:0!important;box-shadow:0 1px 0 rgba(216,178,90,.55),0 14px 30px rgba(0,0,0,.45)!important}
+.brand .mark{background:linear-gradient(180deg,var(--dG2),var(--dG) 45%,var(--dR) 100%)!important;box-shadow:0 0 12px rgba(216,178,90,.35)!important}
+.brand b{color:var(--dR)!important;-webkit-text-stroke:.7px var(--dG);text-shadow:0 0 1px rgba(243,220,152,.55),0 2px 12px rgba(212,42,32,.45)!important;letter-spacing:1.4px!important}
+.brand span{color:var(--dG)!important;letter-spacing:3px!important}
+.liveDot{background:linear-gradient(180deg,#de3529,var(--dR))!important;color:#fff!important;border:0!important;box-shadow:inset 0 0 0 1px rgba(243,220,152,.55),0 4px 14px rgba(212,42,32,.35)!important}
+.tabs{padding:4px!important;gap:4px!important;border-radius:15px!important;background:rgba(255,255,255,.04)!important;box-shadow:inset 0 0 0 1px rgba(216,178,90,.25)!important}
+.tab{background:transparent!important;border:0!important;color:var(--dMu)!important;box-shadow:none!important;letter-spacing:1.2px!important;border-radius:11px!important}
+.tab.on{background:linear-gradient(180deg,#dc3127,var(--dR) 55%,#a5180f)!important;color:#fff!important;box-shadow:inset 0 1px 0 rgba(255,214,160,.45),inset 0 0 0 1px rgba(243,220,152,.4),0 6px 16px rgba(212,42,32,.38)!important}
+.search,.refresh{background:linear-gradient(180deg,var(--dC3),var(--dC2))!important;border:1px solid rgba(216,178,90,.28)!important;color:var(--dCr)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)!important}
+.search::placeholder{color:#8f8372!important}.refresh{color:var(--dG2)!important}
+.status{color:var(--dMu)!important;letter-spacing:.3px}
+.league{color:var(--dG)!important;letter-spacing:1.6px!important}
+.match{position:relative;overflow:hidden;background:linear-gradient(180deg,#1e1915,#15110e)!important;border:1px solid rgba(216,178,90,.22)!important;border-left:1px solid rgba(216,178,90,.22)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 16px 30px -12px rgba(0,0,0,.7)!important}
+.match:before{content:"";position:absolute;inset:0 0 auto 0;height:3px;background:linear-gradient(90deg,var(--dG3),var(--dG2) 45%,var(--dG3))}
+.match.live:before{background:linear-gradient(90deg,var(--dR2),var(--dR) 35%,var(--dG) 75%,var(--dG2))}
+.mh .fmt{color:var(--dMu)!important}
+.badge{background:rgba(244,236,220,.06)!important;color:var(--dCr)!important;border:1px solid rgba(216,178,90,.3)!important}
+.badge.live{background:linear-gradient(180deg,#de3529,var(--dR))!important;color:#fff!important;border:0!important;box-shadow:inset 0 0 0 1px rgba(243,220,152,.55),0 4px 10px rgba(212,42,32,.35)!important}
+.team+.team{border-top:1px dashed rgba(216,178,90,.14)}
+.tn{color:var(--dCr)!important}.ta,.si{color:#9a8e7c!important}.sc{color:#fff!important}
+.miniMark,.v33Team .teamMark{border:0!important;background:radial-gradient(circle at 32% 26%,#3a3129,var(--dC) 72%)!important;color:var(--dG2)!important;border:0!important;box-shadow:inset 0 0 0 1.5px var(--dG),inset 0 0 0 3px var(--dC),inset 0 0 0 4px rgba(216,178,90,.35),0 4px 10px rgba(0,0,0,.35)!important}
+.mh+.team .miniMark,.v33Team:first-child .teamMark{border:0!important;background:radial-gradient(circle at 32% 26%,#e04a3e,var(--dR) 55%,var(--dR2))!important;color:#fff!important;box-shadow:inset 0 0 0 1.5px var(--dG),inset 0 0 0 3px var(--dR2),inset 0 0 0 4px rgba(243,220,152,.4),0 4px 12px rgba(212,42,32,.3)!important}
+.foot{border-top:1px solid rgba(216,178,90,.16)!important;background:rgba(0,0,0,.18)!important;color:var(--dMu)!important}
+.foot b{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:rgba(216,178,90,.14);color:var(--dG2)!important}
+.oddsRow,.oddBox{border-color:rgba(216,178,90,.22)!important}
+.bottom{background:linear-gradient(180deg,rgba(28,23,19,.97),rgba(14,11,9,.98))!important;border:1px solid rgba(216,178,90,.35)!important;box-shadow:0 -1px 0 rgba(216,178,90,.12),0 18px 36px rgba(0,0,0,.55)!important}
+.bottom button{color:var(--dMu)!important}.bottom .on{color:#fff!important;background:linear-gradient(180deg,rgba(212,42,32,.32),rgba(143,21,15,.18))!important;box-shadow:inset 0 0 0 1px rgba(216,178,90,.35)!important}
+.v33Hero{border:1px solid rgba(216,178,90,.45)!important;position:relative;overflow:hidden;background:repeating-linear-gradient(45deg,rgba(255,255,255,.02) 0 2px,transparent 2px 6px),radial-gradient(100% 80% at 100% 0,rgba(212,42,32,.3),transparent 55%),radial-gradient(90% 70% at 0 100%,rgba(216,178,90,.12),transparent 60%),linear-gradient(160deg,#2a231c,#15110e 60%,#0c0a08)!important}
+.v33Hero:before{background:linear-gradient(90deg,transparent,rgba(216,178,90,.7))!important;opacity:.55!important}.v33Hero:after{background:linear-gradient(90deg,rgba(216,178,90,.7),transparent)!important;opacity:.55!important}
+.v33Format{background:linear-gradient(180deg,var(--dG2),var(--dG))!important;color:#2a1e08!important}
+.v33Vs{background:var(--dC)!important;border:1px solid rgba(216,178,90,.55)!important;color:var(--dG2)!important;box-shadow:0 0 18px rgba(212,42,32,.25)!important}
+.v33TeamName,.v33TeamScore{color:var(--dCr)!important}.v33TeamAbbr,.v33TeamInfo{color:var(--dMu)!important}
+.v33Report{border:1px solid rgba(216,178,90,.4)!important;background:rgba(212,42,32,.14)!important;color:var(--dCr)!important}
+.v33Market,.v33Sessions,.v33Snapshot,.v33Panel{border:1px solid rgba(216,178,90,.22)!important;background:linear-gradient(180deg,#1e1915,#14100d)!important}
+.v33Head strong,.v33SnapHead strong{color:var(--dCr)!important}
+.v33Odd,.v33Session,.v33Metrics,.v33History,.v33Metric,.v33Hist{border-color:rgba(216,178,90,.18)!important;background-color:rgba(255,255,255,.025)!important}
+.v33Metric span,.v33Hist span{color:var(--dG)!important}
+.v33Tabs .dtab{background:linear-gradient(180deg,var(--dC3),var(--dC2))!important;border:1px solid rgba(216,178,90,.2)!important;color:var(--dMu)!important}
+.v33Tabs .dtab.on{background:linear-gradient(180deg,#dc3127,var(--dR) 55%,#a5180f)!important;color:#fff!important;border-color:rgba(243,220,152,.5)!important}
 '''
 
 V34_JS = r'''

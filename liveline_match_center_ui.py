@@ -159,6 +159,46 @@ body.mcFootball #mcFootball{display:block}
 .mcFbGoal{font:800 18px/1 var(--mcHead);color:var(--mcText);text-align:right;min-width:22px}
 .mcFbMeta{grid-column:1/-1;display:flex;justify-content:space-between;font-size:10px;font-weight:800;letter-spacing:.5px;color:var(--mcMuted);padding-top:6px;border-top:1px solid var(--mcLine)}
 .mcFbMeta .lv{color:var(--mcW)}
+.mcCom.four{background:linear-gradient(90deg,color-mix(in srgb,var(--mcFour) 14%%,transparent),transparent 70%%);border-radius:12px;padding-left:6px;padding-right:6px}
+.mcCom.six{background:linear-gradient(90deg,color-mix(in srgb,var(--mcSix) 18%%,transparent),transparent 70%%);border-radius:12px;padding-left:6px;padding-right:6px}
+.mcCom p em{font-style:normal;font-weight:900;color:var(--mcW)}
+.mcCom p i{font-style:normal;font-weight:800;color:var(--mcMuted);font-size:10.5px}
+.mcOverHead .bw{font-weight:800;color:var(--mcMuted);text-transform:none;letter-spacing:.2px}
+.mcOverHead .mcSc{color:var(--mcText);font:inherit}
+.mcMore{margin-top:10px;font-size:10.5px;color:var(--mcMuted);text-align:center;font-weight:800;letter-spacing:.4px}
+.mcSrc{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:0 2px 8px;font-size:9.5px;font-weight:800;letter-spacing:.6px;color:var(--mcMuted);text-transform:uppercase}
+.mcSrc b{color:var(--mcAcc)}
+.mcManS{overflow-x:auto;scrollbar-width:none;padding-bottom:2px}.mcManS::-webkit-scrollbar{display:none}
+.mcManS .mcMan,.mcManS .mcManX{min-width:100%%}
+.mcManS .mcMan div,.mcManS .mcManX span{flex:1 0 11px}
+.mcWorm svg{display:block;width:100%%;height:auto}
+.mcWorm .ax{stroke:var(--mcLine);stroke-width:1}
+.mcWorm text{fill:var(--mcMuted);font-size:8px;font-weight:800;font-family:inherit}
+.mcLegend{display:flex;gap:12px;flex-wrap:wrap;margin-top:6px;font-size:10px;font-weight:800;color:var(--mcMuted)}
+.mcLegend i{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:5px;vertical-align:middle}
+.mcOS{display:grid;grid-template-columns:44px 1fr auto;gap:8px;align-items:center;padding:9px 0;border-top:1px solid var(--mcLine)}
+.mcOS:first-child{border-top:0}
+.mcOS .o{font:800 11px/1.2 var(--mcHead);color:var(--mcMuted)}.mcOS .o b{display:block;color:var(--mcText);font-size:15px}
+.mcOS .d{min-width:0;font-size:10.5px;line-height:1.4;color:var(--mcMuted)}
+.mcOS .d b{color:var(--mcText);font-weight:800}
+.mcOS .d .bs{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px}
+.mcOS .d .bs .mcBall{min-width:21px;height:21px;font-size:9.5px}
+.mcOS .r{text-align:right;font:800 16px/1 var(--mcHead);color:var(--mcText)}
+.mcOS .r small{display:block;font-family:inherit;font-weight:800;font-size:9px;line-height:1.3;color:var(--mcMuted);margin-top:3px;white-space:nowrap}
+.mcOS.wk .r{color:var(--mcW)}
+#mcOddsBox{display:none;margin-top:10px}
+#mcOddsBox.on{display:block}
+.mcOdds{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.mcOdd{position:relative;padding:11px 12px;border-radius:14px;border:1px solid var(--mcLine);background:rgba(255,255,255,.03);min-width:0}
+.mcOdd.fav{border-color:var(--mcAcc);background:var(--mcSoft);box-shadow:0 0 0 1px var(--mcGlow) inset}
+.mcOdd .nm{display:block;font-size:10px;font-weight:900;letter-spacing:.6px;color:var(--mcMuted);text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mcOdd b{display:block;margin-top:4px;font:800 26px/1 var(--mcHead);color:var(--mcText)}
+.mcOdd.fav b{color:var(--mcAcc)}
+.mcOdd small{display:block;margin-top:5px;font-size:10px;font-weight:700;color:var(--mcMuted)}
+.mcOdd.fav .nm{padding-right:34px}
+.mcOdd .tag{position:absolute;top:9px;right:9px;font-size:8px;font-weight:900;letter-spacing:.6px;padding:2px 6px;border-radius:6px;background:var(--mcAcc);color:var(--mcInk)}
+.mcOddDraw{margin-top:8px;display:flex;justify-content:space-between;font-size:11px;color:var(--mcMuted);font-weight:800}
+.mcOddDraw b{color:var(--mcText)}
 @media(max-width:360px){.mcMetric b{font-size:15px}.mcT{font-size:11px}.mcT td.n{width:46%%}}
 @media(prefers-reduced-motion:reduce){.mcPill.live:before,.mcSk{animation:none}}
 """
@@ -299,10 +339,93 @@ _JS = r"""
     if(c.messages&&c.messages.length)h+=`<div class="mcCard">${head('Match notes')}${c.messages.map(m=>`<div class="mcKV"><b style="text-align:left">${E(m)}</b></div>`).join('')}</div>`;
     return h;
   }
+
+  /* ------------------------------------------------- ROANUZ FULL FEEDS */
+  const FEED={balls:new Map(),summary:new Map(),busy:new Map(),inn:{},filt:{},quick:0};
+  function feedGet(kind,k,force){
+    const store=FEED[kind],c=store.get(k),ttl=kind==='balls'?10000:30000,bk=kind+':'+k;
+    if(!force&&c&&Date.now()-c.ts<ttl)return Promise.resolve(c.data);
+    if(FEED.busy.has(bk))return FEED.busy.get(bk);
+    const p=api({action:kind==='balls'?'balls':'oversummary',id:k},false).then(j=>{const d=j&&(kind==='balls'?j.balls:j.summary)||null;const v=d||(c&&c.data)||{none:true,reason:(j&&j.reason)||'unavailable'};store.set(k,{ts:Date.now(),data:v});return v})
+      .catch(()=>{const v=(c&&c.data)||{none:true,reason:'unavailable'};store.set(k,{ts:Date.now()-5000,data:v});return v}).finally(()=>FEED.busy.delete(bk));
+    FEED.busy.set(bk,p);return p;
+  }
+  function innPick(kind,k,inns,live){let s=FEED.inn[kind+k];if(s===undefined||!inns[s]){s=inns.length-1}return s}
+  function innTabs(kind,inns,sel){return inns.length>1?`<div class="mcInnTabs">${inns.map((i,n)=>`<button data-finn="${kind}:${n}" class="${n===sel?'on':''}">${E(i.label)}<b>${kind==='summary'?`${E(i.runs)}/${E(i.wickets||0)}`:`${E(i.overs.length)} ov`}</b></button>`).join('')}</div>`:''}
+  function fullCommsHtml(c,f){
+    if(!f||f.none||!f.innings||!f.innings.length){
+      const why=f&&f.reason==='not_live'?'Ball-by-ball commentary starts with the first delivery.':'Full ball-by-ball feed is unavailable right now — showing the latest deliveries.';
+      return (c.commentary&&c.commentary.length?`<div class="mcSrc"><span>${E(why)}</span></div>`+commsHtml(c):note(why));
+    }
+    const inns=f.innings,sel=innPick('balls',c.key,inns),i=inns[sel],flt=FEED.filt[c.key]||'all';
+    const keep=b=>flt==='all'||(flt==='w'?b.k==='wicket':(b.k==='four'||b.k==='six'));
+    let h=innTabs('balls',inns,sel)+`<div class="mcSeg"><button data-flt="all" class="${flt==='all'?'on':''}">ALL BALLS</button><button data-flt="w" class="${flt==='w'?'on':''}">WICKETS</button><button data-flt="b" class="${flt==='b'?'on':''}">4s &amp; 6s</button></div>`;
+    h+=`<div class="mcCard">${head('Ball by ball',(f.live?'<span class="mcPill live">LIVE</span> ':'')+E(i.label))}`;
+    let any=false;
+    i.overs.forEach(o=>{const bs=o.balls.filter(keep);if(!bs.length)return;any=true;
+      h+=`<div class="mcOverHead"><span>Over <b>${E(o.over)}</b>${o.bowler?` <span class="bw">· ${E(o.bowler)}</span>`:''}</span><span>${E(o.runs)} run${o.runs==1?'':'s'}${o.wickets?` · <b style="color:var(--mcW)">${E(o.wickets)}W</b>`:''}${o.score?` · <span class="mcSc">${E(o.score.replace(/ in .*$/,''))}</span>`:''}</span></div>`;
+      bs.slice().reverse().forEach(b=>{h+=`<div class="mcCom ${E(b.k||'')}"><div class="l">${ball(b)}<small>${E(b.ball)}</small></div><p>${b.k==='wicket'&&!/wicket/i.test(b.text||'')?'<em>WICKET</em> ':''}${E(b.text||'Delivery update')}${b.k==='wicket'&&b.out?`<small>${E(b.out)}${b.how?' · '+E(b.how):''}</small>`:''}${b.score?`<small>${E(b.score)}</small>`:''}</p></div>`})});
+    if(!any)h+=note(flt==='w'?'No wickets in this innings yet.':'No boundaries in this innings yet.');
+    h+='</div>';
+    if(!f.complete)h+='<div class="mcMore">Loading earlier overs…</div>';
+    return h;
+  }
+  function wormSvg(inns,maxOv){
+    const W=320,H=150,P=24,mx=Math.max(maxOv,1),my=Math.max(...inns.map(i=>i.runs||0),10);
+    const x=o=>P+(W-P-6)*(o/mx),y=r=>H-16-(H-28)*(r/my);
+    const col=['var(--mcBarA)','var(--mcBarB)','var(--mcSix)','var(--mcX)'];
+    let g=`<line class="ax" x1="${P}" y1="${H-16}" x2="${W-4}" y2="${H-16}"/><line class="ax" x1="${P}" y1="8" x2="${P}" y2="${H-16}"/>`;
+    [0.5,1].forEach(t=>{g+=`<text x="2" y="${y(my*t)+3}">${Math.round(my*t)}</text>`});
+    const step=mx>30?10:5;for(let o=step;o<=mx;o+=step)g+=`<text x="${x(o)-4}" y="${H-4}">${o}</text>`;
+    inns.forEach((i,n)=>{const pts=[[0,0]].concat(i.overs.map(o=>[o.over,o.total||0]));g+=`<polyline fill="none" stroke="${col[n%%4]}" stroke-width="2.2" stroke-linejoin="round" points="${pts.map(p=>x(p[0]).toFixed(1)+','+y(p[1]).toFixed(1)).join(' ')}"/>`;
+      i.overs.filter(o=>o.wickets).forEach(o=>{g+=`<circle cx="${x(o.over).toFixed(1)}" cy="${y(o.total||0).toFixed(1)}" r="3.2" fill="var(--mcW)" stroke="var(--mcPanel)" stroke-width="1"/>`})});
+    return `<div class="mcWorm"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Worm chart">${g}</svg><div class="mcLegend">${inns.map((i,n)=>`<span><i style="background:${col[n%%4]}"></i>${E(i.label)} ${E(i.runs)}/${E(i.wickets||0)}</span>`).join('')}<span><i style="background:var(--mcW);width:7px;height:7px;border-radius:50%%"></i>Wicket</span></div></div>`;
+  }
+  function fullOversHtml(c,s){
+    if(!s||s.none||!s.innings||!s.innings.length){
+      const why=s&&s.reason==='not_live'?'Over-by-over summary starts after the first over.':'Full over summary is unavailable right now — showing recent overs.';
+      return `<div class="mcSrc"><span>${E(why)}</span></div>`+oversHtml(c);
+    }
+    const inns=s.innings,sel=innPick('summary',c.key,inns),i=inns[sel];
+    const per=(c.format||'').toLowerCase().indexOf('odi')>=0?50:(c.format||'').toLowerCase().indexOf('t20')>=0?20:0;
+    const maxOv=Math.max(per,...inns.map(x=>x.overs.length?x.overs[x.overs.length-1].over:0));
+    const bb=FEED.balls.get(c.key),bbd=bb&&bb.data&&bb.data.innings?bb.data.innings.find(x=>x.innings===i.innings):null;
+    const ballsFor=n=>{if(!bbd)return null;const o=bbd.overs.find(x=>x.over===n);return o?o.balls:null};
+    const mx=Math.max(i.maxOver||0,6);
+    let h=innTabs('summary',inns,sel);
+    h+=`<div class="mcCard">${head('Runs per over',E(i.label)+' · '+i.overs.length+' overs')}<div class="mcManS"><div class="mcMan">${i.overs.map(o=>`<div><em>${E(o.runs)}</em>${o.wickets?'<u></u>':''}<i style="height:${Math.max(3,Math.round(o.runs/mx*60))}px"></i></div>`).join('')}</div><div class="mcManX">${i.overs.map(o=>`<span>${o.over%%5===0||i.overs.length<=12?E(o.over):''}</span>`).join('')}</div></div></div>`;
+    h+=`<div class="mcCard">${head('Worm','Cumulative runs')}${wormSvg(inns,maxOv)}</div>`;
+    h+=`<div class="mcCard">${head('Over by over','Latest first')}${i.overs.slice().reverse().map(o=>{const bs=ballsFor(o.over);const bat=(o.batters||[]).map(b=>`<b>${E(b.name)}</b> ${E(b.r)}(${E(b.b)})`).join(' · ');const bw=(o.bowlers||[])[0];
+      return `<div class="mcOS ${o.wickets?'wk':''}"><div class="o">OVER<b>${E(o.over)}</b></div><div class="d">${bs?`<div class="bs">${bs.map(ball).join('')}</div>`:''}${bat?`<div>${bat}</div>`:''}${bw?`<div>${E(bw.name)} <b>${E(bw.o)}-${E(bw.r)}-${E(bw.w)}</b></div>`:''}${has(o.rrr)?`<div>RRR <b>${N(o.rrr,2)}</b>${has(o.need)?` · need <b>${E(o.need)}</b>`:''}</div>`:''}</div><div class="r">${E(o.runs)}${o.wickets?` <span style="font-size:11px">${E(o.wickets)}W</span>`:''}<small>${E(o.total)}/${E(o.totalWickets||0)}${has(o.rr)?' · RR '+N(o.rr,2):''}</small></div></div>`}).join('')}</div>`;
+    if(!s.complete)h+='<div class="mcMore">Loading earlier overs…</div>';
+    return h;
+  }
+  function feedPaint(tab,c){
+    const p=document.getElementById('panel');if(!p)return;
+    const kind=tab==='comms'?'balls':'summary',k=c.key,cached=FEED[kind].get(k);
+    const render=d=>{const pp=document.getElementById('panel');if(!pp||detailTab!==tab||curKey()!==k)return;const html='<div class="mc">'+(tab==='comms'?fullCommsHtml(c,d):fullOversHtml(c,d))+'</div>';if(MC.sig[tab]===html&&pp.querySelector('.mc'))return;MC.sig[tab]=html;pp.innerHTML=html;bindFeed(tab,c,d)};
+    if(cached)render(cached.data);else p.innerHTML='<div class="mc">'+skel()+skel()+'</div>';
+    const fresh=!cached||Date.now()-cached.ts>(kind==='balls'?10000:30000);
+    const extra=kind==='summary'&&!FEED.balls.get(k)?feedGet('balls',k,false):Promise.resolve();
+    if(fresh||!cached)Promise.all([feedGet(kind,k,false),extra]).then(([d])=>{render(d);if(d&&!d.none&&!d.complete&&FEED.quick<12){FEED.quick++;setTimeout(()=>{if(detailTab===tab&&curKey()===k){const cur=FEED[kind].get(k);if(cur)cur.ts=0;feedPaint(tab,c)}},4000)}});
+  }
+  function bindFeed(tab,c,d){
+    const p=document.getElementById('panel');if(!p)return;
+    p.querySelectorAll('[data-finn]').forEach(b=>b.onclick=()=>{const [kind,n]=b.dataset.finn.split(':');FEED.inn[kind+c.key]=Number(n);MC.sig={};feedPaint(tab,c)});
+    p.querySelectorAll('[data-flt]').forEach(b=>b.onclick=()=>{FEED.filt[c.key]=b.dataset.flt;MC.sig={};feedPaint(tab,c)});
+  }
+  /* ------------------------------------------------ ROANUZ LIVE ODDS */
+  function oddsHtml(o){
+    if(!o||!o.teams||o.teams.length<2)return '';
+    return `<div class="mc"><div class="mcCard">${head('Live odds · Match winner','Roanuz')}<div class="mcOdds">${o.teams.map(t=>`<div class="mcOdd ${t.code===o.favourite?'fav':''}">${t.code===o.favourite?'<span class="tag">FAV</span>':''}<span class="nm">${E(t.name)}</span><b>${N(t.decimal,2)}</b><small>${t.fractional?E(t.fractional)+' · ':''}${has(t.pct)?`Win ${N(t.pct,0)}%%`:has(t.implied)?`Implied ${N(t.implied,0)}%%`:''}</small></div>`).join('')}</div>${o.draw&&has(o.draw.decimal)?`<div class="mcOddDraw"><span>Draw</span><b>${N(o.draw.decimal,2)}${has(o.draw.pct)?` · ${N(o.draw.pct,0)}%%`:''}</b></div>`:''}<div class="mcWinNote">Decimal odds and win probability from the Roanuz live odds feed · updates while the match is live</div></div></div>`;
+  }
+  function oddsBox(){let b=document.getElementById('mcOddsBox');const p=document.getElementById('panel');if(!b&&p&&p.parentNode){b=document.createElement('div');b.id='mcOddsBox';p.parentNode.insertBefore(b,p.nextSibling)}return b}
+  function paintOdds(c){const b=oddsBox();if(!b)return;const html=c&&c.isLive?oddsHtml(c.odds):'';b.innerHTML=html;b.classList.toggle('on',!!html&&detailTab==='bhav')}
   const R={match:liveHtml,scorecard:scorecardHtml,comms:commsHtml,overs:oversHtml,squads:squadsHtml,info:infoHtml};
   function paint(tab,c,force){
     const p=document.getElementById('panel');if(!p)return;
     if(tab==='table'){const k=c.key;const cached=MC.pts.get(k);p.innerHTML='<div class="mc">'+tableHtml(c,cached&&cached.data)+'</div>';if(!cached)loadPoints(k).then(d=>{if(detailTab==='table'&&curKey()===k){const pp=document.getElementById('panel');if(pp)pp.innerHTML='<div class="mc">'+tableHtml(c,d)+'</div>'}});return}
+    if(tab==='comms'||tab==='overs'){feedPaint(tab,c);return}
     const html='<div class="mc">'+R[tab](c)+'</div>';
     if(!force&&MC.sig[tab]===html&&p.querySelector('.mc'))return;
     MC.sig[tab]=html;p.innerHTML=html;
@@ -322,7 +445,9 @@ _JS = r"""
     const prevPanel=drawPanel;
     drawPanel=function(){
       if(['more','graphs','stats'].includes(detailTab))detailTab='info';
-      const tab=detailTab;if(!OWN.has(tab))return prevPanel();
+      const tab=detailTab;const ob=document.getElementById('mcOddsBox');if(ob)ob.classList.toggle('on',tab==='bhav'&&!!ob.innerHTML);
+      if(tab==='bhav'){const r=prevPanel();const k0=curKey();const c0=MC.cache.get(k0);if(c0&&c0.data)paintOdds(c0.data);center(k0).then(d=>{if(detailTab==='bhav'&&curKey()===k0)paintOdds(d)});return r}
+      if(!OWN.has(tab))return prevPanel();
       const k=curKey(),p=document.getElementById('panel');if(!p)return;
       MC.sig={};
       const c=MC.cache.get(k);
@@ -333,9 +458,11 @@ _JS = r"""
   }
   function tick(){
     const d=document.getElementById('detail');
-    if(!d||d.style.display==='none'||!detailData||!OWN.has(detailTab)||document.hidden)return;
+    if(!d||d.style.display==='none'||!detailData||!(OWN.has(detailTab)||detailTab==='bhav')||document.hidden){const ob=document.getElementById('mcOddsBox');if(ob&&detailTab!=='bhav')ob.classList.remove('on');return}
     const k=curKey(),c=MC.cache.get(k);if(!c||!c.data||!c.data.isLive)return;
-    center(k,true).then(x=>{if(x&&curKey()===k&&OWN.has(detailTab)&&detailTab!=='table')paint(detailTab,x)});
+    const tab=detailTab;
+    if(tab==='comms'||tab==='overs'){const kind=tab==='comms'?'balls':'summary';feedGet(kind,k,true).then(()=>{if(detailTab===tab&&curKey()===k)feedPaint(tab,c.data)});return}
+    center(k,true).then(x=>{if(!x||curKey()!==k)return;if(detailTab==='bhav')paintOdds(x);else if(OWN.has(detailTab)&&detailTab!=='table')paint(detailTab,x)});
   }
   MC.timer=setInterval(tick,15000);
   /* -------------------------------------------------------- FOOTBALL */

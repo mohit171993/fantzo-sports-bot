@@ -513,6 +513,8 @@ def crm_menu() -> InlineKeyboardMarkup:
                 InlineKeyboardButton("📚 TEAM GUIDE", callback_data="reports:guide"),
                 InlineKeyboardButton("🧰 MORE ADMIN TOOLS", callback_data="reports:advanced"),
             ],
+            # Opens the bot_mode_runtime /mode screen (Live Line / Full / Status).
+            [InlineKeyboardButton("🔀 BOT MODE", callback_data="mode:status")],
         ]
     )
 

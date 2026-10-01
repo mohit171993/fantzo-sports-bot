@@ -174,24 +174,32 @@ def alert_score_match(match, sport: str) -> dict:
     })
 
 
+def _crest(value: dict) -> str:
+    text = _plain(value.get("abbr"), 24) or _plain(value.get("name"))
+    return escape(re.sub(r"[^0-9A-Za-z]", "", text)[:3].upper())
+
+
 def _score_card_html(row: dict, mode: str) -> str:
     home, away = row.get("home") or {}, row.get("away") or {}
-    label = "● LIVE" if mode == "live" else _plain(row.get("state")) or mode.title()
-    def team(value, score, info):
-        return ('<div class="team"><div><strong>' + escape(_plain(value.get("name")))
+    label = "LIVE" if mode == "live" else _plain(row.get("state")) or mode.title()
+    badge = ('<em class="badge live"><i></i>' if mode == "live" else '<em class="badge">')
+    def team(value, score, info, side):
+        return ('<div class="team ' + side + '"><span class="crest">' + _crest(value)
+                + '</span><div class="tname"><strong>' + escape(_plain(value.get("name")))
                 + '</strong><small>' + escape(_plain(value.get("abbr"), 24))
                 + '</small></div><div class="number"><b>' + escape(_plain(score))
                 + '</b><small>' + escape(_plain(info)) + '</small></div></div>')
     return (
-        '<button type="button" class="match" data-id="' + escape(_plain(row.get("id")), quote=True)
-        + '"><div class="match-top"><span>' + escape(_plain(row.get("format")))
-        + ' · ' + escape(_plain(row.get("league"))) + '</span><em>'
-        + escape(label) + '</em></div>'
-        + team(home, row.get("home_score"), row.get("home_info"))
-        + team(away, row.get("away_score"), row.get("away_info"))
+        '<button type="button" class="match' + (' is-live' if mode == "live" else '')
+        + '" data-id="' + escape(_plain(row.get("id")), quote=True)
+        + '"><div class="match-top"><span><i class="fmt">' + escape(_plain(row.get("format")))
+        + '</i><span class="lg">' + escape(_plain(row.get("league"))) + '</span></span>'
+        + badge + escape(label) + '</em></div>'
+        + team(home, row.get("home_score"), row.get("home_info"), "home")
+        + team(away, row.get("away_score"), row.get("away_info"), "away")
         + '<div class="match-foot"><span>'
         + escape(_plain(row.get("state")))
-        + '</span><span>›</span></div></button>'
+        + '</span><span class="go">›</span></div></button>'
     )
 
 
@@ -232,17 +240,78 @@ def score_page(rows: list[dict], brand: str, mode: str = "live", *, feed_error=F
 
 
 _SCORE_CSS = r"""
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap');
-*{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:'Manrope','Inter',Arial,Helvetica,sans-serif}
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800;900&family=Manrope:wght@400;500;600;700;800&display=swap');
+:root{--bg:#0a0806;--bg2:#120e08;--panel:#15110b;--panel2:#0e0b07;--ink:#f7eedb;--ink2:#cdbf9f;--mute:#8f8164;--g:#e2b85a;--g2:#f5d27a;--g3:#a8792a;--g4:#6d4c14;--red:#e0483c;--rule:rgba(226,184,90,.14);--edge:rgba(226,184,90,.32)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}html,body{margin:0;min-height:100%;font-family:'Manrope','Inter',Arial,Helvetica,sans-serif;-webkit-font-smoothing:antialiased}
 .brand h1,.scorehero h2,.innings h3{font-family:'Cinzel','Times New Roman',serif}
-body{background:radial-gradient(circle at 50% -8%,#2a1f0c 0,#0f0b07 38%,#0a0806 78%);color:#f6ecd6}
+body{color:var(--ink);background:radial-gradient(90% 40% at 50% -6%,rgba(226,184,90,.14),transparent 70%),repeating-linear-gradient(45deg,rgba(255,255,255,.012) 0 2px,transparent 2px 7px),linear-gradient(180deg,var(--bg2),var(--bg) 40%) fixed}
 button,a{font:inherit}.shell{max-width:760px;margin:auto;min-height:100vh}
-.top{position:sticky;top:0;z-index:2;background:linear-gradient(125deg,#0a0806,#14100a 72%,#1c150b);padding:17px 16px 13px;border-bottom:1px solid #c9962b;box-shadow:0 12px 32px #00000088}
-.brand{display:flex;align-items:center;gap:11px}.mark{display:grid;place-items:center;width:44px;height:44px;border-radius:13px;background:linear-gradient(135deg,#f5d27a,#c9962b 55%,#8a6414);font-size:23px}.brand h1{margin:0;font-size:20px;line-height:1.2;color:#f5d27a}.brand p{margin:4px 0 0;color:#c9962b;font-size:10px;font-weight:800;letter-spacing:1.5px}
-nav{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:16px}nav a{padding:12px 7px;border-radius:13px;background:#14100a;border:1px solid #3a2c12;color:#cbbd9f;text-align:center;text-decoration:none;font-size:14px;font-weight:800}nav a.active{background:linear-gradient(135deg,#f5d27a,#c9962b 55%,#8a6414);border-color:#c9962b;color:#1a1206;box-shadow:0 8px 24px #c9962b33}
-main,.detail{padding:16px 16px calc(55px + env(safe-area-inset-bottom))}.tools{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}#status{color:#cbbd9f;font-size:12px}#refresh{width:44px;height:44px;border:1px solid #c9962b;border-radius:13px;background:#14100a;color:#f5d27a;font-size:26px;cursor:pointer}.list{display:grid;gap:12px}
-.match{display:block;width:100%;padding:0;text-align:left;color:#f6ecd6;background:linear-gradient(180deg,#14100a,#0f0c08);border:1px solid #3a2c12;border-left:4px solid #c9962b;border-radius:18px;overflow:hidden;box-shadow:0 15px 34px #00000066;cursor:pointer}.match-top,.match-foot{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:11px 14px;font-size:11px;color:#cbbd9f}.match-top span{font-weight:700}.match-top em{font-size:10px;font-style:normal;font-weight:800;color:#f5d27a}.match-foot{border-top:1px solid #2a2010}.team{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:9px 14px}.team strong{font-size:17px}.team small{display:block;color:#cbbd9f;font-size:11px;margin-top:2px}.number{text-align:right}.number b{font-size:26px;color:#f5d27a;letter-spacing:-.5px}
-.empty{padding:28px 16px;border:1px solid #3a2c12;border-radius:18px;background:#14100a;color:#cbbd9f;text-align:center;font-size:14px}.detail[hidden]{display:none}.back{padding:10px 14px;border-radius:12px;border:1px solid #c9962b;background:#14100a;color:#f5d27a;font-weight:800;cursor:pointer}.scorehero,.innings{margin-top:12px;padding:16px;border:1px solid #3a2c12;border-radius:18px;background:linear-gradient(180deg,#14100a,#0f0c08)}.scorehero h2{margin:0 0 8px;font-size:17px;color:#f5d27a}.scorehero p{color:#cbbd9f;font-size:12px}.detail-team{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-top:1px solid #2a2010}.detail-team b{font-size:22px;color:#f5d27a}.innings h3{margin:0 0 12px;font-size:15px;color:#f5d27a}.innings p{margin:0;color:#cbbd9f;font-size:13px}.stat-table{width:100%;border-collapse:collapse;margin-top:13px;font-size:12px}.stat-table th,.stat-table td{padding:8px 4px;border-top:1px solid #2a2010;text-align:right}.stat-table th:first-child,.stat-table td:first-child{text-align:left}.stat-table th{color:#cbbd9f}
+.top{position:sticky;top:0;z-index:5;padding:16px 16px 14px;color:var(--ink);background:radial-gradient(120% 140% at 0 0,rgba(226,184,90,.13),transparent 55%),linear-gradient(180deg,rgba(20,15,9,.97),rgba(8,6,4,.95));-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);box-shadow:0 14px 30px rgba(0,0,0,.55)}
+.top:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;background:linear-gradient(90deg,transparent,var(--g3) 15%,var(--g2) 50%,var(--g3) 85%,transparent)}
+.brand{display:flex;align-items:center;gap:12px}
+.mark{position:relative;display:grid;place-items:center;flex:0 0 46px;width:46px;height:46px;border-radius:14px;font-size:0;color:transparent;background:linear-gradient(145deg,var(--g2),var(--g) 40%,var(--g3) 75%,var(--g4));box-shadow:inset 0 1px 0 rgba(255,255,255,.55),inset 0 -2px 0 rgba(0,0,0,.25),0 6px 18px rgba(226,184,90,.3)}
+.mark:after{content:"F";font:900 25px/1 'Cinzel','Times New Roman',serif;color:#1a1206;text-shadow:0 1px 0 rgba(255,240,200,.5)}
+.brand h1{margin:0;font-size:21px;line-height:1.05;font-weight:900;letter-spacing:1px;background:linear-gradient(180deg,var(--g2),var(--g) 55%,var(--g3));-webkit-background-clip:text;background-clip:text;color:transparent}
+.brand h1 .wm{font-weight:900;letter-spacing:1.4px;background:linear-gradient(180deg,var(--g2),var(--g) 55%,var(--g3));-webkit-background-clip:text;background-clip:text;color:transparent;margin-right:2px}
+.brand p{margin:6px 0 0;color:var(--g);font-size:9.5px;font-weight:700;letter-spacing:3.4px}
+nav{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:15px;padding:4px;border-radius:15px;background:rgba(255,255,255,.03);box-shadow:inset 0 0 0 1px var(--rule)}
+nav a{padding:10px 6px;border-radius:11px;color:var(--mute);text-align:center;text-decoration:none;font-size:12px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;transition:background .2s,color .2s}
+nav a.active{color:#1a1206;background:linear-gradient(180deg,var(--g2),var(--g) 55%,var(--g3));box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 6px 16px rgba(226,184,90,.3)}
+main,.detail{padding:16px 14px calc(56px + env(safe-area-inset-bottom))}
+.tools{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:2px 2px 14px}
+#status{display:flex;align-items:center;gap:8px;color:var(--ink2);font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase}
+#status:before{content:"";width:7px;height:7px;border-radius:50%;background:var(--g);box-shadow:0 0 0 3px rgba(226,184,90,.16);animation:pulse 1.6s ease-in-out infinite}
+#refresh{display:grid;place-items:center;width:40px;height:40px;border:0;border-radius:50%;background:linear-gradient(180deg,#1d170e,#100c07);color:var(--g2);font-size:20px;line-height:1;cursor:pointer;box-shadow:inset 0 0 0 1px var(--edge),0 4px 12px rgba(0,0,0,.4)}
+#refresh:active{transform:rotate(-30deg) scale(.96)}
+.list{display:grid;gap:13px}
+.match{position:relative;display:block;width:100%;padding:0;text-align:left;color:var(--ink);background:linear-gradient(180deg,var(--panel),var(--panel2));border:0;border-radius:20px;overflow:hidden;cursor:pointer;box-shadow:inset 0 0 0 1px var(--rule),inset 0 1px 0 rgba(255,255,255,.04),0 16px 30px -12px rgba(0,0,0,.85);transition:transform .15s}
+.match:active{transform:scale(.988)}
+.match:before{content:"";position:absolute;inset:0 0 auto 0;height:2px;background:linear-gradient(90deg,transparent,rgba(226,184,90,.5),transparent)}
+.match.is-live{box-shadow:inset 0 0 0 1px var(--edge),inset 0 1px 0 rgba(255,255,255,.05),0 16px 30px -12px rgba(0,0,0,.85)}
+.match.is-live:before{height:2px;background:linear-gradient(90deg,var(--g4),var(--g3) 20%,var(--g2) 55%,var(--g3) 85%,transparent)}
+.match-top{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:14px 14px 6px;font-size:10.5px;color:var(--ink2)}
+.match-top>span{display:flex;align-items:center;gap:8px;min-width:0}
+.fmt{flex:none;padding:3px 7px;border-radius:6px;background:rgba(226,184,90,.1);color:var(--g2);font-style:normal;font-size:9.5px;font-weight:800;letter-spacing:1.2px;box-shadow:inset 0 0 0 1px rgba(226,184,90,.38)}
+.lg{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--ink2)}
+.badge{flex:none;display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:999px;font-style:normal;font-size:9.5px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:var(--ink2);background:rgba(255,255,255,.04);box-shadow:inset 0 0 0 1px rgba(205,191,159,.22)}
+.badge.live{color:#1a1206;background:linear-gradient(180deg,var(--g2),var(--g) 60%,var(--g3));box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 0 12px rgba(226,184,90,.35)}
+.badge.live i{width:6px;height:6px;border-radius:50%;background:#c4271c;box-shadow:0 0 0 2px rgba(196,39,28,.25);animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.65)}}
+.team{display:flex;align-items:center;gap:12px;padding:9px 14px}
+.team+.team{border-top:1px solid var(--rule)}
+.crest{flex:0 0 40px;display:grid;place-items:center;width:40px;height:40px;border-radius:50%;font-size:11px;font-weight:800;letter-spacing:.6px;color:var(--g2);background:radial-gradient(circle at 32% 26%,#2c2416,#0c0906 72%);box-shadow:inset 0 0 0 1.5px var(--g),inset 0 0 0 3px #0c0906,inset 0 0 0 4px rgba(226,184,90,.35),0 4px 10px rgba(0,0,0,.4)}
+.team.home .crest{color:#1a1206;background:radial-gradient(circle at 32% 26%,var(--g2),var(--g) 50%,var(--g3));box-shadow:inset 0 0 0 1.5px rgba(255,240,200,.7),inset 0 0 0 3px var(--g3),inset 0 0 0 4px rgba(248,220,142,.5),0 4px 12px rgba(226,184,90,.25)}
+.tname{flex:1;min-width:0}.team strong{display:block;font-size:16px;font-weight:800;line-height:1.15;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:var(--ink)}
+.team .tname small{display:block;margin-top:3px;color:var(--mute);font-size:10.5px;font-weight:600;letter-spacing:1px}
+.number{flex:none;text-align:right}.number b{display:block;font-size:26px;font-weight:800;line-height:1;color:#fff;letter-spacing:-.4px;font-variant-numeric:tabular-nums}.number small{display:block;margin-top:4px;color:var(--mute);font-size:10.5px;font-weight:600;letter-spacing:.6px}
+.match.is-live .team.home .number b{color:var(--g2)}
+.match-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:4px;padding:9px 14px 10px;font-size:10.5px;font-weight:700;letter-spacing:1.3px;text-transform:uppercase;color:var(--mute);background:rgba(0,0,0,.25);border-top:1px solid var(--rule)}
+.match.is-live .match-foot span:first-child{color:var(--g)}
+.go{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:rgba(226,184,90,.12);color:var(--g2);font-size:15px;line-height:1;padding-bottom:2px;box-shadow:inset 0 0 0 1px rgba(226,184,90,.35)}
+.empty{padding:30px 18px;border-radius:20px;background:linear-gradient(180deg,var(--panel),var(--panel2));color:var(--ink2);text-align:center;font-size:14px;box-shadow:inset 0 0 0 1px var(--rule)}
+.detail[hidden]{display:none}
+.back{display:inline-flex;align-items:center;gap:6px;padding:9px 15px;border-radius:999px;border:0;background:rgba(226,184,90,.08);color:var(--g2);font-size:11px;font-weight:700;letter-spacing:1.6px;cursor:pointer;box-shadow:inset 0 0 0 1px rgba(226,184,90,.45)}
+.scorehero{position:relative;margin-top:14px;padding:16px 16px 6px;border-radius:22px;overflow:hidden;color:var(--ink);background:radial-gradient(110% 90% at 100% 0,rgba(226,184,90,.2),transparent 55%),repeating-linear-gradient(45deg,rgba(255,255,255,.015) 0 2px,transparent 2px 7px),linear-gradient(160deg,#211a0f,#0f0b07 60%,#080604);box-shadow:inset 0 0 0 1px rgba(226,184,90,.45),0 18px 34px -14px rgba(0,0,0,.85)}
+.scorehero:before{content:"";position:absolute;inset:0 0 auto;height:2px;background:linear-gradient(90deg,var(--g4),var(--g3) 20%,var(--g2) 55%,var(--g3) 85%,var(--g4))}
+.scorehero h2{margin:2px 0 6px;font-size:15px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:var(--g2)}
+.scorehero p{display:inline-block;margin:0 0 10px;padding:3px 9px;border-radius:999px;font-size:9.5px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:#1a1206;background:linear-gradient(180deg,var(--g2),var(--g) 60%,var(--g3))}
+.detail-team{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--rule)}
+.detail-team .crest{font-style:normal;flex-basis:44px;width:44px;height:44px}
+.detail-team.home .crest{color:#1a1206;background:radial-gradient(circle at 32% 26%,var(--g2),var(--g) 50%,var(--g3));box-shadow:inset 0 0 0 1.5px rgba(255,240,200,.7),inset 0 0 0 3px var(--g3),inset 0 0 0 4px rgba(248,220,142,.5)}
+.detail-team span{flex:1;min-width:0;font-size:16px;font-weight:800}.detail-team span small{display:block;margin-top:3px;font-size:11px;font-weight:600;letter-spacing:.8px;color:var(--mute)}
+.detail-team b{font-size:30px;font-weight:800;color:#fff;letter-spacing:-.4px;font-variant-numeric:tabular-nums}
+.detail-team.home b{color:var(--g2)}
+.innings{position:relative;margin-top:13px;padding:15px 14px 10px;border-radius:20px;background:linear-gradient(180deg,var(--panel),var(--panel2));box-shadow:inset 0 0 0 1px var(--rule),0 16px 30px -14px rgba(0,0,0,.85)}
+.innings h3{margin:0;font-size:14px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--ink)}.innings h3 b{color:var(--g2);font-weight:800}
+.innings p{margin:4px 0 0;color:var(--mute);font-size:10.5px;font-weight:600;letter-spacing:1px;text-transform:uppercase}
+.stat-table{width:100%;border-collapse:separate;border-spacing:0;margin-top:12px;font-size:13px;font-variant-numeric:tabular-nums}
+.stat-table th,.stat-table td{padding:8px 5px;text-align:right}
+.stat-table th:first-child,.stat-table td:first-child{text-align:left;padding-left:9px}.stat-table th:last-child,.stat-table td:last-child{padding-right:9px}
+.stat-table th{font-size:9.5px;font-weight:800;letter-spacing:1.3px;color:#1a1206;background:linear-gradient(180deg,var(--g2),var(--g) 70%,var(--g3))}
+.stat-table th:first-child{border-radius:9px 0 0 9px}.stat-table th:last-child{border-radius:0 9px 9px 0}
+.stat-table td{border-bottom:1px solid var(--rule);color:var(--ink2)}.stat-table td:first-child{font-weight:700;color:var(--ink)}
+.stat-table td:nth-child(2){color:#fff;font-weight:800}
+.stat-table tr:last-child td{border-bottom:0}
 """
 
 
@@ -251,12 +320,13 @@ const tg=window.Telegram&&window.Telegram.WebApp;if(tg){try{tg.ready();tg.expand
 let mode=START_MODE,matches=[],selected='';const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const shown=s=>s===null||s===undefined||s===''?'—':esc(s);
 async function api(p){const r=await fetch('/scores/api?'+new URLSearchParams(p),{cache:'no-store',credentials:'same-origin'});const j=await r.json();if(!r.ok||!j.ok)throw Error(j.error||'Feed temporarily unavailable');return j}
-function card(m){const team=(t,score,info)=>`<div class="team"><div><strong>${esc(t?.name||'Team')}</strong><small>${esc(t?.abbr||'')}</small></div><div class="number"><b>${shown(score)}</b><small>${esc(info||'')}</small></div></div>`;return `<button type="button" class="match" data-id="${esc(m.id)}"><div class="match-top"><span>${esc(m.format||'CRICKET')} · ${esc(m.league||'Cricket')}</span><em>${mode==='live'?'● LIVE':esc(m.state||mode.toUpperCase())}</em></div>${team(m.home,m.home_score,m.home_info)}${team(m.away,m.away_score,m.away_info)}<div class="match-foot"><span>${esc(m.state||'')}</span><span>›</span></div></button>`}
+const crest=t=>esc(String(t?.abbr||t?.name||'').replace(/[^0-9A-Za-z]/g,'').slice(0,3).toUpperCase());
+function card(m){const live=mode==='live';const team=(t,score,info,side)=>`<div class="team ${side}"><span class="crest">${crest(t)}</span><div class="tname"><strong>${esc(t?.name||'Team')}</strong><small>${esc(t?.abbr||'')}</small></div><div class="number"><b>${shown(score)}</b><small>${esc(info||'')}</small></div></div>`;return `<button type="button" class="match${live?' is-live':''}" data-id="${esc(m.id)}"><div class="match-top"><span><i class="fmt">${esc(m.format||'CRICKET')}</i><span class="lg">${esc(m.league||'Cricket')}</span></span>${live?'<em class="badge live"><i></i>LIVE</em>':`<em class="badge">${esc(m.state||mode.toUpperCase())}</em>`}</div>${team(m.home,m.home_score,m.home_info,'home')}${team(m.away,m.away_score,m.away_info,'away')}<div class="match-foot"><span>${esc(m.state||'')}</span><span class="go">›</span></div></button>`}
 function render(){const list=document.getElementById('list');list.innerHTML=matches.length?matches.map(card).join(''):'<div class="empty">No matches in this view right now.</div>'}
 async function hydrateScores(view){const pending=matches.filter(m=>m.id&&(!m.home_score||!m.away_score)).slice(0,8);let next=0;async function worker(){while(next<pending.length&&mode===view){const item=pending[next++];try{const j=await api({action:'score',id:item.id,mode:view});if(mode!==view)return;const current=matches.find(m=>m.id===item.id);if(!current)continue;const s=j.match||{};for(const k of ['home_score','away_score','home_info','away_info','state'])if(!current[k]&&s[k])current[k]=s[k];render()}catch(e){}}}await Promise.all([worker(),worker()])}
 async function load(next=mode){mode=next;document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('active',a.dataset.mode===mode));const status=document.getElementById('status');status.textContent='Refreshing '+mode+' scores…';try{const j=await api({action:'matches',mode});matches=j.matches||[];render();status.textContent=`${matches.length} match${matches.length===1?'':'es'} · updated ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`;history.replaceState(null,'','/scores?mode='+encodeURIComponent(mode));if(mode==='live')hydrateScores(mode)}catch(e){status.textContent='Feed temporarily unavailable';if(!matches.length)document.getElementById('list').innerHTML='<div class="empty">Match scores are temporarily unavailable. Please try again.</div>'}}
 function table(items,labels,keys){if(!items?.length)return '';return `<table class="stat-table"><thead><tr>${labels.map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>${items.map(x=>`<tr>${keys.map(k=>`<td>${shown(x[k])}</td>`).join('')}</tr>`).join('')}</tbody></table>`}
-function detailHtml(d){const m=d.match||{};const team=(t,score,info)=>`<div class="detail-team"><span>${esc(t?.name||'Team')}<small>${esc(info||'')}</small></span><b>${shown(score)}</b></div>`;return `<button type="button" class="back">← MATCH CENTER</button><div class="scorehero"><h2>${esc(m.league||'Cricket')} · ${esc(m.format||'')}</h2><p>${esc(m.state||'Match score')}</p>${team(m.home,m.home_score,m.home_info)}${team(m.away,m.away_score,m.away_info)}</div>${(d.innings||[]).map(x=>`<section class="innings"><h3>${esc(x.name||'Innings')} · ${shown(x.score)}</h3><p>${x.overs?esc(x.overs)+' overs':''}</p>${table(x.batters,['BATTER','R','B','4','6'],['name','runs','balls','fours','sixes'])}${table(x.bowlers,['BOWLER','O','R','W'],['name','overs','runs','wickets'])}</section>`).join('')}`}
+function detailHtml(d){const m=d.match||{};const team=(t,score,info,side)=>`<div class="detail-team ${side}"><i class="crest">${crest(t)}</i><span>${esc(t?.name||'Team')}<small>${esc(info||'')}</small></span><b>${shown(score)}</b></div>`;return `<button type="button" class="back">← MATCH CENTER</button><div class="scorehero"><h2>${esc(m.league||'Cricket')} · ${esc(m.format||'')}</h2><p>${esc(m.state||'Match score')}</p>${team(m.home,m.home_score,m.home_info,'home')}${team(m.away,m.away_score,m.away_info,'away')}</div>${(d.innings||[]).map(x=>`<section class="innings"><h3><span>${esc(x.name||'Innings')}</span> · <b>${shown(x.score)}</b></h3><p>${x.overs?esc(x.overs)+' overs':''}</p>${table(x.batters,['BATTER','R','B','4','6'],['name','runs','balls','fours','sixes'])}${table(x.bowlers,['BOWLER','O','R','W'],['name','overs','runs','wickets'])}</section>`).join('')}`}
 function back(){selected='';document.getElementById('detail').hidden=true;document.getElementById('home').hidden=false;if(tg?.BackButton)try{tg.BackButton.hide()}catch(e){}}
 async function openMatch(id){if(!id)return;selected=id;document.getElementById('home').hidden=true;const detail=document.getElementById('detail');detail.hidden=false;detail.innerHTML='<button type="button" class="back">← MATCH CENTER</button><div class="empty">Loading match score…</div>';if(tg?.BackButton)try{tg.BackButton.show()}catch(e){}await refreshDetail()}
 async function refreshDetail(){if(!selected)return;const id=selected;try{const j=await api({action:'match',id,mode});if(selected===id)document.getElementById('detail').innerHTML=detailHtml(j.detail||{})}catch(e){if(selected===id)document.getElementById('detail').innerHTML='<button type="button" class="back">← MATCH CENTER</button><div class="empty">Match score is temporarily unavailable. Please try again.</div>'}}

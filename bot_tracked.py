@@ -100,13 +100,15 @@ def install_premium_ui_copy() -> None:
     app.core.TEXT["en"]["explore"] = (
         "✨ <b>EXPLORE FANTZO</b>\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
-        "Discover featured sports, find a team, or open the full Fantzo experience."
+        "🏟 Featured sports, team search and the full Fantzo experience.\n"
+        "👇 Pick where you want to go."
     )
 
     app.core.TEXT["hi"]["explore"] = (
         "✨ <b>EXPLORE FANTZO</b>\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
-        "Featured sports देखें, अपनी team खोजें या पूरा Fantzo experience खोलें।"
+        "🏟 Featured sports, team search और पूरा Fantzo experience.\n"
+        "👇 जहाँ जाना है, चुनें।"
     )
 
 
@@ -895,22 +897,22 @@ async def configure_telegram_ui(
 
         BotCommand(
             "start",
-            "Open Fantzo Sports"
+            "Open the Fantzo sports hub"
         ),
 
         BotCommand(
             "team",
-            "Find a cricket or football team"
+            "Find your cricket or football team"
         ),
 
         BotCommand(
             "sports",
-            "View Fantzo sports coverage"
+            "Cricket and football coverage"
         ),
 
         BotCommand(
             "help",
-            "Fantzo quick guide"
+            "Fantzo menu and help"
         ),
 
     ])

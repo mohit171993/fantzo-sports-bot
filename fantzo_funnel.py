@@ -117,28 +117,28 @@ def install() -> None:
     core = tracked.app.core
 
     core.TEXT["en"]["welcome"] = (
-        "🏟 <b>FANTZO SPORTS</b>\n"
+        "🏟 <b>WELCOME TO FANTZO SPORTS</b>\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
-        "✨ <b>Quick access without a crowded menu.</b>\n\n"
-        "⚡ Open Fantzo\n"
-        "📺 Live TV\n"
-        "🔴 Live scores\n"
-        "🏏 Cricket   •   ⚽ Football\n"
-        "📅 Fixtures   •   🏆 Results\n"
-        "🔔 Match alerts\n\n"
-        "👇 <b>Choose what you want to open</b>"
+        "✨ <b>Your sports, live, right inside Telegram.</b>\n\n"
+        "⚡ <b>Fantzo</b> · the full experience\n"
+        "📺 <b>Live TV</b> · watch the action\n"
+        "🔴 <b>Live scores</b> · every ball, every goal\n"
+        "🏏 <b>Cricket</b>   •   ⚽ <b>Football</b>\n"
+        "📅 <b>Fixtures</b>   •   🏆 <b>Results</b>\n"
+        "🔔 <b>Match alerts</b> · straight to your chat\n\n"
+        "👇 <b>Tap a button below to begin</b>"
     )
     core.TEXT["hi"]["welcome"] = (
-        "🏟 <b>FANTZO SPORTS</b>\n"
+        "🏟 <b>FANTZO SPORTS में आपका स्वागत है</b>\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
-        "✨ <b>कम विकल्प, तेज़ access.</b>\n\n"
-        "⚡ Fantzo खोलें\n"
-        "📺 Live TV\n"
-        "🔴 लाइव स्कोर\n"
-        "🏏 क्रिकेट   •   ⚽ फुटबॉल\n"
-        "📅 फिक्स्चर   •   🏆 रिज़ल्ट\n"
-        "🔔 मैच अलर्ट\n\n"
-        "👇 <b>अपना विकल्प चुनें</b>"
+        "✨ <b>आपके खेल, लाइव, सीधे Telegram में।</b>\n\n"
+        "⚡ <b>Fantzo</b> · पूरा अनुभव\n"
+        "📺 <b>Live TV</b> · लाइव एक्शन देखें\n"
+        "🔴 <b>लाइव स्कोर</b> · हर बॉल, हर गोल\n"
+        "🏏 <b>क्रिकेट</b>   •   ⚽ <b>फुटबॉल</b>\n"
+        "📅 <b>फिक्स्चर</b>   •   🏆 <b>रिज़ल्ट</b>\n"
+        "🔔 <b>मैच अलर्ट</b> · सीधे आपकी चैट में\n\n"
+        "👇 <b>शुरू करने के लिए नीचे बटन दबाएँ</b>"
     )
 
     # Keep the sports bot useful, but make Fantzo.com the dominant destination.

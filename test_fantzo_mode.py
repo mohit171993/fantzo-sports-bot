@@ -126,7 +126,7 @@ class FantzoModeTests(unittest.TestCase):
                            _update(999, "/sports"), _update(999, callback=True)):
                 self.assertEqual(_guard(update), "stopped")
                 (text, kwargs), = update.effective_message.replies
-                self.assertEqual(text, "📊 Fantzo match scores and updates are here.")
+                self.assertEqual(text, "⚡ FANTZO LIVE LINE\n\n🏏 Live scores, full scorecards and match updates.\n👇 Tap below to open.")
                 button = kwargs["reply_markup"].inline_keyboard[0][0]
                 self.assertEqual(button.text, "🏏 OPEN FANTZO LIVE LINE")
                 self.assertEqual(button.web_app.url, "https://fantzo.example/scores")
@@ -147,7 +147,7 @@ class FantzoModeTests(unittest.TestCase):
             update = _update(999, "hi", business=True)
             self.assertEqual(_guard(update), "stopped")
             (text, kwargs), = update.effective_message.replies
-            self.assertEqual(text, "📊 Fantzo match scores and updates are here.")
+            self.assertEqual(text, "⚡ FANTZO LIVE LINE\n\n🏏 Live scores, full scorecards and match updates.\n👇 Tap below to open.")
             self.assertEqual(kwargs["reply_markup"].inline_keyboard[0][0].url,
                              "https://fantzo.example/scores")
             owner = _update(777, "reply from owner", business=True)

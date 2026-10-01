@@ -106,6 +106,26 @@ def _admin_id() -> int:
         return 0
 
 
+def _is_mode_admin(user_id) -> bool:
+    """Whoever may open the bot's /admin panel may also use /mode."""
+    try:
+        uid = int(user_id or 0)
+    except (TypeError, ValueError):
+        return False
+    if not uid:
+        return False
+    if uid == _admin_id():
+        return True
+    try:
+        # iBetin/Dura /admin accepts ADMIN_USER_ID, IBETIN_REPORT_ADMIN_USER_ID
+        # and the persistently unlocked report/creative admin accounts.
+        import ibetin_reports
+        return bool(ibetin_reports.is_authorized_admin(uid))
+    except Exception:
+        log.exception("Admin authorization unavailable user_id=%s", uid)
+        return False
+
+
 def _mode() -> str:
     assert _store is not None
     try:
@@ -441,8 +461,9 @@ async def _mode_status(update, context) -> None:
 
 async def _mode_command(update, context) -> None:
     user, chat = update.effective_user, update.effective_chat
+    user_id = int(user.id) if user else 0
     action = parse_admin_mode_request(
-        int(user.id) if user else 0, _admin_id(), list(context.args or []),
+        user_id, user_id if _is_mode_admin(user_id) else 0, list(context.args or []),
     )
     if not chat or chat.type != "private" or action is None:
         raise ApplicationHandlerStop
@@ -475,7 +496,7 @@ async def _mode_command(update, context) -> None:
 async def _mode_callback(update, context) -> None:
     query = update.callback_query
     user, chat = update.effective_user, update.effective_chat
-    if not query or not user or not chat or chat.type != "private" or user.id != _admin_id():
+    if not query or not user or not chat or chat.type != "private" or not _is_mode_admin(user.id):
         raise ApplicationHandlerStop
     action = str(query.data or "").partition(":")[2]
     if action not in {LIVE_LINE, FULL, "status"}:
@@ -513,7 +534,7 @@ async def _guard_update(update, context) -> None:
     user = update.effective_user
     # The admin and verified users keep the complete Full bot in Live Line
     # mode: every command, button, Mini App link and reminder flow.
-    if user and (user.id == _admin_id() or _is_verified_user(user.id)):
+    if user and (_is_mode_admin(user.id) or _is_verified_user(user.id)):
         return
     message = update.business_message or update.effective_message
     chat = update.effective_chat

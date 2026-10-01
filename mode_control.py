@@ -115,10 +115,17 @@ class ModeStore:
 
 
 def parse_admin_mode_request(
-    user_id: int, admin_user_id: int, args: list[str]
+    user_id: int, admin_user_id, args: list[str]
 ) -> str | None:
-    """None means the caller gets no response, including invalid admins."""
-    if not admin_user_id or user_id != admin_user_id:
+    """None means the caller gets no response, including invalid admins.
+
+    ``admin_user_id`` is one admin id or a collection of admin ids.
+    """
+    if isinstance(admin_user_id, (set, frozenset, list, tuple)):
+        admins = {int(a) for a in admin_user_id if a}
+    else:
+        admins = {int(admin_user_id)} if admin_user_id else set()
+    if not admins or user_id not in admins:
         return None
     if not args:
         return "status"

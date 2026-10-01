@@ -608,7 +608,7 @@ async def stop_contact_handler(update, context) -> None:
 
 def _admin_only(update) -> bool:
     user = update.effective_user
-    return bool(user and int(user.id) == int(core.ADMIN_USER_ID))
+    return bool(user and core.is_admin_user(user.id))
 
 
 def _lead_row(mobile: str):

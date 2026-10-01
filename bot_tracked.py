@@ -757,7 +757,7 @@ async def smart_admin(
     if not message:
         return
 
-    if user.id != app.core.ADMIN_USER_ID:
+    if not app.core.is_admin_user(user.id):
         return
 
 
@@ -833,7 +833,7 @@ async def live_tv_admin_command(
     if not message:
         return
 
-    if user.id != app.core.ADMIN_USER_ID:
+    if not app.core.is_admin_user(user.id):
         return
 
 

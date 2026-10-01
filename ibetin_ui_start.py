@@ -273,7 +273,7 @@ def _install_mazza_mirror_route() -> None:
 async def _mazza_mirror_command(update, context) -> None:
     user = update.effective_user
     message = update.effective_message
-    if not user or not message or user.id != core.ADMIN_USER_ID:
+    if not user or not message or not core.is_admin_user(user.id):
         return
     await message.reply_text(
         "🏏 <b>CRICKET MAZZA MIRROR · ADMIN TRIAL</b>\n"
@@ -299,7 +299,7 @@ async def _admin_with_mazza_trial(update, context) -> None:
     await _original_admin(update, context)
     user = update.effective_user
     message = update.effective_message
-    if not user or not message or user.id != core.ADMIN_USER_ID:
+    if not user or not message or not core.is_admin_user(user.id):
         return
     await message.reply_text(
         "🏏 <b>CRICKET MAZZA MIRROR · TRIAL</b>",

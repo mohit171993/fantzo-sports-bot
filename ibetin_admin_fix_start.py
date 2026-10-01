@@ -19,7 +19,7 @@ TRIAL_VERSION = "20260916-0901"
 def _is_owner_or_admin(user_id: int) -> bool:
     if not user_id:
         return False
-    if int(user_id) == int(base.core.ADMIN_USER_ID):
+    if base.core.is_admin_user(user_id):
         return True
     try:
         with base.core.db() as conn:
@@ -111,7 +111,7 @@ async def _admin_with_mazza_trial(update, context) -> None:
     if not _is_owner_or_admin(user.id):
         await message.reply_text("This command is restricted.")
         return
-    if int(user.id) == int(base.core.ADMIN_USER_ID):
+    if base.core.is_admin_user(user.id):
         try:
             await base._original_admin(update, context)
         except Exception:

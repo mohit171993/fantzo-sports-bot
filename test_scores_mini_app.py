@@ -165,7 +165,7 @@ class ScoreMiniAppTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             scope["_safe_rows"]("upcoming")
 
-    def test_score_api_authenticates_before_detail_lookup(self):
+    def test_score_api_is_public_in_liveline_and_keeps_signed_cookie(self):
         responses, lookups = [], []
 
         class Handler:
@@ -193,13 +193,16 @@ class ScoreMiniAppTests(unittest.TestCase):
             "json": json,
         })
         scope["_install_http_gate"]()
+        # Live Line scores are public: no verification wall for new users.
         Handler("/scores/api?action=match&id=cricket_1&mode=live").do_GET()
-        self.assertEqual(responses[-1][0], 401)
-        self.assertEqual(lookups, [])
+        self.assertEqual(responses[-1][0], 200)
+        self.assertEqual(responses[-1][2], "")
+        self.assertEqual(lookups, [("cricket_1", "live")])
         verified[0] = True
         Handler("/scores/api?action=match&id=cricket_1&mode=live").do_GET()
         self.assertEqual(responses[-1][0], 200)
-        self.assertEqual(lookups, [("cricket_1", "live")])
+        self.assertEqual(responses[-1][2], "signed")
+        self.assertEqual(lookups, [("cricket_1", "live")] * 2)
         self.assertEqual(json.loads(responses[-1][1])["detail"]["match"]["id"],
                          "cricket_1")
 

@@ -214,6 +214,8 @@ class ModeTests(unittest.TestCase):
         self.assertEqual(http_route(LIVE_LINE, "POST", "/roanuz/match/feed/v1/"), "pass")
         self.assertEqual(http_route(LIVE_LINE, "GET", "/scores"), "scores")
         self.assertEqual(http_route(LIVE_LINE, "GET", "/scores/api"), "scores_api")
+        self.assertEqual(http_route(LIVE_LINE, "POST", "/scores/auth"), "scores_auth")
+        self.assertEqual(http_route(FULL, "POST", "/scores/auth"), "pass")
 
     def test_admin_private_command_only_and_non_admin_silent(self):
         replies, effects = [], []
@@ -268,77 +270,76 @@ class ModeTests(unittest.TestCase):
         self.assertEqual(self.bot.state().mode, FULL)
         self.assertIn("persistent storage", replies[0][0][0].lower())
 
-    def test_unverified_clean_start_preserves_contact_gate_and_owner_reports(self):
-        replies, effects = [], []
+    def _guard(self, verified=lambda _uid: False, effects=None, mode=LIVE_LINE):
+        effects = effects if effects is not None else []
         async def prompt(_update, _context, _source):
             effects.append("verification_prompt")
-        async def scores(_message, _context, _uid):
-            effects.append("scores")
-        func = _load_runtime_function("_guard_update", {
-            "_mode": lambda: LIVE_LINE,
+        async def scores(_message, _context, uid):
+            effects.append(("scores", uid))
+        return _load_runtime_function("_guard_update", {
+            "_mode": lambda: mode,
             "FULL": FULL,
             "_admin_id": lambda: 123,
-            "ADMIN_PRIVATE_STATUS_COMMANDS": frozenset({"/admin", "/reports"}),
+            "_is_verified_user": verified,
             "tracked": SimpleNamespace(_is_stop_text=lambda text: text.lower() == "stop",
                                        _prompt_mobile_verification=prompt),
-            "phone_verify": SimpleNamespace(is_verified=lambda _uid: False),
             "leads": SimpleNamespace(clean_campaign=lambda value: value,
                                      record_start=lambda *_args, **_kwargs: effects.append("lead")),
             "core": SimpleNamespace(track=lambda *_args: effects.append("track")),
             "reminders": SimpleNamespace(set_opt_out=lambda *_args: effects.append("opt_out")),
-            "_send_verified_scores": scores,
+            "_send_live_line_scores": scores,
             "ApplicationHandlerStop": StopUpdate,
             "log": SimpleNamespace(exception=lambda *_args: None),
         })
+
+    def test_unverified_start_gets_only_live_line_and_no_verification_prompt(self):
+        replies, effects = [], []
+        func = self._guard(effects=effects)
         context = SimpleNamespace(args=[], bot=object(), user_data={})
-        with self.assertRaises(StopUpdate):
-            asyncio.run(func(_private_update(456, "/start campaign", replies), context))
-        self.assertIn("verification_prompt", effects)
-        self.assertNotIn("scores", effects)
-        self.assertEqual(replies, [])
-        # The owner can still use existing private reporting commands.
-        result = asyncio.run(func(_private_update(123, "/reports", replies), context))
-        self.assertIsNone(result)
+        for text in ("/start campaign", "hello", "/support"):
+            with self.subTest(text=text), self.assertRaises(StopUpdate):
+                asyncio.run(func(_private_update(456, text, replies), context))
+        self.assertNotIn("verification_prompt", effects)
+        self.assertEqual([e for e in effects if isinstance(e, tuple)], [("scores", 456)] * 3)
+        self.assertIn("lead", effects)
         self.assertEqual(replies, [])
 
-    def test_clean_mode_blocks_admin_broadcast_but_preserves_private_status(self):
-        replies = []
-        func = _load_runtime_function("_guard_update", {
-            "_mode": lambda: LIVE_LINE,
-            "FULL": FULL,
-            "_admin_id": lambda: 123,
-            "ADMIN_PRIVATE_STATUS_COMMANDS": frozenset({"/admin", "/reports"}),
-            "ApplicationHandlerStop": StopUpdate,
-        })
-        context = SimpleNamespace()
-        for command in ("/broadcast promo", "/broadcast@BrandBot promo",
-                        "/setbanner promo", "/senddmtest promo"):
-            with self.subTest(command=command), self.assertRaises(StopUpdate):
-                asyncio.run(func(_private_update(123, command, replies), context))
-            self.assertIn("unavailable in Live Line", replies[-1][0][0])
-        for command in ("/admin", "/reports"):
-            with self.subTest(command=command):
-                self.assertIsNone(asyncio.run(func(_private_update(123, command, replies),
+    def test_verified_users_and_admin_pass_untouched_in_liveline(self):
+        replies, effects = [], []
+        func = self._guard(verified=lambda uid: uid == 789, effects=effects)
+        context = SimpleNamespace(args=[], bot=object(), user_data={})
+        for user_id, text in ((789, "/start"), (789, "/support"), (123, "/broadcast promo"),
+                              (123, "/reports"), (123, "/admin"), (123, "/mode")):
+            with self.subTest(user=user_id, text=text):
+                self.assertIsNone(asyncio.run(func(_private_update(user_id, text, replies),
                                                    context)))
-        self.assertEqual(len(replies), 4)
-
-        callback_update = _private_update(123, "/reports", replies)
+        # Admin callback taps from /admin or /reports panels also pass.
+        callback_update = _private_update(123, "Report", replies)
         callback_update.message = None
-        # A callback has no ordinary message and cannot enter the status allowlist.
         async def answer():
-            return None
+            effects.append("answered")
         callback_update.callback_query = SimpleNamespace(answer=answer)
-        with self.assertRaises(StopUpdate):
-            asyncio.run(func(callback_update, context))
-        self.assertEqual(len(replies), 5)
-        self.assertIn("unavailable in Live Line", replies[-1][0][0])
+        self.assertIsNone(asyncio.run(func(callback_update, context)))
+        self.assertEqual(replies, [])
+        self.assertEqual(effects, [])
 
+    def test_full_guard_is_unchanged_pass_through(self):
+        replies = []
         full_guard = _load_runtime_function("_guard_update", {
             "_mode": lambda: FULL, "FULL": FULL,
         })
-        self.assertIsNone(asyncio.run(full_guard(
-            _private_update(123, "/broadcast promo", replies), context)))
-        self.assertEqual(len(replies), 5)
+        for user_id in (123, 456):
+            self.assertIsNone(asyncio.run(full_guard(
+                _private_update(user_id, "/broadcast promo", replies), SimpleNamespace())))
+        self.assertEqual(replies, [])
+
+    def test_unverified_contact_share_reaches_full_verification_handler(self):
+        replies, effects = [], []
+        func = self._guard(effects=effects)
+        update = _private_update(456, "", replies)
+        update.effective_message.contact = SimpleNamespace(user_id=456, phone_number="+911")
+        self.assertIsNone(asyncio.run(func(update, SimpleNamespace(user_data={}))))
+        self.assertEqual(effects, [])
 
     def test_match_alert_retry_checks_mode_again_before_sending(self):
         class Button:
@@ -362,6 +363,7 @@ class ModeTests(unittest.TestCase):
                     and n.name == "_ModeAwareAlertBot")
         scope = {
             "_mode": lambda: mode[0], "FULL": FULL,
+            "_is_verified_user": lambda uid: uid == 789,
             "_scores_url": lambda uid: f"https://scores.example/scores?access=signed-{uid}",
             "_score_button_label": lambda: "🏏 OPEN DURASPORTS LIVE LINE",
             "InlineKeyboardButton": Button, "InlineKeyboardMarkup": Markup,
@@ -400,6 +402,12 @@ class ModeTests(unittest.TestCase):
         button = bot.calls[1]["reply_markup"].inline_keyboard[0][0]
         self.assertEqual(button.text, "🏏 OPEN DURASPORTS LIVE LINE")
         self.assertEqual(button.web_app.url, "https://scores.example/scores?access=signed-456")
+        # A verified recipient keeps the normal Full alert in Live Line mode.
+        verified_bot = Bot()
+        verified_bot.calls.append({})  # skip the simulated RetryAfter
+        asyncio.run(wrapper(verified_bot, 789).send_message(text=unsafe, reply_markup="full"))
+        self.assertEqual(verified_bot.calls[-1]["text"], unsafe)
+        self.assertEqual(verified_bot.calls[-1]["reply_markup"], "full")
 
     def test_inflight_public_sends_stop_after_clean_switch(self):
         mode = [FULL]
@@ -407,7 +415,8 @@ class ModeTests(unittest.TestCase):
         tree = ast.parse(source)
         nodes = [n for n in tree.body if isinstance(n, ast.ClassDef)
                  and n.name in {"_GuardedPublicBot", "_GuardedPublicApplication"}]
-        scope = {"_mode": lambda: mode[0], "FULL": FULL}
+        scope = {"_mode": lambda: mode[0], "FULL": FULL,
+                 "_is_verified_user": lambda uid: uid == 789}
         exec(compile(ast.Module(body=nodes, type_ignores=[]), "runtime", "exec"), scope)
         protected = scope["_GuardedPublicApplication"]
 
@@ -432,41 +441,13 @@ class ModeTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "Public send canceled"):
             asyncio.run(application.bot.send_photo(chat_id=10, photo="old-banner"))
         self.assertEqual(len(bot.calls), 1)
-
-    def test_clean_contact_verifies_then_only_shows_scores(self):
-        effects = []
-        async def reply_text(text, **_kwargs):
-            effects.append(text)
-        async def notify(*_args):
-            effects.append("admin_lead_notice")
-        async def scores(*_args):
-            effects.append("signed_scores_link")
-        func = _load_runtime_function("_verify_clean_contact", {
-            "phone_verify": SimpleNamespace(
-                is_verified=lambda _uid: False,
-                verify_user=lambda *_args, **_kwargs: effects.append("verified") or True,
-                normalize_phone=lambda value: value,
-            ),
-            "leads": SimpleNamespace(get_lead=lambda _uid: {}),
-            "tracked": SimpleNamespace(_notify_verified_lead=notify),
-            "core": SimpleNamespace(touch_user=lambda _update: None,
-                                    track=lambda *_args: None),
-            "ReplyKeyboardRemove": lambda: object(),
-            "_send_verified_scores": scores,
-            "log": SimpleNamespace(exception=lambda *_args: None),
-        })
-        message = SimpleNamespace(contact=SimpleNamespace(user_id=456,
-                                                           phone_number="+911234567890"),
-                                  reply_text=reply_text)
-        update = SimpleNamespace(effective_user=SimpleNamespace(id=456),
-                                 effective_message=message)
-        context = SimpleNamespace(user_data={"ibetin_mobile_verify_pending": True},
-                                  bot=object())
-        asyncio.run(func(update, context))
-        self.assertIn("verified", effects)
-        self.assertIn("signed_scores_link", effects)
-        self.assertNotIn("casino", " ".join(effects).lower())
-        self.assertNotIn("odds", " ".join(effects).lower())
+        # Reminders in Live Line: verified chats are sent, unverified refused.
+        reminder_app = protected(SimpleNamespace(bot=bot), allow_verified=True)
+        asyncio.run(reminder_app.bot.send_message(chat_id=789, text="Verified reminder"))
+        self.assertEqual(len(bot.calls), 2)
+        with self.assertRaisesRegex(RuntimeError, "Public send canceled"):
+            asyncio.run(reminder_app.bot.send_message(chat_id=10, text="Verify now"))
+        self.assertEqual(len(bot.calls), 2)
 
     def test_mode_db_read_failure_closes_public_routes(self):
         class FailedStore:
@@ -585,6 +566,7 @@ class ModeTests(unittest.TestCase):
                 effects.append((name, value))
             def end_headers(self):
                 pass
+        identity = [(0, "", False)]
         func = _load_runtime_function("_install_http_gate", {
             "analytics": SimpleNamespace(TrackingHandler=TrackingHandler),
             "_mode": lambda: LIVE_LINE, "FULL": FULL,
@@ -592,13 +574,34 @@ class ModeTests(unittest.TestCase):
             "urlparse": urlparse,
             "parse_qs": parse_qs,
             "phone_verify": SimpleNamespace(verify_access_token=lambda _token: 0),
+            "_verified_scores_identity": lambda _handler, _parsed: identity[0],
+            "_AUTH_BOOTSTRAP_PAGE": "<script>/scores/auth</script>",
             "_send_bytes": lambda *_args, **_kwargs: effects.append("safe_response"),
+            "_scores_auth": lambda _handler: effects.append("auth"),
         })
         func()
+        # Unknown visitors get the Mini App auth bootstrap, never a Full page.
         TrackingHandler("/hub?section=casino").do_GET()
         TrackingHandler("/liveline").do_GET()
         self.assertNotIn("unsafe_full_render", effects)
-        self.assertEqual(effects.count(("status", 302)), 2)
+        self.assertEqual(effects.count("safe_response"), 2)
+        TrackingHandler("/hub/api/preferences").do_POST()
+        self.assertNotIn("unsafe_full_post", effects)
+        TrackingHandler("/scores/auth").do_POST()
+        self.assertIn("auth", effects)
+        # A signed but unverified user is redirected to the scores page.
+        identity[0] = (456, "signed", False)
+        TrackingHandler("/hub").do_GET()
+        self.assertEqual(effects.count(("status", 302)), 1)
+        self.assertNotIn("unsafe_full_render", effects)
+        # A signed verified user keeps the Full pages and posts.
+        identity[0] = (789, "signed", True)
+        TrackingHandler("/hub?section=home").do_GET()
+        TrackingHandler("/hub/api/preferences").do_POST()
+        self.assertIn("unsafe_full_render", effects)
+        self.assertIn("unsafe_full_post", effects)
+        effects.clear()
+        identity[0] = (0, "", False)
         func.__globals__["_mode"] = lambda: FULL
         TrackingHandler("/hub?section=casino").do_GET()
         self.assertIn("unsafe_full_render", effects)

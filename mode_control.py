@@ -128,11 +128,11 @@ def parse_admin_mode_request(
 
 
 def http_route(mode: str, method: str, path: str) -> str:
-    """Return pass/scores/scores_api/redirect/deny for bot-owned routes.
+    """Return pass/scores/scores_api/scores_auth/redirect/deny for bot routes.
 
-    Existing public landing, Mini App, odds, and private preview routes are
-    all unavailable in Live Line mode, including direct saved links. The
-    provider webhook and authenticated relay retain the current score feed.
+    In Live Line mode the runtime lets "redirect"/"deny" requests through
+    only for a signed, verified user; everyone else is sent to the public
+    scores page. The provider webhook and relay retain the current feed.
     """
     if mode == FULL:
         return "pass"
@@ -149,4 +149,6 @@ def http_route(mode: str, method: str, path: str) -> str:
         return "pass"
     if method == "POST" and path.rstrip("/") == "/roanuz/match/feed/v1":
         return "pass"
+    if method == "POST" and path == "/scores/auth":
+        return "scores_auth"
     return "redirect" if method == "GET" else "deny"

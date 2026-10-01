@@ -117,6 +117,12 @@ def _is_mode_admin(user_id) -> bool:
     if uid == _admin_id():
         return True
     try:
+        # Owner-approved additional full admins (e.g. @Liveline_proadmin).
+        if uid in core.EXTRA_ADMIN_USER_IDS:
+            return True
+    except Exception:
+        pass
+    try:
         # iBetin/Dura /admin accepts ADMIN_USER_ID, IBETIN_REPORT_ADMIN_USER_ID
         # and the persistently unlocked report/creative admin accounts.
         import ibetin_reports
@@ -383,10 +389,15 @@ async def _reconcile_verified_chats(bot, mode: str) -> bool:
             updated += 1
             await asyncio.sleep(MENU_RECONCILE_DELAY_SECONDS)
     # Admins can be verified through the existing admin bypass without a row.
-    admin_id = _admin_id()
-    if _mode() == mode and admin_id:
-        if await _set_verified_chat_ui(bot, admin_id, mode) is False:
-            needs_retry = True
+    admin_ids = {_admin_id()}
+    try:
+        admin_ids.update(core.EXTRA_ADMIN_USER_IDS)
+    except Exception:
+        pass
+    for admin_id in sorted(admin_ids - {0}):
+        if _mode() == mode and admin_id:
+            if await _set_verified_chat_ui(bot, admin_id, mode) is False:
+                needs_retry = True
     log.info("Verified chat menu reconciliation mode=%s chats=%s full_menu=%s "
              "live_line_default_users=%s", mode, updated, updated,
              _unverified_user_count())

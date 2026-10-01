@@ -1020,7 +1020,7 @@ app.core.help_command = help_command
 async def ibetin_broadcast(update, context) -> None:
     user = update.effective_user
     message = update.effective_message
-    if not user or not message or user.id != app.core.ADMIN_USER_ID:
+    if not user or not message or not app.core.is_admin_user(user.id):
         if message:
             await message.reply_text("This command is restricted.")
         return
@@ -1141,7 +1141,7 @@ async def smart_admin(update, context) -> None:
 
     # Preserve the original legacy admin statistics for the original admin.
     # Alternate explicitly-unlocked operators go straight to the new report center.
-    if int(user.id) == int(app.core.ADMIN_USER_ID):
+    if app.core.is_admin_user(user.id):
         await _original_admin(update, context)
 
     await ibetin_reports.send_menu(update, context)

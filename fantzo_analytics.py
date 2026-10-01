@@ -415,7 +415,7 @@ async def stats_command(update, context) -> None:
     message = update.effective_message
     if not user or not message:
         return
-    if user.id != core.ADMIN_USER_ID:
+    if not core.is_admin_user(user.id):
         await message.reply_text("This command is restricted.")
         return
 

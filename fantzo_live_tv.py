@@ -59,16 +59,21 @@ def _page() -> str:
 *{{box-sizing:border-box}}
 html,body{{margin:0;width:100%;height:100%;background:#0a0806;color:#f6ecd6;font-family:'Manrope','Inter',Arial,Helvetica,sans-serif;overflow:hidden}}
 .shell{{height:100%;display:flex;flex-direction:column;background:#0a0806}}
-.top{{height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;background:#14100a;border-bottom:1px solid #c9962b;flex:0 0 auto}}
-.brand{{font-size:15px;font-weight:900;letter-spacing:.5px;font-family:'Cinzel','Times New Roman',serif;color:#f5d27a}}
-.badge{{font-size:11px;font-weight:800;color:#f5d27a;border:1px solid #c9962b;border-radius:999px;padding:6px 9px}}
-.frame-wrap{{position:relative;flex:1;min-height:0;background:#0a0806}}
+.top{{position:relative;height:58px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;flex:0 0 auto;background:radial-gradient(120% 160% at 0 0,rgba(226,184,90,.16),transparent 55%),linear-gradient(180deg,#16110a,#0b0806);box-shadow:0 10px 24px rgba(0,0,0,.55)}}
+.top:after{{content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;background:linear-gradient(90deg,transparent,#a8792a 15%,#f5d27a 50%,#a8792a 85%,transparent)}}
+.brand{{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:900;letter-spacing:1.2px;font-family:'Cinzel','Times New Roman',serif;background:linear-gradient(180deg,#f5d27a,#e2b85a 55%,#a8792a);-webkit-background-clip:text;background-clip:text;color:transparent}}
+.brand:before{{content:"F";display:grid;place-items:center;width:32px;height:32px;border-radius:10px;font:900 18px/1 'Cinzel','Times New Roman',serif;color:#1a1206;-webkit-text-fill-color:#1a1206;background:linear-gradient(145deg,#f5d27a,#e2b85a 40%,#a8792a 75%,#6d4c14);box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 4px 12px rgba(226,184,90,.3)}}
+.badge{{display:inline-flex;align-items:center;gap:7px;font-size:10px;font-weight:800;letter-spacing:1.4px;color:#1a1206;background:linear-gradient(180deg,#f5d27a,#e2b85a 60%,#a8792a);border-radius:999px;padding:6px 11px;box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 0 12px rgba(226,184,90,.35)}}
+.badge:before{{content:"";width:7px;height:7px;border-radius:50%;background:#c4271c;box-shadow:0 0 0 2px rgba(196,39,28,.25);animation:pulse 1.2s ease-in-out infinite}}
+@keyframes pulse{{0%,100%{{opacity:1;transform:scale(1)}}50%{{opacity:.35;transform:scale(.65)}}}}
+.frame-wrap{{position:relative;flex:1;min-height:0;background:radial-gradient(80% 50% at 50% 40%,rgba(226,184,90,.08),transparent 70%),#0a0806}}
 iframe{{width:100%;height:100%;border:0;background:#0a0806}}
-.fallback{{position:absolute;inset:0;display:none;align-items:center;justify-content:center;padding:24px;background:#14100a;text-align:center}}
-.card{{max-width:360px}}
-.card h2{{margin:0 0 10px;font-size:23px;font-family:'Cinzel','Times New Roman',serif}}
-.card p{{color:#cbbd9f;line-height:1.5;font-size:14px}}
-.btn{{display:block;margin-top:16px;padding:15px 18px;border-radius:14px;background:linear-gradient(180deg,#f5d27a 0%,#c9962b 55%,#8a6414 100%);color:#1a1206;text-decoration:none;font-weight:900}}
+.fallback{{position:absolute;inset:0;display:none;align-items:center;justify-content:center;padding:24px;text-align:center;background:radial-gradient(90% 50% at 50% 30%,rgba(226,184,90,.14),transparent 70%),repeating-linear-gradient(45deg,rgba(255,255,255,.012) 0 2px,transparent 2px 7px),linear-gradient(180deg,#120e08,#0a0806)}}
+.card{{position:relative;max-width:360px;width:100%;padding:28px 22px 22px;border-radius:22px;overflow:hidden;background:linear-gradient(160deg,#211a0f,#0f0b07 60%,#080604);box-shadow:inset 0 0 0 1px rgba(226,184,90,.42),0 22px 40px -16px rgba(0,0,0,.9)}}
+.card:before{{content:"";position:absolute;inset:0 0 auto;height:2px;background:linear-gradient(90deg,#6d4c14,#a8792a 20%,#f5d27a 55%,#a8792a 85%,#6d4c14)}}
+.card h2{{margin:0 0 10px;font-size:22px;font-family:'Cinzel','Times New Roman',serif;letter-spacing:.6px;color:#f5d27a}}
+.card p{{margin:0;color:#cdbf9f;line-height:1.6;font-size:14px}}
+.btn{{display:block;margin-top:20px;padding:15px 18px;border-radius:14px;background:linear-gradient(180deg,#f5d27a 0%,#e2b85a 50%,#a8792a 100%);color:#1a1206;text-decoration:none;font-weight:900;letter-spacing:1.2px;box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 10px 24px -8px rgba(226,184,90,.5)}}
 </style>
 </head>
 <body>
@@ -87,7 +92,7 @@ iframe{{width:100%;height:100%;border:0;background:#0a0806}}
 </div>
 <script>
 const tg = window.Telegram && window.Telegram.WebApp;
-if (tg) {{ tg.ready(); tg.expand(); }}
+if (tg) {{ tg.ready(); tg.expand(); try {{ tg.setHeaderColor('#16110a'); tg.setBackgroundColor('#0a0806'); }} catch (e) {{}} }}
 const frame = document.getElementById('sky');
 const fallback = document.getElementById('fallback');
 let loaded = false;

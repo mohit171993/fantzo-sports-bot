@@ -55,7 +55,8 @@ TEXT = {
         "settings": (
             "⚙️ <b>FANTZO SETTINGS</b>\n"
             "━━━━━━━━━━━━━━━━━━\n\n"
-            "Choose your language and notification preferences."
+            "🌐 Language and 🔔 match alerts in one place.\n"
+            "👇 Choose what you want to change."
         ),
         "explore": (
             "✨ <b>EXPLORE FANTZO</b>\n"
@@ -77,12 +78,13 @@ TEXT = {
         "lang_saved": "✅ Language changed to English.",
         "sub_on": (
             "🔔 <b>MATCH ALERTS ON</b>\n\n"
-            "You are subscribed to Fantzo sports alerts.\n"
-            "We’ll keep the updates useful and relevant."
+            "✅ You're subscribed to Fantzo sports alerts.\n"
+            "⚡ Only the moments that matter, straight to your chat."
         ),
         "sub_off": (
             "🔕 <b>MATCH ALERTS OFF</b>\n\n"
-            "You will no longer receive Fantzo sports alerts."
+            "You won't receive Fantzo sports alerts.\n"
+            "🔔 Turn them back on anytime in Settings."
         ),
     },
     "hi": {
@@ -101,7 +103,8 @@ TEXT = {
         "settings": (
             "⚙️ <b>FANTZO SETTINGS</b>\n"
             "━━━━━━━━━━━━━━━━━━\n\n"
-            "भाषा और notification preferences चुनें।"
+            "🌐 भाषा और 🔔 मैच अलर्ट, एक ही जगह।\n"
+            "👇 जो बदलना है, चुनें।"
         ),
         "explore": (
             "✨ <b>EXPLORE FANTZO</b>\n"
@@ -122,11 +125,13 @@ TEXT = {
         "lang_saved": "✅ भाषा हिंदी कर दी गई है।",
         "sub_on": (
             "🔔 <b>MATCH ALERTS ON</b>\n\n"
-            "अब आपको Fantzo sports alerts मिलेंगे।"
+            "✅ अब आपको Fantzo sports alerts मिलेंगे।\n"
+            "⚡ सिर्फ़ ज़रूरी पल, सीधे आपकी चैट में।"
         ),
         "sub_off": (
             "🔕 <b>MATCH ALERTS OFF</b>\n\n"
-            "अब आपको Fantzo sports alerts नहीं मिलेंगे।"
+            "अब आपको Fantzo sports alerts नहीं मिलेंगे।\n"
+            "🔔 Settings में कभी भी फिर से चालू करें।"
         ),
     },
 }
@@ -737,11 +742,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     touch_user(update)
     await update.effective_message.reply_text(
-        "⚡ <b>Fantzo Quick Guide</b>\n\n"
-        "• /start — premium home menu\n"
-        "• /team TEAMNAME — find cricket or football teams\n"
-        "• /sports — check sports coverage\n\n"
-        "Use the buttons for the fastest experience.",
+        "⚡ <b>FANTZO QUICK GUIDE</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
+        "🏟 /start · your sports home\n"
+        "🔎 /team TEAMNAME · find a cricket or football team\n"
+        "📊 /sports · sports coverage\n\n"
+        "👇 Tap a button below for the fastest route.",
         parse_mode="HTML",
         reply_markup=main_keyboard(),
     )

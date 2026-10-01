@@ -23,6 +23,7 @@ from datetime import datetime, timedelta
 from urllib.parse import parse_qs, urlparse
 
 from telegram import (
+    BotCommand,
     BotCommandScopeChat,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
@@ -213,8 +214,13 @@ async def _set_default_menu(bot) -> None:
             mode = _mode()
             await bot.set_chat_menu_button(menu_button=_default_menu_button(mode))
             if _mode() == mode:
-                # Fantzo's existing public command list in both modes.
-                await bot.set_my_commands(gate.PREVERIFY_COMMANDS)
+                # Live Line mode: a scores-first public menu. Full mode keeps
+                # Fantzo's existing public command list.
+                await bot.set_my_commands(
+                    [BotCommand("start", "Live scores and sports updates"),
+                     BotCommand("help", "How Fantzo Live Line works")]
+                    if mode == LIVE_LINE else gate.PREVERIFY_COMMANDS
+                )
     except Exception:
         log.exception("Could not update default mode menu")
     finally:
@@ -457,7 +463,9 @@ async def _mode_callback(update, context) -> None:
 
 
 def _live_line_text() -> str:
-    return f"📊 {_brand_label()} match scores and updates are here."
+    return (f"⚡ {_brand_label().upper()} LIVE LINE\n\n"
+            "🏏 Live scores, full scorecards and match updates.\n"
+            "👇 Tap below to open.")
 
 
 async def _send_live_line_scores(message) -> None:

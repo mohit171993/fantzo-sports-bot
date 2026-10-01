@@ -39,14 +39,14 @@ _PENDING_SOURCE_KEY = "fantzo_mobile_verification_source"
 LIVE_TV_START_ARGS = {"livetv_business", "livetv_banner"}
 BUSINESS_VERIFY_START_ARG = "verify_business_dm"
 PREVERIFY_COMMANDS = [
-    BotCommand("start", "Verify your Telegram account"),
-    BotCommand("help", "Verification help"),
+    BotCommand("start", "Get started"),
+    BotCommand("help", "Help and quick guide"),
 ]
 VERIFIED_COMMANDS = [
-    BotCommand("start", "Open Fantzo Sports"),
-    BotCommand("team", "Find a cricket or football team"),
-    BotCommand("sports", "View Fantzo sports coverage"),
-    BotCommand("help", "Fantzo quick guide"),
+    BotCommand("start", "Open the Fantzo sports hub"),
+    BotCommand("team", "Find your cricket or football team"),
+    BotCommand("sports", "Cricket and football coverage"),
+    BotCommand("help", "Fantzo menu and help"),
 ]
 
 
@@ -622,8 +622,8 @@ def install() -> None:
                 import fantzo_business_flow_fix as live_flow
 
                 await update.effective_message.reply_text(
-                    "✅ <b>Your Telegram mobile is already verified.</b>\n\n"
-                    "Continue with Fantzo below.",
+                    "✅ <b>You're verified and all set.</b>\n\n"
+                    "👇 Continue with Fantzo below.",
                     parse_mode="HTML",
                     reply_markup=ReplyKeyboardRemove(),
                 )
@@ -673,8 +673,9 @@ def install() -> None:
             and update.effective_message
         ):
             await update.effective_message.reply_text(
-                "⚡ <b>Fantzo quick access enabled</b>\n\n"
-                "Use the buttons below anytime. Your Telegram mobile is already verified.",
+                "⚡ <b>Fantzo quick access is ready</b>\n\n"
+                "✅ You're verified and all set.\n"
+                "👇 Your shortcuts are pinned below the chat.",
                 parse_mode="HTML",
                 reply_markup=native_ui.verified_quick_menu(),
             )

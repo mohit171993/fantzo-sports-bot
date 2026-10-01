@@ -217,6 +217,10 @@ class RevocationTests(unittest.TestCase):
             self.assertIsNone(conn.execute('SELECT 1 FROM settings WHERE key LIKE ?', ('ibetin_revoke_%',)).fetchone())
 
 
+
+# Grouped admin home (admin_home_v2) tests run in the same build step.
+from test_admin_home_v2 import AdminHomeV2Tests, IbetinFlavourTests  # noqa: E402,F401
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
 

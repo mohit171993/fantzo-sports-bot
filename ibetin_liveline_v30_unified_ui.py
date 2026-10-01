@@ -2091,6 +2091,13 @@ v23._page = _page_v40_visual_polish
 v23.liveline._page = _page_v40_visual_polish
 logger.info("IBETIN V40 promoted to production Live route; V35 and V30 remain rollback baselines")
 
+# Match Centre (Full-mode Live Line): full scorecard, commentary, over timeline,
+# squads, points table, match info, win probability and Highlightly football.
+# Installed last so it wraps the final /liveline page and API; it never raises.
+import sys as _mc_sys
+import liveline_match_center as _match_centre
+_match_centre.install(_mc_sys.modules[__name__], brand="ibetin")
+
 app = v25.app
 
 if __name__ == '__main__':

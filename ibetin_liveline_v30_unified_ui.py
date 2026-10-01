@@ -760,7 +760,7 @@ def _page_v36_brand_preview() -> str:
     html = html.replace("<title>IBETIN Live Cricket</title>", "<title>IBETIN.COM · Live Sports</title>", 1)
     html = html.replace(
         '<div class="brand"><div class="mark">I</div><div><b>IBETIN</b><span>LIVE CRICKET</span></div></div><div class="liveDot">● LIVE</div>',
-        '<div class="brand"><div class="mark">I</div><div><b>IBETIN<span class="dotcom">.COM</span></b><span>LIVE SPORTS</span></div></div><div class="liveDot">● LIVE NOW</div>',
+        '<div class="brand"><div class="mark">I</div><div><b>DURABET<span class="dotcom">.COM</span></b><span>LIVE SPORTS</span></div></div><div class="liveDot">● LIVE NOW</div>',
         1,
     )
     html = html.replace(
@@ -822,7 +822,7 @@ body:before{content:"V37 PROMO PREVIEW";position:fixed;right:10px;top:8px;z-inde
 IBETIN_V37_PROMO_JS = r"""
 <script>
 (function(){
-  const IBETIN_LIVE_CRICKET_URL='https://ibetin.com/live/cricket?utm_source=telegram&utm_medium=miniapp&utm_campaign=ibetin_liveline';
+  const IBETIN_LIVE_CRICKET_URL='https://www.durabet.com/live/cricket?utm_source=telegram&utm_medium=miniapp&utm_campaign=ibetin_liveline';
   function openIbetinLive(){
     try{
       if(window.Telegram&&Telegram.WebApp&&typeof Telegram.WebApp.openLink==='function'){
@@ -838,12 +838,12 @@ IBETIN_V37_PROMO_JS = r"""
   homeOddsHtml=function(m){
     const base=v37BaseHomeOddsHtml(m);
     if(mode!=='live'||!base)return base;
-    return base+'<button class="ibHomePromo" onclick="event.stopPropagation();openIbetinLive()">More live markets on ibetin.com → <small>18+</small></button>';
+    return base+'<button class="ibHomePromo" onclick="event.stopPropagation();openIbetinLive()">More live markets on durabet.com → <small>18+</small></button>';
   };
 
   function quickPromoHtml(){
     return '<div class="ibQuickPromo" id="ibetinQuickPromo">'
-      +'<div><b>More live markets on ibetin.com</b><span>18+ · Please gamble responsibly</span></div>'
+      +'<div><b>More live markets on durabet.com</b><span>18+ · Please gamble responsibly</span></div>'
       +'<button onclick="openIbetinLive()">VIEW →</button>'
       +'</div>';
   }
@@ -861,9 +861,9 @@ IBETIN_V37_PROMO_JS = r"""
 
   function promoHtml(){
     return '<div class="ibPromoCard" id="ibetinPromoCard">'
-      +'<div class="ibPromoTop"><div class="ibPromoBrand">IBETIN<span>.COM</span></div><div class="ibPromoPill">18+ · BET RESPONSIBLY</div></div>'
+      +'<div class="ibPromoTop"><div class="ibPromoBrand">DURABET<span>.COM</span></div><div class="ibPromoPill">18+ · BET RESPONSIBLY</div></div>'
       +'<div class="ibPromoTitle">More live cricket markets</div>'
-      +'<div class="ibPromoCopy">Continue to ibetin.com to view the live cricket betting section and available markets.</div>'
+      +'<div class="ibPromoCopy">Continue to durabet.com to view the live cricket betting section and available markets.</div>'
       +'<button class="ibPromoBtn" onclick="openIbetinLive()">VIEW LIVE CRICKET MARKETS →</button>'
       +'<div class="ibPromoLegal">18+ only. Availability depends on your location and local laws. Please gamble responsibly.</div>'
       +'</div>';
@@ -894,7 +894,7 @@ IBETIN_V37_PROMO_JS = r"""
 
 def _page_v37_promo_preview() -> str:
     html = _page_v35_production()
-    html = html.replace("<title>IBETIN Live Cricket</title>", "<title>IBETIN Live Line · Powered by ibetin.com</title>", 1)
+    html = html.replace("<title>IBETIN Live Cricket</title>", "<title>IBETIN Live Line · Powered by durabet.com</title>", 1)
     html = html.replace(
         '<div class="brand"><div class="mark">I</div><div><b>IBETIN</b><span>LIVE CRICKET</span></div></div><div class="liveDot">● LIVE</div>',
         '<div class="brand"><div class="mark">I</div><div><b>IBETIN</b><span>LIVE LINE</span><small class="liveLineSub">POWERED BY IBETIN.COM</small></div></div><div class="liveDot">● LIVE</div>',
@@ -1039,7 +1039,7 @@ IBETIN_V38_MATCH_PULSE_JS = r"""
 
 def _page_v38_match_pulse() -> str:
     html = _page_v37_promo_preview()
-    html = html.replace("<title>IBETIN Live Line · Powered by ibetin.com</title>", "<title>IBETIN Live Line · Match Pulse V38</title>", 1)
+    html = html.replace("<title>IBETIN Live Line · Powered by durabet.com</title>", "<title>IBETIN Live Line · Match Pulse V38</title>", 1)
     html = html.replace("</style>", IBETIN_V38_MATCH_PULSE_CSS + "\n</style>", 1)
     html = html.replace("</body>", IBETIN_V38_MATCH_PULSE_JS + "\n</body>", 1)
     return html

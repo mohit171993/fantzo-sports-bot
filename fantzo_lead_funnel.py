@@ -380,31 +380,33 @@ async def notify_admin_verified(
         "🔁 <b>REVERIFIED FANTZO CONTACT</b>"
     )
 
-    try:
-        await application.bot.send_message(
-            chat_id=core.ADMIN_USER_ID,
-            text=(
-                f"{title}\n"
-                "━━━━━━━━━━━━━━━━━━\n\n"
-                f"Mobile: <code>{escape(str(mobile_e164))}</code>\n"
-                f"Telegram: @{escape(username) if username else '—'}\n"
-                f"Name: {escape(first_name or '—')}\n"
-                f"Campaign: <code>{escape(campaign)}</code>\n"
-                f"Verification source: <code>{escape(str(source or 'unknown'))}</code>\n"
-                f"User ID: <code>{int(user_id)}</code>\n\n"
-                f"Lead status: <b>{escape(lead_status)}</b>\n"
-                f"Open: <code>/lead {int(user_id)}</code>\n"
-                f"After contact: <code>/leadstatus {int(user_id)} CONTACTED</code>"
-            ),
-            parse_mode="HTML",
-            disable_web_page_preview=True,
-        )
-        logger.info(
-            "FANTZO_VERIFICATION_ADMIN_ALERT_SENT kind=%s user_id=%s chat_id=%s",
-            kind, user_id, core.ADMIN_USER_ID,
-        )
-    except Exception:
-        logger.exception("Could not send Fantzo %s admin alert", kind)
+    # Every full admin (ADMIN_USER_ID + @Liveline_proadmin) gets lead alerts.
+    for admin_id in sorted(core.admin_user_ids()):
+        try:
+            await application.bot.send_message(
+                chat_id=admin_id,
+                text=(
+                    f"{title}\n"
+                    "━━━━━━━━━━━━━━━━━━\n\n"
+                    f"Mobile: <code>{escape(str(mobile_e164))}</code>\n"
+                    f"Telegram: @{escape(username) if username else '—'}\n"
+                    f"Name: {escape(first_name or '—')}\n"
+                    f"Campaign: <code>{escape(campaign)}</code>\n"
+                    f"Verification source: <code>{escape(str(source or 'unknown'))}</code>\n"
+                    f"User ID: <code>{int(user_id)}</code>\n\n"
+                    f"Lead status: <b>{escape(lead_status)}</b>\n"
+                    f"Open: <code>/lead {int(user_id)}</code>\n"
+                    f"After contact: <code>/leadstatus {int(user_id)} CONTACTED</code>"
+                ),
+                parse_mode="HTML",
+                disable_web_page_preview=True,
+            )
+            logger.info(
+                "FANTZO_VERIFICATION_ADMIN_ALERT_SENT kind=%s user_id=%s chat_id=%s",
+                kind, user_id, admin_id,
+            )
+        except Exception:
+            logger.exception("Could not send Fantzo %s admin alert to %s", kind, admin_id)
 
 
 def record_post_verify_view(user_id: int) -> None:

@@ -693,26 +693,30 @@ async def _prompt_mobile_verification(update, context, source: str = "bot_start"
 async def _notify_verified_lead(context, user, phone: str, source: str, campaign: str) -> None:
     username = f"@{user.username}" if getattr(user, "username", None) else "—"
     first_name = str(getattr(user, "first_name", "") or "—")
-    try:
-        await context.bot.send_message(
-            chat_id=ibetin_reports.notification_admin_user_id(),
-            text=(
-                "🆕 <b>NEW VERIFIED DURASPORTS LEAD</b>\n"
-                "━━━━━━━━━━━━━━━━━━\n\n"
-                f"👤 Name: <b>{first_name}</b>\n"
-                f"🔗 Telegram: <b>{username}</b>\n"
-                f"📱 Mobile: <code>{phone}</code>\n"
-                f"🎯 Campaign: <code>{campaign or 'direct'}</code>\n"
-                f"📥 Source: <b>{source}</b>\n"
-                "☎️ Follow-up: <b>Call + WhatsApp</b>\n\n"
-                "Update the lead status below after follow-up."
-            ),
-            parse_mode="HTML",
-            reply_markup=ibetin_reports.lead_status_keyboard(int(user.id)),
-            disable_web_page_preview=True,
-        )
-    except Exception:
-        logger.exception("Could not send DURASPORTS verified lead alert")
+    # Report admin keeps getting alerts; @Liveline_proadmin (EXTRA_ADMIN_USER_IDS) too.
+    recipients = {int(ibetin_reports.notification_admin_user_id())}
+    recipients.update(int(x) for x in getattr(app.core, "EXTRA_ADMIN_USER_IDS", ()))
+    for admin_id in sorted(recipients):
+        try:
+            await context.bot.send_message(
+                chat_id=admin_id,
+                text=(
+                    "🆕 <b>NEW VERIFIED DURASPORTS LEAD</b>\n"
+                    "━━━━━━━━━━━━━━━━━━\n\n"
+                    f"👤 Name: <b>{first_name}</b>\n"
+                    f"🔗 Telegram: <b>{username}</b>\n"
+                    f"📱 Mobile: <code>{phone}</code>\n"
+                    f"🎯 Campaign: <code>{campaign or 'direct'}</code>\n"
+                    f"📥 Source: <b>{source}</b>\n"
+                    "☎️ Follow-up: <b>Call + WhatsApp</b>\n\n"
+                    "Update the lead status below after follow-up."
+                ),
+                parse_mode="HTML",
+                reply_markup=ibetin_reports.lead_status_keyboard(int(user.id)),
+                disable_web_page_preview=True,
+            )
+        except Exception:
+            logger.exception("Could not send DURASPORTS verified lead alert to %s", admin_id)
 
 
 async def mobile_contact_handler(update, context) -> None:
